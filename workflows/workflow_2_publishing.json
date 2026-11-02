@@ -1,0 +1,274 @@
+{
+  "name": "Workflow 2 - LinkedIn Publishing & Telegram Command Handler",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "telegram-webhook",
+        "options": {}
+      },
+      "id": "webhook-telegram",
+      "name": "Telegram Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [100, 300],
+      "webhookId": "telegram-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.item.json.body || $input.item.json;\nconst message = body.message || body.edited_message || {};\nconst fromId = String(message.from?.id || '');\nconst chatId = message.chat?.id || fromId;\nconst text = (message.text || '').trim();\nconst allowedId = String($env.TELEGRAM_ALLOWED_USER_ID || '');\n\nif (!fromId || !allowedId || fromId !== allowedId) {\n  return [{\n    json: {\n      authorized: false,\n      chatId,\n      text,\n      command: 'unauthorized',\n      replyText: '⛔ Unauthorized: Telegram User ID not authorized.'\n    }\n  }];\n}\n\nlet command = 'unknown';\nlet draftId = null;\n\nif (text.startsWith('/approve')) {\n  command = 'approve';\n  const parts = text.split(/\\s+/);\n  if (parts.length > 1 && parts[1]) {\n    draftId = parts[1];\n  }\n} else if (text.startsWith('/reject')) {\n  command = 'reject';\n  const parts = text.split(/\\s+/);\n  if (parts.length > 1 && parts[1]) {\n    draftId = parts[1];\n  }\n} else if (text.startsWith('/generate')) {\n  command = 'generate';\n}\n\nreturn [{\n  json: {\n    authorized: true,\n    command,\n    draftId,\n    chatId,\n    rawText: text\n  }\n}];"
+      },
+      "id": "security-check",
+      "name": "Security & Command Parser",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [320, 300]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "approve",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "reject",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "generate",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        }
+      },
+      "id": "command-router",
+      "name": "Command Router",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [540, 300]
+    },
+    {
+      "parameters": {
+        "command": "=node scripts/linkedin_publisher.js {{ $json.draftId ? $json.draftId : '' }}"
+      },
+      "id": "linkedin-publishing-node",
+      "name": "LinkedIn Publishing Node",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [780, 160],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const stdout = $input.item.json.stdout || '';\nconst stderr = $input.item.json.stderr || '';\nlet result = {};\ntry {\n  result = JSON.parse(stdout);\n} catch {\n  result = { success: false, error: stderr || stdout || 'Unknown execution error' };\n}\n\nconst prev = $('Security & Command Parser').first().json;\nconst chatId = prev.chatId;\nlet replyText = '';\n\nif (result.success) {\n  replyText = `✅ *Post Published Successfully to LinkedIn!*\\n\\n*Draft ID:* #${result.draftId}\\n*Live URL:* ${result.liveUrl}\\n*Media URN:* \\`${result.imageUrn}\\``;\n} else {\n  const draftId = result.draftId || prev.draftId || 'latest';\n  replyText = `❌ *Failed to Publish Draft #${draftId}*\\n\\n*Error:* ${result.error || 'Publishing failed'}\\n\\n_The draft has been retained in queue for retry._`;\n}\n\nreturn [{\n  json: {\n    chatId,\n    replyText,\n    result\n  }\n}];"
+      },
+      "id": "format-publish-reply",
+      "name": "Format Publishing Reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1000, 160]
+    },
+    {
+      "parameters": {
+        "jsCode": "const fs = require('fs');\nconst filePath = 'data/pending_drafts.json';\nconst prev = $('Security & Command Parser').first().json;\nconst draftId = prev.draftId;\nconst chatId = prev.chatId;\nlet replyText = '';\n\ntry {\n  if (fs.existsSync(filePath)) {\n    const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));\n    const drafts = Array.isArray(data) ? data : (data.drafts || []);\n    let targetId = draftId;\n    if (!targetId && drafts.length > 0) {\n      targetId = drafts[drafts.length - 1].id;\n    }\n    const remaining = drafts.filter(d => String(d.id) !== String(targetId));\n    const output = Array.isArray(data) ? remaining : { ...data, drafts: remaining };\n    fs.writeFileSync(filePath, JSON.stringify(output, null, 2), 'utf8');\n    replyText = `🗑️ *Draft Rejected*\\n\\nDraft #${targetId || 'latest'} has been removed from the queue.`;\n  } else {\n    replyText = '⚠️ *No pending drafts found to reject.*';\n  }\n} catch (err) {\n  replyText = `❌ *Error rejecting draft:* ${err.message}`;\n}\n\nreturn [{\n  json: {\n    chatId,\n    replyText\n  }\n}];"
+      },
+      "id": "handle-reject-node",
+      "name": "Handle Rejection Node",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [780, 320]
+    },
+    {
+      "parameters": {
+        "jsCode": "const prev = $('Security & Command Parser').first().json;\nconst chatId = prev.chatId;\n\nreturn [{\n  json: {\n    chatId,\n    replyText: '⚡ *Generating New Technical Draft...*\\n\\nA new post breakdown and visual asset are being created. You will receive a preview shortly.'\n  }\n}];"
+      },
+      "id": "handle-generate-node",
+      "name": "Handle Generate Node",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [780, 480]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "={{ $json.chatId }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.replyText }}"
+            },
+            {
+              "name": "parse_mode",
+              "value": "Markdown"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "telegram-reply-node",
+      "name": "Telegram Reply Node",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1240, 300]
+    }
+  ],
+  "connections": {
+    "Telegram Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Security & Command Parser",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Security & Command Parser": {
+      "main": [
+        [
+          {
+            "node": "Command Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Command Router": {
+      "main": [
+        [
+          {
+            "node": "LinkedIn Publishing Node",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handle Rejection Node",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handle Generate Node",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LinkedIn Publishing Node": {
+      "main": [
+        [
+          {
+            "node": "Format Publishing Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Publishing Reply": {
+      "main": [
+        [
+          {
+            "node": "Telegram Reply Node",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Rejection Node": {
+      "main": [
+        [
+          {
+            "node": "Telegram Reply Node",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Generate Node": {
+      "main": [
+        [
+          {
+            "node": "Telegram Reply Node",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "b6a67f67-8899-4d6d-885f-825fb49386b7",
+  "id": "workflow-2-publishing",
+  "meta": {
+    "instanceId": "linkedin-automation-instance"
+  },
+  "tags": []
+}
