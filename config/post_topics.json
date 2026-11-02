@@ -1,0 +1,289 @@
+[
+  {
+    "id": 1,
+    "slug": "distributed-idempotency-keys",
+    "title": "Idempotency Keys in Distributed Systems: Preventing Duplicate Transactions",
+    "concept": "How payment gateways and distributed APIs use unique idempotency keys stored in Redis or transactional databases with atomic conditional writes (SETNX) to achieve exactly-once processing semantics over at-least-once network delivery.",
+    "keywords": [
+      "distributed-systems",
+      "idempotency",
+      "redis",
+      "api-design",
+      "system-design"
+    ],
+    "language": "ar",
+    "status": "pending",
+    "published_at": null
+  },
+  {
+    "id": 2,
+    "slug": "event-driven-saga-pattern",
+    "title": "The Saga Pattern: Orchestration vs Choreography in Distributed Transactions",
+    "concept": "Managing distributed transactions without two-phase commit (2PC) using compensating actions, contrasting central workflow orchestrators with decentralized event choreography via Kafka and RabbitMQ.",
+    "keywords": [
+      "saga-pattern",
+      "microservices",
+      "event-driven",
+      "distributed-transactions",
+      "kafka"
+    ],
+    "language": "ar",
+    "status": "pending",
+    "published_at": null
+  },
+  {
+    "id": 3,
+    "slug": "cache-aside-stampede-prevention",
+    "title": "Cache-Aside & Thundering Herd: Defending Distributed Caches at Scale",
+    "concept": "Mitigating cache stampedes, hotkey contention, and dog-piling effects during TTL expiration using probabilistic early expiration (XFetch algorithm), mutex locks, and read-through caching patterns.",
+    "keywords": [
+      "caching",
+      "system-design",
+      "redis",
+      "scalability",
+      "concurrency"
+    ],
+    "language": "ar",
+    "status": "pending",
+    "published_at": null
+  },
+  {
+    "id": 4,
+    "slug": "database-sharding-consistent-hashing",
+    "title": "Consistent Hashing & Database Sharding: Dynamic Node Scaling",
+    "concept": "Partitioning massive relational and NoSQL databases horizontally with consistent hashing rings and virtual nodes, minimizing key re-distribution when cluster nodes join or leave.",
+    "keywords": [
+      "database-sharding",
+      "consistent-hashing",
+      "horizontal-scaling",
+      "data-partitioning"
+    ],
+    "language": "en",
+    "status": "pending",
+    "published_at": null
+  },
+  {
+    "id": 5,
+    "slug": "rate-limiting-algorithms-comparison",
+    "title": "Distributed Rate Limiting: Token Bucket vs Leaky Bucket vs Sliding Window Counter",
+    "concept": "Architecting high-throughput API rate limiters using Redis sliding window logs and memory-efficient Lua scripts to enforce client quotas without race conditions.",
+    "keywords": [
+      "rate-limiting",
+      "api-gateway",
+      "redis-lua",
+      "system-design",
+      "traffic-management"
+    ],
+    "language": "ar",
+    "status": "pending",
+    "published_at": null
+  },
+  {
+    "id": 6,
+    "slug": "cqrs-event-sourcing-tradeoffs",
+    "title": "CQRS and Event Sourcing: High Performance Read-Write Segregation",
+    "concept": "Decoupling command mutations from query models to enable hyper-optimized read projections, eventual consistency handling, and full auditability through immutable event logs.",
+    "keywords": [
+      "cqrs",
+      "event-sourcing",
+      "domain-driven-design",
+      "eventual-consistency",
+      "software-architecture"
+    ],
+    "language": "ar",
+    "status": "pending",
+    "published_at": null
+  },
+  {
+    "id": 7,
+    "slug": "circuit-breaker-bulkhead-resilience",
+    "title": "Circuit Breakers & Bulkhead Isolation: Building Fault-Tolerant Microservices",
+    "concept": "Preventing cascading failures in distributed call chains using three-state circuit breakers (Closed, Open, Half-Open), thread-pool isolation bulkheads, and exponential backoff with jitter.",
+    "keywords": [
+      "resilience",
+      "fault-tolerance",
+      "circuit-breaker",
+      "microservices",
+      "reliability"
+    ],
+    "language": "en",
+    "status": "pending",
+    "published_at": null
+  },
+  {
+    "id": 8,
+    "slug": "distributed-locking-redlock-pitfalls",
+    "title": "Distributed Locks with Redis Redlock: Guarantees, Caveats, and Fencing Tokens",
+    "concept": "Deep dive into Martin Kleppmann's critique of Redlock, the hazards of GC pauses and clock skew, and why monotonically increasing fencing tokens are mandatory for data safety.",
+    "keywords": [
+      "distributed-locking",
+      "redis",
+      "redlock",
+      "fencing-tokens",
+      "consensus"
+    ],
+    "language": "ar",
+    "status": "pending",
+    "published_at": null
+  },
+  {
+    "id": 9,
+    "slug": "hexagonal-ports-and-adapters",
+    "title": "Hexagonal Architecture (Ports and Adapters): Future-Proof Core Business Logic",
+    "concept": "Isolating domain entities and use cases from database drivers, external transport layers, and framework dependencies using inversion of control and explicit port interfaces.",
+    "keywords": [
+      "clean-architecture",
+      "hexagonal-architecture",
+      "domain-driven-design",
+      "clean-code",
+      "refactoring"
+    ],
+    "language": "ar",
+    "status": "pending",
+    "published_at": null
+  },
+  {
+    "id": 10,
+    "slug": "two-phase-commit-vs-paxos-raft",
+    "title": "Consensus Protocols: Why Raft and Paxos Outperform 2PC in Modern Clouds",
+    "concept": "Examining why traditional Two-Phase Commit is blocking and fragile during network partitions, and how quorum-based consensus (Raft/Paxos) provides high availability and partition tolerance.",
+    "keywords": [
+      "consensus",
+      "raft",
+      "paxos",
+      "cap-theorem",
+      "distributed-systems"
+    ],
+    "language": "en",
+    "status": "pending",
+    "published_at": null
+  },
+  {
+    "id": 11,
+    "slug": "solid-dependency-inversion-in-practice",
+    "title": "Dependency Inversion Principle (DIP): Beyond Mere Dependency Injection",
+    "concept": "Distinguishing DIP from DI containers: creating stable abstractions owned by the high-level policy rather than low-level detail modules to eliminate circular coupling.",
+    "keywords": [
+      "solid",
+      "clean-code",
+      "dependency-inversion",
+      "software-design-principles",
+      "maintainability"
+    ],
+    "language": "ar",
+    "status": "pending",
+    "published_at": null
+  },
+  {
+    "id": 12,
+    "slug": "vector-clocks-conflict-resolution",
+    "title": "Vector Clocks and Version Vectors: Resolving Concurrent Writes in AP Databases",
+    "concept": "Detecting causal concurrency and conflicting writes in Dynamo-style distributed stores (Cassandra, Riak) using vector clocks and application-level CRDT reconciliation.",
+    "keywords": [
+      "vector-clocks",
+      "crdt",
+      "dynamo",
+      "eventual-consistency",
+      "distributed-systems"
+    ],
+    "language": "ar",
+    "status": "pending",
+    "published_at": null
+  },
+  {
+    "id": 13,
+    "slug": "strangler-fig-pattern-monolith-migration",
+    "title": "Strangler Fig Pattern: Safely Deconstructing the Monolith Without Big Bangs",
+    "concept": "Incrementally replacing legacy monolithic endpoints with modern microservices via reverse-proxy traffic routing, feature flags, and shadow traffic validation.",
+    "keywords": [
+      "monolith-migration",
+      "microservices",
+      "strangler-pattern",
+      "architecture-modernization",
+      "devops"
+    ],
+    "language": "ar",
+    "status": "pending",
+    "published_at": null
+  },
+  {
+    "id": 14,
+    "slug": "concurrency-worker-pool-backpressure",
+    "title": "Worker Pools and Backpressure: Preventing Node.js Event Loop Starvation",
+    "concept": "Managing heavy I/O and CPU workloads using bounded queue worker pools, stream backpressure, and graceful degradation under sudden burst traffic spikes.",
+    "keywords": [
+      "nodejs",
+      "concurrency",
+      "backpressure",
+      "event-loop",
+      "performance-optimization"
+    ],
+    "language": "ar",
+    "status": "pending",
+    "published_at": null
+  },
+  {
+    "id": 15,
+    "slug": "domain-driven-design-aggregate-roots",
+    "title": "Aggregate Roots in Domain-Driven Design: Enforcing Transactional Invariants",
+    "concept": "Designing transactional boundaries around entity clusters, preventing direct external access to child entities, and ensuring consistency boundaries remain atomic and lean.",
+    "keywords": [
+      "domain-driven-design",
+      "aggregate-roots",
+      "software-architecture",
+      "clean-code",
+      "business-logic"
+    ],
+    "language": "ar",
+    "status": "pending",
+    "published_at": null
+  },
+  {
+    "id": 16,
+    "slug": "database-indexing-btree-vs-lsm",
+    "title": "B-Trees vs LSM-Trees: Storage Engine Tradeoffs for Read vs Write-Heavy Workloads",
+    "concept": "Contrasting MySQL/Postgres in-place B+Tree indexing with RocksDB/Cassandra append-only Log-Structured Merge trees, write amplification, and compaction strategies.",
+    "keywords": [
+      "databases",
+      "storage-engines",
+      "b-trees",
+      "lsm-trees",
+      "system-design"
+    ],
+    "language": "en",
+    "status": "pending",
+    "published_at": null
+  },
+  {
+    "id": 17,
+    "slug": "zero-downtime-deployment-schema-migrations",
+    "title": "Expand and Contract Pattern: Zero-Downtime Database Schema Migrations",
+    "concept": "Safely altering production tables with hundreds of millions of records using phased additive column expansion, dual-writing, backfilling, and contract deprecation.",
+    "keywords": [
+      "database-migrations",
+      "zero-downtime",
+      "devops",
+      "schema-evolution",
+      "reliability"
+    ],
+    "language": "ar",
+    "status": "pending",
+    "published_at": null
+  },
+  {
+    "id": 18,
+    "slug": "distributed-tracing-opentelemetry",
+    "title": "Distributed Tracing with OpenTelemetry: Context Propagation Across Microservices",
+    "concept": "Propagating W3C TraceContext headers (traceparent) across async queues and HTTP boundaries to trace cross-service latency bottlenecks and isolate failure cascades.",
+    "keywords": [
+      "opentelemetry",
+      "observability",
+      "distributed-tracing",
+      "microservices",
+      "debugging"
+    ],
+    "language": "ar",
+    "status": "pending",
+    "published_at": null
+  }
+]
