@@ -20,6 +20,19 @@ export const DEPRECATED_VISUAL_MODELS = [
   'gemini-3.1-flash-image',
 ];
 
+export const DEFAULT_CF_TEXT_MODEL = '@cf/meta/llama-3.1-70b-instruct';
+export const DEFAULT_CF_IMAGE_MODEL = '@cf/black-forest-labs/flux-1-schnell';
+export const CF_API_BASE = 'https://api.cloudflare.com/client/v4/accounts';
+
+/**
+ * Checks if Cloudflare credentials are provided via options or environment variables.
+ */
+export function hasCloudflareCredentials(options = {}) {
+  const accountId = options.cfAccountId || process.env.CLOUDFLARE_ACCOUNT_ID;
+  const apiToken = options.cfApiToken || process.env.CLOUDFLARE_API_TOKEN;
+  return Boolean(accountId && apiToken);
+}
+
 /**
  * Normalizes text model selection, rejecting deprecated models and defaulting to gemini-3.8-flash.
  */
@@ -148,73 +161,141 @@ export function resolveVisualAsset(topicSlug, { assetsDir = 'assets' } = {}) {
 }
 
 /**
- * Generates post text adhering to the 5-element breakdown using gemini-3.8-flash.
+ * Calls Cloudflare Workers AI REST API using native fetch.
  */
-export async function generatePostContent(topic, options = {}) {
-  const {
-    client = null,
-    model = DEFAULT_TEXT_MODEL,
-  } = options;
+export async function callCloudflareWorkersAI({
+  model,
+  body,
+  accountId = process.env.CLOUDFLARE_ACCOUNT_ID,
+  apiToken = process.env.CLOUDFLARE_API_TOKEN,
+  fetchClient = globalThis.fetch,
+} = {}) {
+  if (!accountId || !apiToken) {
+    throw new Error('CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN are required');
+  }
+  if (!fetchClient || typeof fetchClient !== 'function') {
+    throw new Error('fetchClient function is required to call Cloudflare Workers AI');
+  }
 
-  const validModel = normalizeTextModel(model);
-  const prompt = buildContentPrompt(topic);
-
-  const geminiClient = client || await createGeminiClient();
-
-  const interaction = await geminiClient.interactions.create({
-    model: validModel,
-    input: prompt,
+  const url = `${CF_API_BASE}/${accountId}/ai/run/${model}`;
+  const response = await fetchClient(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
   });
 
-  const text = interaction?.output_text ?? interaction?.text ?? (typeof interaction === 'string' ? interaction : '');
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Cloudflare Workers AI HTTP ${response.status}: ${errorText}`);
+  }
+
+  const contentType = response.headers?.get?.('content-type') || '';
+  if (contentType.includes('application/json')) {
+    return await response.json();
+  }
+
+  const arrayBuffer = await response.arrayBuffer();
+  return Buffer.from(arrayBuffer);
+}
+
+/**
+ * Generates post text strictly adhering to 5 elements via Cloudflare Workers AI (Llama 3.1 70B).
+ */
+export async function generatePostContentCloudflare(topic, options = {}) {
+  const explicitModel =
+    options.cfTextModel ||
+    options.cfModel ||
+    (options.model && !options.model.startsWith('gemini') ? options.model : null);
+  const model = explicitModel || process.env.CLOUDFLARE_TEXT_MODEL || DEFAULT_CF_TEXT_MODEL;
+
+  const {
+    accountId = options.cfAccountId || process.env.CLOUDFLARE_ACCOUNT_ID,
+    apiToken = options.cfApiToken || process.env.CLOUDFLARE_API_TOKEN,
+    fetchClient = options.fetchClient || globalThis.fetch,
+  } = options;
+
+  const prompt = buildContentPrompt(topic);
+  const body = {
+    messages: [
+      {
+        role: 'system',
+        content: 'You are a Principal Software Architect writing a high-signal technical post for LinkedIn aimed at engineering leaders.',
+      },
+      {
+        role: 'user',
+        content: prompt,
+      },
+    ],
+  };
+
+  const data = await callCloudflareWorkersAI({
+    model,
+    body,
+    accountId,
+    apiToken,
+    fetchClient,
+  });
+
+  const text =
+    data?.result?.response ??
+    data?.result?.choices?.[0]?.message?.content ??
+    data?.result?.choices?.[0]?.text ??
+    (typeof data?.result === 'string' ? data.result : null);
+
   if (!text || typeof text !== 'string' || !text.trim()) {
-    throw new Error('Gemini text generation returned empty content');
+    throw new Error('Cloudflare text generation returned empty content');
   }
 
   return {
     text: text.trim(),
-    model: validModel,
+    model,
+    provider: 'cloudflare',
   };
 }
 
 /**
- * Generates visual asset fallback using gemini-nano-banana-2.1 and writes to data/generated_images/.
+ * Generates visual asset fallback via Cloudflare Workers AI (FLUX.1-schnell).
  */
-export async function generateVisualAsset(topic, options = {}) {
+export async function generateVisualAssetCloudflare(topic, options = {}) {
+  const explicitModel =
+    options.cfImageModel ||
+    options.cfModel ||
+    (options.model && !options.model.startsWith('gemini') ? options.model : null);
+  const model = explicitModel || process.env.CLOUDFLARE_IMAGE_MODEL || DEFAULT_CF_IMAGE_MODEL;
+
   const {
-    client = null,
-    model = DEFAULT_VISUAL_MODEL,
     outputDir = 'data/generated_images',
+    accountId = options.cfAccountId || process.env.CLOUDFLARE_ACCOUNT_ID,
+    apiToken = options.cfApiToken || process.env.CLOUDFLARE_API_TOKEN,
+    fetchClient = options.fetchClient || globalThis.fetch,
   } = options;
 
-  const validModel = normalizeVisualModel(model);
   const visualPrompt = buildVisualPrompt(topic);
+  const body = { prompt: visualPrompt };
 
-  const geminiClient = client || await createGeminiClient();
-
-  const interaction = await geminiClient.interactions.create({
-    model: validModel,
-    input: visualPrompt,
+  const data = await callCloudflareWorkersAI({
+    model,
+    body,
+    accountId,
+    apiToken,
+    fetchClient,
   });
 
-  let imageData = null;
-  if (interaction?.output_image?.data) {
-    imageData = interaction.output_image.data;
-  } else if (interaction?.image?.data) {
-    imageData = interaction.image.data;
-  } else if (interaction?.data) {
-    imageData = interaction.data;
-  } else if (Buffer.isBuffer(interaction?.output_image)) {
-    imageData = interaction.output_image;
+  let imageBuffer = null;
+  if (Buffer.isBuffer(data)) {
+    imageBuffer = data;
+  } else if (data?.result?.image) {
+    imageBuffer = Buffer.from(data.result.image, 'base64');
+  } else if (typeof data?.result === 'string') {
+    imageBuffer = Buffer.from(data.result, 'base64');
   }
 
-  if (!imageData) {
-    throw new Error('Gemini visual generation did not return valid image data');
+  if (!imageBuffer || imageBuffer.length === 0) {
+    throw new Error('Cloudflare visual generation did not return valid image data');
   }
-
-  const buffer = Buffer.isBuffer(imageData)
-    ? imageData
-    : Buffer.from(imageData, 'base64');
 
   const resolvedOutputDir = path.resolve(process.cwd(), outputDir);
   if (!fs.existsSync(resolvedOutputDir)) {
@@ -226,18 +307,132 @@ export async function generateVisualAsset(topic, options = {}) {
   const relativeFilePath = path.join(outputDir, filename);
   const absoluteFilePath = path.join(resolvedOutputDir, filename);
 
-  fs.writeFileSync(absoluteFilePath, buffer);
+  fs.writeFileSync(absoluteFilePath, imageBuffer);
 
   return {
     visualPath: relativeFilePath,
     visualSource: 'generated',
-    model: validModel,
+    model,
+    provider: 'cloudflare',
   };
 }
 
 /**
+ * Generates post text adhering to the 5-element breakdown using gemini-3.8-flash,
+ * with automatic fallback to Cloudflare Workers AI if Gemini fails or is unavailable.
+ */
+export async function generatePostContent(topic, options = {}) {
+  const {
+    client = null,
+    model = DEFAULT_TEXT_MODEL,
+    fetchClient = globalThis.fetch,
+  } = options;
+
+  const validModel = normalizeTextModel(model);
+  const prompt = buildContentPrompt(topic);
+
+  try {
+    const geminiClient = client || await createGeminiClient();
+
+    const interaction = await geminiClient.interactions.create({
+      model: validModel,
+      input: prompt,
+    });
+
+    const text = interaction?.output_text ?? interaction?.text ?? (typeof interaction === 'string' ? interaction : '');
+    if (!text || typeof text !== 'string' || !text.trim()) {
+      throw new Error('Gemini text generation returned empty content');
+    }
+
+    return {
+      text: text.trim(),
+      model: validModel,
+      provider: 'gemini',
+    };
+  } catch (geminiError) {
+    if (hasCloudflareCredentials(options)) {
+      console.warn(`[Fallback] Gemini text generation failed (${geminiError.message}). Falling back to Cloudflare Workers AI.`);
+      const { model: _ignored, ...restOptions } = options;
+      return await generatePostContentCloudflare(topic, { ...restOptions, fetchClient });
+    }
+    throw geminiError;
+  }
+}
+
+/**
+ * Generates visual asset fallback using gemini-nano-banana-2.1,
+ * with automatic fallback to Cloudflare Workers AI (FLUX.1-schnell) if Gemini fails.
+ */
+export async function generateVisualAsset(topic, options = {}) {
+  const {
+    client = null,
+    model = DEFAULT_VISUAL_MODEL,
+    outputDir = 'data/generated_images',
+    fetchClient = globalThis.fetch,
+  } = options;
+
+  const validModel = normalizeVisualModel(model);
+  const visualPrompt = buildVisualPrompt(topic);
+
+  try {
+    const geminiClient = client || await createGeminiClient();
+
+    const interaction = await geminiClient.interactions.create({
+      model: validModel,
+      input: visualPrompt,
+    });
+
+    let imageData = null;
+    if (interaction?.output_image?.data) {
+      imageData = interaction.output_image.data;
+    } else if (interaction?.image?.data) {
+      imageData = interaction.image.data;
+    } else if (interaction?.data) {
+      imageData = interaction.data;
+    } else if (Buffer.isBuffer(interaction?.output_image)) {
+      imageData = interaction.output_image;
+    }
+
+    if (!imageData) {
+      throw new Error('Gemini visual generation did not return valid image data');
+    }
+
+    const buffer = Buffer.isBuffer(imageData)
+      ? imageData
+      : Buffer.from(imageData, 'base64');
+
+    const resolvedOutputDir = path.resolve(process.cwd(), outputDir);
+    if (!fs.existsSync(resolvedOutputDir)) {
+      fs.mkdirSync(resolvedOutputDir, { recursive: true });
+    }
+
+    const slug = topic?.slug || `generated-${Date.now()}`;
+    const filename = `${slug}.png`;
+    const relativeFilePath = path.join(outputDir, filename);
+    const absoluteFilePath = path.join(resolvedOutputDir, filename);
+
+    fs.writeFileSync(absoluteFilePath, buffer);
+
+    return {
+      visualPath: relativeFilePath,
+      visualSource: 'generated',
+      model: validModel,
+      provider: 'gemini',
+    };
+  } catch (geminiError) {
+    if (hasCloudflareCredentials(options)) {
+      console.warn(`[Fallback] Gemini visual generation failed (${geminiError.message}). Falling back to Cloudflare Workers AI.`);
+      const { model: _ignored, ...restOptions } = options;
+      return await generateVisualAssetCloudflare(topic, { ...restOptions, outputDir, fetchClient });
+    }
+    throw geminiError;
+  }
+}
+
+/**
  * Orchestrates dual-visual synthesis and 5-element technical content generation.
- * Priority: checks assets/<topic-slug>.* FIRST. Only invokes Gemini visual generation if no local asset exists.
+ * Priority: checks assets/<topic-slug>.* FIRST. Only invokes visual generation if no local asset exists.
+ * Automatically falls back to Cloudflare Workers AI if Gemini services are unavailable.
  */
 export async function synthesizeDraft(topic, options = {}) {
   const {
@@ -246,6 +441,7 @@ export async function synthesizeDraft(topic, options = {}) {
     outputDir = 'data/generated_images',
     textModel = DEFAULT_TEXT_MODEL,
     visualModel = DEFAULT_VISUAL_MODEL,
+    fetchClient = globalThis.fetch,
   } = options;
 
   if (!topic) {
@@ -261,20 +457,25 @@ export async function synthesizeDraft(topic, options = {}) {
       visualPath: localAsset,
       visualSource: 'local',
       model: null,
+      provider: 'local',
     };
   } else {
-    // 2. Generate fallback visual via Gemini
+    // 2. Generate visual via Gemini (with automatic Cloudflare fallback)
     visualResult = await generateVisualAsset(topic, {
+      ...options,
       client,
       model: visualModel,
       outputDir,
+      fetchClient,
     });
   }
 
-  // 3. Generate 5-element breakdown technical text via gemini-3.8-flash
+  // 3. Generate 5-element breakdown technical text via Gemini (with automatic Cloudflare fallback)
   const textResult = await generatePostContent(topic, {
+    ...options,
     client,
     model: textModel,
+    fetchClient,
   });
 
   return {
@@ -285,6 +486,10 @@ export async function synthesizeDraft(topic, options = {}) {
     modelUsed: {
       text: textResult.model,
       visual: visualResult.model,
+    },
+    providerUsed: {
+      text: textResult.provider || 'gemini',
+      visual: visualResult.provider || (visualResult.visualSource === 'local' ? 'local' : 'gemini'),
     },
   };
 }

@@ -34,7 +34,8 @@ An automated system that orchestrates technical content generation, AI visual sy
 - **Decoupled Workflow Architecture**: Split into two distinct n8n workflows: a Content Generator & Stager workflow (cron and webhook-driven) and a Command Handler & Publisher workflow (Telegram webhook-driven), isolating background scheduling from interactive event handling.
 - **Telegram Command Approval Interface**: Interactivity uses plain chat commands (`/approve [id]`, `/reject [id]`, `/generate`) rather than inline callback buttons or synchronous wait nodes, decoupling review timing from workflow execution timeouts.
 - **Sequential Multi-Draft Persistence**: Pending drafts are stored in a local JSON file (`data/pending_drafts.json`) indexed by sequential numeric `Draft ID`. Drafts remain stored until explicitly approved or rejected.
-- **Dual Visual Asset Strategy**: When staging a draft, the workflow inspects the local `assets/` directory for an image associated with the current topic. If present, it uses this asset directly; otherwise, it invokes Gemini's image generation (Imagen) to create a conceptual tech graphic.
+- **Dual Visual Asset Strategy & Fallback**: When staging a draft, the workflow inspects the local `assets/` directory for an image associated with the current topic. If present, it uses this asset directly; otherwise, it invokes Gemini's image generation (gemini-nano-banana-2.1). If Gemini visual generation fails or is unavailable, it automatically falls back to Cloudflare Workers AI FLUX.1-schnell (`@cf/black-forest-labs/flux-1-schnell`).
+- **AI Engine Redundancy (Cloudflare Fallback)**: Google Gemini (`gemini-3.8-flash`) acts as the primary text generation engine. If Gemini encounters rate limits (HTTP 429), quota limits, or outages, the engine seamlessly falls back to Cloudflare Workers AI REST API running `@cf/meta/llama-3.1-70b-instruct` via native `fetch` without requiring extra npm packages.
 - **Dual-Language Configuration**: Content defaults to technical Arabic with English technical nomenclature, with an optional `language` attribute in `post_topics.json` supporting English-only generation.
 - **LinkedIn Media Assets Protocol**: Publishing implements LinkedIn's v2 REST protocol:
   1. `POST /rest/images?action=initializeUpload` with owner URN (`urn:li:person:...`).
@@ -67,5 +68,5 @@ An automated system that orchestrates technical content generation, AI visual sy
 
 ## Further Notes
 
-- Required environment variables: `GEMINI_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOWED_USER_ID`, `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`, `LINKEDIN_PERSON_URN`, `NGROK_AUTHTOKEN`, `NGROK_DOMAIN`.
+- Required environment variables: `GEMINI_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOWED_USER_ID`, `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`, `LINKEDIN_PERSON_URN`, `NGROK_AUTHTOKEN`, `NGROK_DOMAIN`. Optional fallback credentials: `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_TEXT_MODEL`, `CLOUDFLARE_IMAGE_MODEL`.
 - The domain glossary is maintained in `GLOSSARY.md` and architectural rationale is recorded in `docs/adr/`.

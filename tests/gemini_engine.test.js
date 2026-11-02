@@ -7,6 +7,9 @@ import {
   DEFAULT_TEXT_MODEL,
   DEFAULT_VISUAL_MODEL,
   FALLBACK_VISUAL_MODEL,
+  DEFAULT_CF_TEXT_MODEL,
+  DEFAULT_CF_IMAGE_MODEL,
+  hasCloudflareCredentials,
   normalizeTextModel,
   normalizeVisualModel,
   buildContentPrompt,
@@ -14,6 +17,9 @@ import {
   resolveVisualAsset,
   generatePostContent,
   generateVisualAsset,
+  generatePostContentCloudflare,
+  generateVisualAssetCloudflare,
+  callCloudflareWorkersAI,
   synthesizeDraft,
   createGeminiClient,
 } from '../scripts/gemini_engine.js';
@@ -445,6 +451,275 @@ describe('Gemini Engine - Client Initialization Error Handling', () => {
       if (originalKey) {
         process.env.GEMINI_API_KEY = originalKey;
       }
+    }
+  });
+});
+
+describe('Cloudflare Workers AI Fallback Engine', () => {
+  const sampleTopic = {
+    id: 1,
+    slug: 'event-driven-architecture',
+    title: 'Event-Driven Architecture',
+    concept: 'Decoupled asynchronous event brokers vs synchronous RPC',
+    keywords: ['EDA', 'Kafka', 'SystemDesign'],
+    language: 'ar',
+  };
+
+  it('detects Cloudflare credentials from options or process.env', () => {
+    assert.equal(hasCloudflareCredentials({}), false);
+    assert.equal(
+      hasCloudflareCredentials({ cfAccountId: 'acc-123', cfApiToken: 'tok-abc' }),
+      true
+    );
+
+    const origAcc = process.env.CLOUDFLARE_ACCOUNT_ID;
+    const origTok = process.env.CLOUDFLARE_API_TOKEN;
+    try {
+      process.env.CLOUDFLARE_ACCOUNT_ID = 'acc-env';
+      process.env.CLOUDFLARE_API_TOKEN = 'tok-env';
+      assert.equal(hasCloudflareCredentials({}), true);
+    } finally {
+      process.env.CLOUDFLARE_ACCOUNT_ID = origAcc;
+      process.env.CLOUDFLARE_API_TOKEN = origTok;
+    }
+  });
+
+  it('callCloudflareWorkersAI throws if credentials are missing', async () => {
+    await assert.rejects(
+      async () => {
+        await callCloudflareWorkersAI({
+          model: DEFAULT_CF_TEXT_MODEL,
+          body: {},
+          accountId: null,
+          apiToken: null,
+        });
+      },
+      /CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN are required/
+    );
+  });
+
+  it('generatePostContentCloudflare invokes fetchClient with correct URL, headers, and payload', async () => {
+    let capturedUrl = null;
+    let capturedOptions = null;
+
+    const mockFetch = async (url, options) => {
+      capturedUrl = url;
+      capturedOptions = options;
+      return {
+        ok: true,
+        headers: new Map([['content-type', 'application/json']]),
+        json: async () => ({
+          success: true,
+          result: {
+            response: '💡 معضلة معمارية: Event-Driven Architecture\n\nتفاصيل الـ Mechanics...',
+          },
+        }),
+      };
+    };
+
+    const result = await generatePostContentCloudflare(sampleTopic, {
+      accountId: 'test-account-id',
+      apiToken: 'test-api-token',
+      fetchClient: mockFetch,
+    });
+
+    assert.equal(
+      capturedUrl,
+      `https://api.cloudflare.com/client/v4/accounts/test-account-id/ai/run/${DEFAULT_CF_TEXT_MODEL}`
+    );
+    assert.equal(capturedOptions.method, 'POST');
+    assert.equal(capturedOptions.headers.Authorization, 'Bearer test-api-token');
+    assert.equal(capturedOptions.headers['Content-Type'], 'application/json');
+
+    const parsedBody = JSON.parse(capturedOptions.body);
+    assert.ok(parsedBody.messages && Array.isArray(parsedBody.messages));
+    assert.equal(parsedBody.messages.length, 2);
+
+    assert.equal(result.provider, 'cloudflare');
+    assert.match(result.text, /Event-Driven Architecture/);
+  });
+
+  it('generateVisualAssetCloudflare decodes base64 image and writes to file', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cf-visual-test-'));
+    const dummyImageBase64 = Buffer.from('mock-cf-flux-image').toString('base64');
+
+    try {
+      const mockFetch = async () => ({
+        ok: true,
+        headers: new Map([['content-type', 'application/json']]),
+        json: async () => ({
+          success: true,
+          result: {
+            image: dummyImageBase64,
+          },
+        }),
+      });
+
+      const result = await generateVisualAssetCloudflare(sampleTopic, {
+        accountId: 'test-account-id',
+        apiToken: 'test-api-token',
+        outputDir: tempDir,
+        fetchClient: mockFetch,
+      });
+
+      assert.equal(result.provider, 'cloudflare');
+      assert.equal(result.visualSource, 'generated');
+      assert.ok(fs.existsSync(result.visualPath));
+      assert.equal(fs.readFileSync(result.visualPath).toString(), 'mock-cf-flux-image');
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('generatePostContent uses Gemini when it succeeds and never calls Cloudflare', async () => {
+    let cfCalled = false;
+    const mockGeminiClient = {
+      interactions: {
+        create: async () => ({
+          output_text: 'Gemini generated text',
+        }),
+      },
+    };
+    const mockFetch = async () => {
+      cfCalled = true;
+      throw new Error('Cloudflare should not have been called');
+    };
+
+    const result = await generatePostContent(sampleTopic, {
+      client: mockGeminiClient,
+      cfAccountId: 'test-account-id',
+      cfApiToken: 'test-api-token',
+      fetchClient: mockFetch,
+    });
+
+    assert.equal(result.provider, 'gemini');
+    assert.equal(result.text, 'Gemini generated text');
+    assert.equal(cfCalled, false);
+  });
+
+  it('generatePostContent falls back to Cloudflare Workers AI when Gemini fails', async () => {
+    let cfCalled = false;
+    const mockGeminiClient = {
+      interactions: {
+        create: async () => {
+          throw new Error('Gemini 429 Quota Exceeded / Rate Limit');
+        },
+      },
+    };
+    const mockFetch = async () => {
+      cfCalled = true;
+      return {
+        ok: true,
+        headers: new Map([['content-type', 'application/json']]),
+        json: async () => ({
+          success: true,
+          result: {
+            response: 'Cloudflare fallback post content with 5 elements',
+          },
+        }),
+      };
+    };
+
+    const result = await generatePostContent(sampleTopic, {
+      client: mockGeminiClient,
+      cfAccountId: 'test-account-id',
+      cfApiToken: 'test-api-token',
+      fetchClient: mockFetch,
+    });
+
+    assert.equal(cfCalled, true);
+    assert.equal(result.provider, 'cloudflare');
+    assert.equal(result.text, 'Cloudflare fallback post content with 5 elements');
+  });
+
+  it('generateVisualAsset falls back to Cloudflare Workers AI when Gemini visual fails', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cf-vis-fb-'));
+    const dummyImageBase64 = Buffer.from('cf-fallback-flux-image').toString('base64');
+
+    try {
+      const mockGeminiClient = {
+        interactions: {
+          create: async () => {
+            throw new Error('Gemini visual model unavailable');
+          },
+        },
+      };
+      const mockFetch = async () => ({
+        ok: true,
+        headers: new Map([['content-type', 'application/json']]),
+        json: async () => ({
+          success: true,
+          result: {
+            image: dummyImageBase64,
+          },
+        }),
+      });
+
+      const result = await generateVisualAsset(sampleTopic, {
+        client: mockGeminiClient,
+        cfAccountId: 'test-account-id',
+        cfApiToken: 'test-api-token',
+        outputDir: tempDir,
+        fetchClient: mockFetch,
+      });
+
+      assert.equal(result.provider, 'cloudflare');
+      assert.equal(result.visualSource, 'generated');
+      assert.ok(fs.existsSync(result.visualPath));
+      assert.equal(fs.readFileSync(result.visualPath).toString(), 'cf-fallback-flux-image');
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('synthesizeDraft reports providerUsed correctly in full fallback scenario', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cf-synth-fb-'));
+    const dummyImageBase64 = Buffer.from('cf-synth-flux-image').toString('base64');
+
+    try {
+      const mockGeminiClient = {
+        interactions: {
+          create: async () => {
+            throw new Error('Gemini service completely unreachable');
+          },
+        },
+      };
+      const mockFetch = async (url) => {
+        if (url.includes('flux')) {
+          return {
+            ok: true,
+            headers: new Map([['content-type', 'application/json']]),
+            json: async () => ({
+              success: true,
+              result: { image: dummyImageBase64 },
+            }),
+          };
+        }
+        return {
+          ok: true,
+          headers: new Map([['content-type', 'application/json']]),
+          json: async () => ({
+            success: true,
+            result: { response: 'Cloudflare synthesized post text' },
+          }),
+        };
+      };
+
+      const result = await synthesizeDraft(sampleTopic, {
+        client: mockGeminiClient,
+        cfAccountId: 'test-account-id',
+        cfApiToken: 'test-api-token',
+        assetsDir: 'non_existent_assets_dir',
+        outputDir: tempDir,
+        fetchClient: mockFetch,
+      });
+
+      assert.equal(result.providerUsed.text, 'cloudflare');
+      assert.equal(result.providerUsed.visual, 'cloudflare');
+      assert.equal(result.text, 'Cloudflare synthesized post text');
+      assert.ok(fs.existsSync(result.visualPath));
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
     }
   });
 });
