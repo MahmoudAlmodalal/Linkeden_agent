@@ -1,0 +1,16 @@
+{
+  "name": "linkedin-agent",
+  "version": "1.0.0",
+  "description": "Automated LinkedIn personal branding system via n8n and Telegram approval",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  },
+  "dependencies": {
+    "@google/genai": "^2.32.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "private": true
+}
