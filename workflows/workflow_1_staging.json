@@ -1,0 +1,135 @@
+{
+  "name": "Workflow 1 - Content Generator & Stager",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 10 * * 0-4"
+            }
+          ]
+        }
+      },
+      "id": "7b8d4c9a-1111-4444-8888-000000000001",
+      "name": "Schedule Trigger (Sun-Thu 10AM)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        180,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "generate",
+        "options": {}
+      },
+      "id": "7b8d4c9a-2222-4444-8888-000000000002",
+      "name": "Webhook Trigger (/generate)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        180,
+        440
+      ],
+      "webhookId": "generate-staging-run"
+    },
+    {
+      "parameters": {
+        "jsCode": "const fs = require('fs');\nconst path = require('path');\n\nconst topicsPath = path.resolve('config/post_topics.json');\nconst draftsPath = path.resolve('data/pending_drafts.json');\n\nlet topics = [];\nif (fs.existsSync(topicsPath)) {\n  try {\n    topics = JSON.parse(fs.readFileSync(topicsPath, 'utf8'));\n  } catch (err) {\n    topics = [];\n  }\n}\n\nif (!Array.isArray(topics) || topics.length === 0) {\n  topics = [\n    {\n      id: 1,\n      slug: 'database-sharding-vs-partitioning',\n      title: 'Database Sharding vs Partitioning',\n      concept: 'Horizontal scaling and partition keys in high scale systems',\n      keywords: ['Database', 'Sharding', 'Partitioning'],\n      language: 'ar',\n      status: 'pending'\n    }\n  ];\n}\n\n// Pick next unposted topic\nlet selectedTopic = topics.find((t) => t.status === 'pending') || topics[0];\n\n// Load existing drafts to calculate sequential Draft ID\nlet drafts = [];\nif (fs.existsSync(draftsPath)) {\n  try {\n    drafts = JSON.parse(fs.readFileSync(draftsPath, 'utf8'));\n    if (!Array.isArray(drafts)) drafts = [];\n  } catch (err) {\n    drafts = [];\n  }\n}\n\nconst maxId = drafts.reduce((max, d) => Math.max(max, Number(d.id) || 0), 0);\nconst nextDraftId = maxId + 1;\n\nreturn [\n  {\n    json: {\n      draftId: nextDraftId,\n      topic: selectedTopic,\n      topicsPath,\n      draftsPath\n    }\n  }\n];"
+      },
+      "id": "7b8d4c9a-3333-4444-8888-000000000003",
+      "name": "Topic Selector",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const fs = require('fs');\nconst path = require('path');\n\nconst input = $input.first().json;\nconst topic = input.topic || {};\nconst draftId = input.draftId || 1;\nconst slug = topic.slug || 'draft_' + draftId;\n\n// 1. Dual-visual asset check: local assets/<slug>.* first\nconst assetsDir = path.resolve('assets');\nlet imagePath = null;\nconst candidateExtensions = ['.png', '.jpg', '.jpeg', '.svg', '.webp'];\n\nif (fs.existsSync(assetsDir)) {\n  for (const ext of candidateExtensions) {\n    const filePath = path.join(assetsDir, `${slug}${ext}`);\n    if (fs.existsSync(filePath)) {\n      imagePath = filePath;\n      break;\n    }\n  }\n}\n\n// Fallback to generated image directory\nif (!imagePath) {\n  const generatedDir = path.resolve('data/generated_images');\n  if (!fs.existsSync(generatedDir)) {\n    fs.mkdirSync(generatedDir, { recursive: true });\n  }\n  imagePath = path.join(generatedDir, `${slug}.png`);\n  if (!fs.existsSync(imagePath)) {\n    fs.writeFileSync(imagePath, '');\n  }\n}\n\n// 2. Technical post generation adhering to 5 elements\nconst isArabic = topic.language !== 'en';\nlet postText = '';\n\nif (isArabic) {\n  postText = `💡 معضلة معمارية: ${topic.title || 'تصميم الأنظمة الموزعة'}\\n\\n` +\n    `عند التوسع في الأنظمة ذات الحمولات العالية، يواجه الفريق الهندسي معضلة: ${topic.concept || 'تحقيق التوازن بين زمن الاستجابة والاتساق'}.\\n\\n` +\n    `🔍 التفاصيل الهندسية والـ Mechanics:\\n` +\n    `• تقسيم الخدمات وتقليل الـ Network Latency.\\n` +\n    `• معالجة حالات الـ Failover لضمان High Availability.\\n` +\n    `• اعتماد Observability شاملة لعزل عنق الزجاجة (Bottlenecks).\\n\\n` +\n    `📌 أهم التوصيات البرمجية:\\n` +\n    `1. اتخذ القرارات المعمارية بناءً على قياسات حقيقية وليس التخمين.\\n` +\n    `2. تجنب الـ Over-engineering قبل أن يتطلب الـ Scale ذلك فعلياً.\\n\\n` +\n    `💬 سؤال للمهندسين: كيف تتعاملون مع هذا التحدي في أنظمتكم الإنتاجية؟\\n\\n` +\n    `#SystemDesign #Backend #SoftwareEngineering #Architecture #CleanCode`;\n} else {\n  postText = `💡 Architectural Dilemma: ${topic.title || 'Distributed Systems Design'}\\n\\n` +\n    `When scaling distributed architectures under high concurrency, engineers encounter the challenge of: ${topic.concept || 'balancing throughput and strong consistency'}.\\n\\n` +\n    `🔍 Technical Deep-Dive & Mechanics:\\n` +\n    `• Service decoupling and reducing cross-boundary network latency.\\n` +\n    `• Resilient failover handling to safeguard High Availability.\\n` +\n    `• Comprehensive observability and distributed tracing for root-cause isolation.\\n\\n` +\n    `📌 Key Engineering Takeaways:\\n` +\n    `1. Drive architectural choices by measured profiling rather than conjecture.\\n` +\n    `2. Resist premature over-engineering until real bottlenecks emerge.\\n\\n` +\n    `💬 Question for engineering leaders: How do you address this tradeoff in your production stacks?\\n\\n` +\n    `#SystemDesign #Backend #SoftwareEngineering #Architecture #CleanCode`;\n}\n\n// 3. Persist new pending draft to data/pending_drafts.json\nconst draftsPath = input.draftsPath || path.resolve('data/pending_drafts.json');\nlet drafts = [];\nif (fs.existsSync(draftsPath)) {\n  try {\n    drafts = JSON.parse(fs.readFileSync(draftsPath, 'utf8'));\n    if (!Array.isArray(drafts)) drafts = [];\n  } catch (err) {\n    drafts = [];\n  }\n}\n\nconst newDraft = {\n  id: draftId,\n  topic: topic.slug || topic.title,\n  text: postText,\n  post_text: postText,\n  image_path: imagePath,\n  status: 'pending',\n  created_at: new Date().toISOString()\n};\n\ndrafts.push(newDraft);\nconst draftsDir = path.dirname(draftsPath);\nif (!fs.existsSync(draftsDir)) {\n  fs.mkdirSync(draftsDir, { recursive: true });\n}\nfs.writeFileSync(draftsPath, JSON.stringify(drafts, null, 2), 'utf8');\n\nconst formattedCaption = `[Draft ID: #${draftId}]\\n\\n${postText}\\n\\n─── Action Instructions ───\\n• Approve: /approve ${draftId}\\n• Reject: /reject ${draftId}`;\n\nreturn [\n  {\n    json: {\n      id: draftId,\n      text: postText,\n      post_text: postText,\n      image_path: imagePath,\n      caption: formattedCaption\n    }\n  }\n];"
+      },
+      "id": "7b8d4c9a-4444-4444-8888-000000000004",
+      "name": "Gemini Generation & Visual Stager",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        700,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendPhoto",
+        "chatId": "={{ $env.TELEGRAM_ALLOWED_USER_ID }}",
+        "file": "={{ $json.image_path }}",
+        "caption": "={{ $json.caption }}",
+        "additionalFields": {}
+      },
+      "id": "7b8d4c9a-5555-4444-8888-000000000005",
+      "name": "Telegram Send Photo",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        960,
+        340
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (Sun-Thu 10AM)": {
+      "main": [
+        [
+          {
+            "node": "Topic Selector",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Trigger (/generate)": {
+      "main": [
+        [
+          {
+            "node": "Topic Selector",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Topic Selector": {
+      "main": [
+        [
+          {
+            "node": "Gemini Generation & Visual Stager",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Generation & Visual Stager": {
+      "main": [
+        [
+          {
+            "node": "Telegram Send Photo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
