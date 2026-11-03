@@ -13,8 +13,7 @@ COPY ./config /config
 COPY ./workflows /workflows
 COPY ./assets /assets
 COPY ./scripts /scripts
-RUN test -s /scripts/start_n8n.sh \
-    && chmod +x /scripts/start_n8n.sh
+RUN test -s /scripts/start_n8n.mjs
 
 # Ensure node user owns the required directories
 RUN chown -R node:node /data /config /workflows /assets /scripts /app
@@ -25,6 +24,5 @@ WORKDIR /home/node
 ENV N8N_PORT=5678
 EXPOSE 5678
 
-# Invoke through the absolute shell path because the runtime PATH in the n8n
-# image does not expose the shell name to Render's command resolver.
-CMD ["/bin/sh", "/scripts/start_n8n.sh"]
+# The n8n image is a minimal runtime without a shell; use Node directly.
+CMD ["node", "/scripts/start_n8n.mjs"]
