@@ -561,33 +561,29 @@ export async function synthesizeDraft(topic, options = {}) {
 
   // 1. Dual-visual check: check local assets FIRST
   const localAsset = resolveVisualAsset(topic.slug, { assetsDir });
-  let visualResult;
-
-  if (localAsset) {
-    visualResult = {
+  // 2–3. Start visual and text generation together when both require a provider.
+  // This removes one full network round-trip from projects without a local asset.
+  const visualPromise = localAsset
+    ? Promise.resolve({
       visualPath: localAsset,
       visualSource: 'local',
       model: null,
       provider: 'local',
-    };
-  } else {
-    // 2. Generate visual via Gemini (with automatic Cloudflare fallback)
-    visualResult = await generateVisualAsset(topic, {
+    })
+    : generateVisualAsset(topic, {
       ...options,
       client,
       model: visualModel,
       outputDir,
       fetchClient,
     });
-  }
-
-  // 3. Generate 5-element breakdown technical text via Gemini (with automatic Cloudflare fallback)
-  const textResult = await generatePostContent(topic, {
+  const textPromise = generatePostContent(topic, {
     ...options,
     client,
     model: textModel,
     fetchClient,
   });
+  const [visualResult, textResult] = await Promise.all([visualPromise, textPromise]);
 
   return {
     topic,
@@ -693,13 +689,23 @@ export async function synthesizeRAGDraft(options = {}) {
     });
   }
 
-  // 2. Generate post content with RAG prompt
-  const textResult = await generatePostContent(topicObj, {
+  // 2–3. Generate text and a remote visual concurrently when no local asset exists.
+  const visualPromise = localAsset
+    ? Promise.resolve(visualResult)
+    : generateVisualAsset(topicObj, {
+      ...options,
+      client,
+      model: visualModel,
+      outputDir,
+      fetchClient,
+    });
+  const textPromise = generatePostContent(topicObj, {
     ...options,
     client,
     model: textModel,
     fetchClient,
   });
+  const [resolvedVisualResult, textResult] = await Promise.all([visualPromise, textPromise]);
 
   return {
     project: challenge?.project_name || projectSlug,
@@ -707,15 +713,15 @@ export async function synthesizeRAGDraft(options = {}) {
     situation,
     topic: topicObj,
     text: textResult.text,
-    visualPath: visualResult.visualPath,
-    visualSource: visualResult.visualSource,
+    visualPath: resolvedVisualResult.visualPath,
+    visualSource: resolvedVisualResult.visualSource,
     modelUsed: {
       text: textResult.model,
-      visual: visualResult.model,
+      visual: resolvedVisualResult.model,
     },
     providerUsed: {
       text: textResult.provider || 'gemini',
-      visual: visualResult.provider || (visualResult.visualSource === 'local' ? 'local' : 'gemini'),
+      visual: resolvedVisualResult.provider || (resolvedVisualResult.visualSource === 'local' ? 'local' : 'gemini'),
     },
   };
 }
