@@ -117,6 +117,81 @@ describe('Telegram Command Parsing', () => {
     });
   });
 
+  it('parses /drafts and /list commands', () => {
+    assert.deepEqual(parseCommand('/drafts'), {
+      command: 'drafts',
+      draftId: null,
+      raw: '/drafts',
+    });
+    assert.deepEqual(parseCommand('/list'), {
+      command: 'drafts',
+      draftId: null,
+      raw: '/list',
+    });
+  });
+
+  it('parses /help, /start, and /menu commands', () => {
+    assert.deepEqual(parseCommand('/help'), {
+      command: 'help',
+      draftId: null,
+      raw: '/help',
+    });
+    assert.deepEqual(parseCommand('/start'), {
+      command: 'help',
+      draftId: null,
+      raw: '/start',
+    });
+  });
+
+  it('parses callback query format e.g. approve:15 and reject:15', () => {
+    assert.deepEqual(parseCommand('approve:15'), {
+      command: 'approve',
+      draftId: 15,
+      raw: 'approve:15',
+    });
+    assert.deepEqual(parseCommand('reject:15'), {
+      command: 'reject',
+      draftId: 15,
+      raw: 'reject:15',
+    });
+    assert.deepEqual(parseCommand('show:15'), {
+      command: 'show',
+      draftId: 15,
+      raw: 'show:15',
+    });
+    assert.deepEqual(parseCommand('preview:15'), {
+      command: 'show',
+      draftId: 15,
+      raw: 'preview:15',
+    });
+    assert.deepEqual(parseCommand('drafts'), {
+      command: 'drafts',
+      draftId: null,
+      raw: 'drafts',
+    });
+  });
+
+  it('parses /show and /preview commands', () => {
+    assert.deepEqual(parseCommand('/show 9'), {
+      command: 'show',
+      draftId: 9,
+      raw: '/show 9',
+    });
+    assert.deepEqual(parseCommand('/preview 9'), {
+      command: 'show',
+      draftId: 9,
+      raw: '/preview 9',
+    });
+  });
+
+  it('parses interactive touch button labels in Arabic and English', () => {
+    assert.equal(parseCommand('⚡ توليد مسودة جديدة (/generate)')?.command, 'generate');
+    assert.equal(parseCommand('📋 عرض المسودات المعلقة (/drafts)')?.command, 'drafts');
+    assert.equal(parseCommand('✅ نشر أحدث مسودة (/approve)')?.command, 'approve');
+    assert.equal(parseCommand('🗑️ رفض مسودة (/reject)')?.command, 'reject');
+    assert.equal(parseCommand('ℹ️ المساعدة والتعليمات (/help)')?.command, 'help');
+  });
+
   it('returns unknown for unrecognized commands', () => {
     const result = parseCommand('/unknown_cmd 123');
     assert.deepEqual(result, {
@@ -443,6 +518,78 @@ describe('Telegram Update Router (handleTelegramUpdate)', () => {
     assert.equal(response.command, 'generate');
     assert.equal(triggered, true);
     assert.ok(response.replyText.toLowerCase().includes('trigger') || response.replyText.toLowerCase().includes('generat'));
+  });
+
+  it('handles /drafts when pending drafts exist, returning inline buttons', async () => {
+    savePendingDrafts([
+      { id: 1, text: 'Draft 1 content', topic: 'Sharding' },
+      { id: 2, text: 'Draft 2 content', topic: 'Caching' },
+    ], testDraftsPath);
+
+    const update = {
+      message: {
+        from: { id: allowedId },
+        text: '/drafts',
+        chat: { id: allowedId },
+      },
+    };
+
+    const response = await handleTelegramUpdate(update, {
+      allowedUserId: allowedId,
+      pendingDraftsPath: testDraftsPath,
+    });
+
+    assert.equal(response.authorized, true);
+    assert.equal(response.success, true);
+    assert.equal(response.command, 'drafts');
+    assert.equal(response.drafts.length, 2);
+    assert.ok(response.inlineKeyboard.length >= 2);
+    assert.ok(response.replyMarkup && (response.replyMarkup.keyboard || response.replyMarkup.remove_keyboard));
+  });
+
+  it('handles /drafts when queue is empty', async () => {
+    savePendingDrafts([], testDraftsPath);
+
+    const update = {
+      message: {
+        from: { id: allowedId },
+        text: '/drafts',
+        chat: { id: allowedId },
+      },
+    };
+
+    const response = await handleTelegramUpdate(update, {
+      allowedUserId: allowedId,
+      pendingDraftsPath: testDraftsPath,
+    });
+
+    assert.equal(response.authorized, true);
+    assert.equal(response.success, true);
+    assert.equal(response.command, 'drafts');
+    assert.equal(response.drafts.length, 0);
+    assert.ok(response.replyText.includes('لا توجد'));
+  });
+
+  it('handles /help command returning full command catalog and keyboard', async () => {
+    const update = {
+      message: {
+        from: { id: allowedId },
+        text: '/help',
+        chat: { id: allowedId },
+      },
+    };
+
+    const response = await handleTelegramUpdate(update, {
+      allowedUserId: allowedId,
+      pendingDraftsPath: testDraftsPath,
+    });
+
+    assert.equal(response.authorized, true);
+    assert.equal(response.success, true);
+    assert.equal(response.command, 'help');
+    assert.ok(response.replyText.includes('/generate'));
+    assert.ok(response.replyText.includes('/drafts'));
+    assert.ok(response.replyMarkup && (response.replyMarkup.keyboard || response.replyMarkup.remove_keyboard));
   });
 
   it('handles unknown commands with a helpful help message', async () => {

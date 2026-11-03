@@ -1,1 +1,42 @@
-[]
+[
+  {
+    "id": 1,
+    "project": "2Wash",
+    "topic": "PostGIS Spatial Indexing vs In-Memory Haversine: Sub-12ms Radius Lookups",
+    "situation": null,
+    "text": "استخدام PostgreSQL PostGIS مع GIST R-tree Spatial Index لتحسين أداء الاستعلامات الجغرافية في تطبيقات الويب\n\nفي أحد مشاريعنا، 2Wash، واجهنا مشكلة في أداء الاستعلامات الجغرافية عند البحث عن مراكز خدمة شريكة في الرياض وجدة. كانت الاستعلامات تأخذ وقتًا طويلاً، وتسبب في حدوث CPU throttling وتباطؤ في أداء النظام.\n\nقمت بكتابة اختبار آلي لتحديد原因 الجذري للمشكلة، واكتشفت أن问题 كان يرجع إلى استخدام خوارزمية Haversine لتحديد المسافة بين المراكز الخدمية والمستخدمين. كانت هذه الخوارزمية تسبب في حدوث عمليات البحث الكثيرة في قاعدة البيانات، مما يؤدي إلى تباطؤ النظام.\n\nبعد تحليل المشكلة، قمت بتحسين أداء الاستعلامات الجغرافية باستخدام PostgreSQL PostGIS مع GIST R-tree Spatial Index. هذا الحل(enabled) تحسين كبير في أداء الاستعلامات، حيث انخفضت فترة الاستجابة من 340 مللي ثانية",
+    "post_text": "استخدام PostgreSQL PostGIS مع GIST R-tree Spatial Index لتحسين أداء الاستعلامات الجغرافية في تطبيقات الويب\n\nفي أحد مشاريعنا، 2Wash، واجهنا مشكلة في أداء الاستعلامات الجغرافية عند البحث عن مراكز خدمة شريكة في الرياض وجدة. كانت الاستعلامات تأخذ وقتًا طويلاً، وتسبب في حدوث CPU throttling وتباطؤ في أداء النظام.\n\nقمت بكتابة اختبار آلي لتحديد原因 الجذري للمشكلة، واكتشفت أن问题 كان يرجع إلى استخدام خوارزمية Haversine لتحديد المسافة بين المراكز الخدمية والمستخدمين. كانت هذه الخوارزمية تسبب في حدوث عمليات البحث الكثيرة في قاعدة البيانات، مما يؤدي إلى تباطؤ النظام.\n\nبعد تحليل المشكلة، قمت بتحسين أداء الاستعلامات الجغرافية باستخدام PostgreSQL PostGIS مع GIST R-tree Spatial Index. هذا الحل(enabled) تحسين كبير في أداء الاستعلامات، حيث انخفضت فترة الاستجابة من 340 مللي ثانية",
+    "image_path": "data/generated_images/card-draft-1.png",
+    "visual_source": "branded_card",
+    "model_used": {
+      "text": "@cf/meta/llama-3.1-70b-instruct",
+      "visual": null
+    },
+    "provider_used": {
+      "text": "cloudflare",
+      "visual": "local"
+    },
+    "challenge": {
+      "id": 1,
+      "project": "2wash",
+      "project_name": "2Wash",
+      "title": "PostGIS Spatial Indexing vs In-Memory Haversine: Sub-12ms Radius Lookups",
+      "category": "geospatial-database",
+      "dilemma": "How to query partner service center polygons across Riyadh & Jeddah under high concurrency without CPU throttling or slow table scans.",
+      "solution": "PostgreSQL PostGIS with GIST R-tree spatial indexing and ST_DWithin queries, dropping lookup P95 from 340ms to 11.4ms.",
+      "keywords": [
+        "postgis",
+        "spatial-indexing",
+        "gist",
+        "postgresql",
+        "geospatial",
+        "django-rest",
+        "lat-long"
+      ],
+      "metrics": "P95 < 12ms",
+      "tradeoff": "PostGIS ST_DWithin + GIST Index vs In-memory Haversine filtering on unindexed rows"
+    },
+    "status": "pending",
+    "created_at": "2026-11-03T13:20:52.008Z"
+  }
+]

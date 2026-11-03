@@ -1,6 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  buildGroundedRAGPrompt,
+  retrieveProjectContext,
+  getNextChallenge,
+} from './rag_engine.js';
 
 export const DEFAULT_TEXT_MODEL = 'gemini-3.8-flash';
 export const DEFAULT_VISUAL_MODEL = 'gemini-nano-banana-2.1';
@@ -79,6 +84,10 @@ export async function createGeminiClient({ apiKey = process.env.GEMINI_API_KEY }
  * Builds the LinkedIn prompt strictly enforcing the 5-element breakdown for hiring managers.
  */
 export function buildContentPrompt(topic) {
+  if (topic?.ragContext) {
+    return buildGroundedRAGPrompt(topic.ragContext);
+  }
+
   const isEnglish = topic?.language === 'en';
   const languageDirective = isEnglish
     ? 'Language: English. Write in authoritative, crisp, professional engineering English.'
@@ -94,22 +103,29 @@ Topic Details:
 - ${languageDirective}
 
 Post Requirements:
-You MUST strictly structure your post into the following 5 distinct elements:
+You MUST structure your post into a seamless, high-signal LinkedIn engineering narrative with double line-breaks between short paragraphs.
+CRITICAL FORMATTING RULE: Absolutely NEVER output section numbers, brackets, markdown headers or labels like "[1. The Hook]" or "### Root Cause". The output must read like a senior software architect genuinely sharing a real production incident.
+
+Follow this natural narrative structure:
 
 1. [The Hook - Architectural Dilemma]:
-An attention-grabbing real-world architectural dilemma, production failure mode, or high-stakes trade-off that senior engineers and hiring managers immediately recognize. Avoid generic introductions. Hook the reader immediately with an engineering dilemma.
+Start immediately on line 1 with a bold, punchy, counter-intuitive architectural dilemma or technical statement (e.g., "استخدام DB::transaction وحده لا يحمي تطبيقك من الـ Race Conditions إذا لم تقفل السجلات أثناء القراءة."). Avoid generic introductions. Hook the reader immediately with an engineering dilemma.
 
-2. [Deep-Dive - Technical Mechanics]:
-A detailed, rigorous breakdown of the internal technical mechanics, protocols, data structures, concurrency handling, or failure domains. Explain the "how" and "why" under the hood with technical depth.
+2. [Deep-Dive - Technical Mechanics & Incident]:
+Describe the real production context, the subtle failure mode or race condition that emerged under high concurrency or throughput, the initial hypothesis, and how you wrote an automated test to isolate and prove the issue. Explain the "how" and "why" under the hood with technical depth and state the root cause clearly (e.g. "السبب الجذري:...").
 
-3. [Key Takeaways - Engineering Rules]:
-3 to 4 actionable, battle-tested engineering heuristics or rules of thumb formatted as bullet points for production systems.
+3. [Actionable Concrete Solution]:
+Present the direct solution in 2 numbered steps (1. and 2.) featuring exact framework/database mechanisms and code constructs.
 
-4. [Call to Action - Peer Question]:
-An engaging technical question directed at fellow software architects and senior engineers to foster discussion in the comments.
+4. [Key Takeaways - Engineering Rules]:
+Provide a memorable, battle-tested engineering rule of thumb starting with "الدرس الهندسي:" (e.g. "الدرس الهندسي: لا تعتمد على حماية الواجهة لمنع تكرار العمليات الحساسة، وقاعدة البيانات هي خط الدفاع الحقيقي الوحيد.").
 
-5. [Hashtags]:
-4 to 6 relevant technical hashtags (e.g., #SystemDesign #SoftwareArchitecture #Backend #DistributedSystems).
+5. [Call to Action - Peer Question]:
+An engaging technical question directed at fellow software architects and senior engineers to foster discussion in the comments, followed immediately by:
+"اكتبوا لنا في التعليقات 👇"
+
+6. [Hashtags]:
+4 to 6 relevant technical hashtags as plain space-separated text (e.g., #SystemDesign #SoftwareArchitecture #Backend #DistributedSystems). Do NOT use Markdown links.
 
 Maintain an authoritative, insightful tone. Do not use corporate fluff or clickbait. Deliver maximum engineering signal.`;
 }
@@ -317,6 +333,18 @@ export async function generateVisualAssetCloudflare(topic, options = {}) {
   };
 }
 
+export async function withTimeout(promise, ms = 8000, errorMsg = 'Operation timed out') {
+  let timer;
+  const timeoutPromise = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${errorMsg} after ${ms}ms`)), ms);
+  });
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
  * Generates post text adhering to the 5-element breakdown using gemini-3.8-flash,
  * with automatic fallback to Cloudflare Workers AI if Gemini fails or is unavailable.
@@ -326,6 +354,7 @@ export async function generatePostContent(topic, options = {}) {
     client = null,
     model = DEFAULT_TEXT_MODEL,
     fetchClient = globalThis.fetch,
+    timeoutMs = 8000,
   } = options;
 
   const validModel = normalizeTextModel(model);
@@ -334,10 +363,14 @@ export async function generatePostContent(topic, options = {}) {
   try {
     const geminiClient = client || await createGeminiClient();
 
-    const interaction = await geminiClient.interactions.create({
-      model: validModel,
-      input: prompt,
-    });
+    const interaction = await withTimeout(
+      geminiClient.interactions.create({
+        model: validModel,
+        input: prompt,
+      }),
+      timeoutMs,
+      'Gemini text generation timed out'
+    );
 
     const text = interaction?.output_text ?? interaction?.text ?? (typeof interaction === 'string' ? interaction : '');
     if (!text || typeof text !== 'string' || !text.trim()) {
@@ -369,6 +402,7 @@ export async function generateVisualAsset(topic, options = {}) {
     model = DEFAULT_VISUAL_MODEL,
     outputDir = 'data/generated_images',
     fetchClient = globalThis.fetch,
+    timeoutMs = 8000,
   } = options;
 
   const validModel = normalizeVisualModel(model);
@@ -377,10 +411,14 @@ export async function generateVisualAsset(topic, options = {}) {
   try {
     const geminiClient = client || await createGeminiClient();
 
-    const interaction = await geminiClient.interactions.create({
-      model: validModel,
-      input: visualPrompt,
-    });
+    const interaction = await withTimeout(
+      geminiClient.interactions.create({
+        model: validModel,
+        input: visualPrompt,
+      }),
+      timeoutMs,
+      'Gemini visual generation timed out'
+    );
 
     let imageData = null;
     if (interaction?.output_image?.data) {
@@ -480,6 +518,121 @@ export async function synthesizeDraft(topic, options = {}) {
 
   return {
     topic,
+    text: textResult.text,
+    visualPath: visualResult.visualPath,
+    visualSource: visualResult.visualSource,
+    modelUsed: {
+      text: textResult.model,
+      visual: visualResult.model,
+    },
+    providerUsed: {
+      text: textResult.provider || 'gemini',
+      visual: visualResult.provider || (visualResult.visualSource === 'local' ? 'local' : 'gemini'),
+    },
+  };
+}
+
+/**
+ * Synthesizes a LinkedIn draft grounded in Mahmoud's real projects and architectural challenges.
+ * Retrieves facts and style via RAG, pairs with local project asset if available, and generates
+ * high-signal 5-element breakdown post text.
+ */
+export async function synthesizeRAGDraft(options = {}) {
+  const {
+    query = '',
+    situation = '',
+    challenge: providedChallenge = null,
+    client = null,
+    assetsDir = 'assets',
+    outputDir = 'data/generated_images',
+    textModel = DEFAULT_TEXT_MODEL,
+    visualModel = DEFAULT_VISUAL_MODEL,
+    fetchClient = globalThis.fetch,
+  } = options;
+
+  let challenge = providedChallenge;
+  let retrievedDocs = [];
+  let matchedProject = null;
+
+  const searchQuery = query || situation;
+
+  if (searchQuery) {
+    const ragResult = await retrieveProjectContext(searchQuery, {
+      topK: 3,
+      geminiClient: client,
+    });
+    challenge = ragResult.challenge;
+    retrievedDocs = ragResult.retrievedDocs;
+    matchedProject = ragResult.matchedProject;
+  } else if (!challenge) {
+    challenge = getNextChallenge();
+    matchedProject = challenge.project;
+    const ragResult = await retrieveProjectContext(`${challenge.project} ${challenge.title}`, {
+      topK: 3,
+      geminiClient: client,
+    });
+    retrievedDocs = ragResult.retrievedDocs;
+  } else {
+    matchedProject = challenge.project;
+  }
+
+  const projectSlug = challenge?.project || matchedProject || '2wash';
+  const topicObj = {
+    id: challenge?.id || Date.now(),
+    slug: projectSlug,
+    title: challenge?.title || (situation ? 'Production Incident Post-Mortem' : 'Architectural Case Study'),
+    concept: challenge?.dilemma || challenge?.solution || situation || '',
+    keywords: challenge?.keywords || ['SystemDesign', 'Backend'],
+    language: 'ar',
+    isRAG: true,
+    challenge,
+    situation,
+    ragContext: {
+      query,
+      situation,
+      challenge,
+      retrievedDocs,
+      isEnglish: false,
+    },
+  };
+
+  // 1. Dual-visual check: check assets/<projectSlug>.* or assets/<topic.slug>.* FIRST
+  let localAsset = resolveVisualAsset(projectSlug, { assetsDir });
+  if (!localAsset && topicObj.slug !== projectSlug) {
+    localAsset = resolveVisualAsset(topicObj.slug, { assetsDir });
+  }
+
+  let visualResult;
+  if (localAsset) {
+    visualResult = {
+      visualPath: localAsset,
+      visualSource: 'local',
+      model: null,
+      provider: 'local',
+    };
+  } else {
+    visualResult = await generateVisualAsset(topicObj, {
+      ...options,
+      client,
+      model: visualModel,
+      outputDir,
+      fetchClient,
+    });
+  }
+
+  // 2. Generate post content with RAG prompt
+  const textResult = await generatePostContent(topicObj, {
+    ...options,
+    client,
+    model: textModel,
+    fetchClient,
+  });
+
+  return {
+    project: challenge?.project_name || projectSlug,
+    challenge,
+    situation,
+    topic: topicObj,
     text: textResult.text,
     visualPath: visualResult.visualPath,
     visualSource: visualResult.visualSource,

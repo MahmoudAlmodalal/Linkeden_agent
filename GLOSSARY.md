@@ -31,3 +31,17 @@ _Avoid_: Idea, title, raw subject
 **Publishing Failure**:
 An error during LinkedIn media initialization, upload, or post creation that preserves the pending draft for user retry.
 _Avoid_: Discarded draft, silent drop
+
+**Production Scenario**:
+A real-world engineering situation, production incident, or architecture dilemma submitted by the reviewer via `/situation` to drive custom grounded post and visual generation.
+_Avoid_: User prompt, casual message, custom topic
+
+**Scenario Archive**:
+A dedicated persistent JSON store (`data/scenarios.json`) recording submitted situation prompts, metadata, and corresponding Draft IDs for reuse and tuning.
+_Avoid_: Temporary input, log file, cache
+
+**Reviewer State**:
+A persistent session record in `data/bot_state.json` tracking multi-turn interactions (e.g. `awaiting_situation`) when a command is issued without immediate payload arguments.
+_Avoid_: Memory cache, session cookie
+
+
