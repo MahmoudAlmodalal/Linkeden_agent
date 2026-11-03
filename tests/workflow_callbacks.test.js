@@ -66,3 +66,37 @@ test('webhook has a registered callback-query acknowledgement path', () => {
   assert.match(answerNode?.parameters?.url || '', /answerCallbackQuery/);
   assert.equal(answerNode?.parameters?.bodyParameters?.parameters?.[0]?.name, 'callback_query_id');
 });
+
+test('show callback returns the selected post through the Telegram reply node', () => {
+  const showCode = nodes.get('Handle Show Node')?.parameters?.jsCode || '';
+  assert.doesNotMatch(showCode, /child_process|execSync/);
+  assert.match(showCode, /replyText/);
+  assert.equal(
+    workflow.connections['Handle Show Node']?.main?.[0]?.[0]?.node,
+    'Telegram Preview Reply Node',
+  );
+  assert.equal(nodes.get('Telegram Preview Reply Node')?.type, 'n8n-nodes-base.httpRequest');
+  assert.doesNotMatch(
+    JSON.stringify(nodes.get('Telegram Preview Reply Node')?.parameters?.bodyParameters?.parameters || []),
+    /parse_mode/,
+  );
+
+  const fakeFs = {
+    existsSync: () => true,
+    readFileSync: () => JSON.stringify([{ id: 7, text: 'Preview body', image_path: '/data/generated_images/post.png' }]),
+  };
+  const execute = new Function('$', 'require', showCode);
+  const result = execute(
+    () => ({ first: () => ({ json: { chatId: 12345, draftId: '7' } }) }),
+    (name) => {
+      assert.equal(name, 'fs');
+      return fakeFs;
+    },
+  )[0].json;
+
+  assert.equal(result.chatId, 12345);
+  assert.match(result.replyText, /Preview body/);
+  assert.match(result.replyText, /#7/);
+  assert.equal(result.replyMarkup.inline_keyboard[0][0].callback_data, 'approve_7');
+  assert.equal(result.replyMarkup.inline_keyboard[0][1].callback_data, 'reject_7');
+});

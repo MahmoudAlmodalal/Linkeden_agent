@@ -178,23 +178,33 @@ return [{
   }
 }];"""
 
-js_show = r"""const { execSync } = require('child_process');
+js_show = r"""const fs = require('fs');
 const prev = $('Security & Command Parser').first().json;
 const chatId = prev.chatId;
-const draftId = prev.draftId || 'latest';
-
+const draftId = String(prev.draftId || '').trim();
+const filePath = '/data/pending_drafts.json';
+let drafts = [];
 try {
-  execSync(`node /scripts/telegram_router.js --show-draft "${draftId}" --chat-id "${chatId}"`, { encoding: 'utf8', timeout: 15000 });
-} catch (e) {
-  console.error('Show dispatch error:', e.message);
+  if (fs.existsSync(filePath)) {
+    const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    drafts = Array.isArray(parsed) ? parsed : (Array.isArray(parsed.drafts) ? parsed.drafts : []);
+  }
+} catch (error) {
+  console.error('Could not read pending drafts:', error.message);
 }
 
-return [{
-  json: {
-    chatId,
-    replyText: ''
-  }
-}];"""
+const draft = drafts.find((item) => String(item.id) === draftId);
+const replyText = draft
+  ? `📋 *معاينة المسودة #${draft.id}*\n\n${draft.text || draft.post_text || draft.content || '(لا يوجد نص للمنشور)'}\n\n${draft.image_path || draft.image ? '🖼️ صورة المسودة محفوظة مع المنشور.' : ''}`
+  : `⚠️ لم أجد المسودة #${draftId || 'المطلوبة'} في قائمة الانتظار.`;
+const replyMarkup = draft ? {
+  inline_keyboard: [[
+    { text: `✅ نشر #${draft.id}`, callback_data: `approve_${draft.id}` },
+    { text: `🗑️ حذف #${draft.id}`, callback_data: `reject_${draft.id}` }
+  ]]
+} : undefined;
+
+return [{ json: { chatId, replyText, replyMarkup } }];"""
 
 js_help = r"""const prev = $('Security & Command Parser').first().json;
 const chatId = prev.chatId;
@@ -451,6 +461,26 @@ wf2 = {
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [1240, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage' }}",
+        "sendBody": True,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "chat_id", "value": "={{ $json.chatId }}" },
+            { "name": "text", "value": "={{ $json.replyText }}" },
+            { "name": "reply_markup", "value": "={{ $json.replyMarkup ? JSON.stringify($json.replyMarkup) : JSON.stringify({\"remove_keyboard\": true}) }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "telegram-preview-reply-node",
+      "name": "Telegram Preview Reply Node",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1240, 660]
     }
   ],
   "connections": {
@@ -495,7 +525,7 @@ wf2 = {
       "main": [[{ "node": "Telegram Reply Node", "type": "main", "index": 0 }]]
     },
     "Handle Show Node": {
-      "main": []
+      "main": [[{ "node": "Telegram Preview Reply Node", "type": "main", "index": 0 }]]
     },
     "Handle Help Node": {
       "main": [[{ "node": "Telegram Reply Node", "type": "main", "index": 0 }]]

@@ -318,7 +318,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const { execSync } = require('child_process');\nconst prev = $('Security & Command Parser').first().json;\nconst chatId = prev.chatId;\nconst draftId = prev.draftId || 'latest';\n\ntry {\n  execSync(`node /scripts/telegram_router.js --show-draft \"${draftId}\" --chat-id \"${chatId}\"`, { encoding: 'utf8', timeout: 15000 });\n} catch (e) {\n  console.error('Show dispatch error:', e.message);\n}\n\nreturn [{\n  json: {\n    chatId,\n    replyText: ''\n  }\n}];"
+        "jsCode": "const fs = require('fs');\nconst prev = $('Security & Command Parser').first().json;\nconst chatId = prev.chatId;\nconst draftId = String(prev.draftId || '').trim();\nconst filePath = '/data/pending_drafts.json';\nlet drafts = [];\ntry {\n  if (fs.existsSync(filePath)) {\n    const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));\n    drafts = Array.isArray(parsed) ? parsed : (Array.isArray(parsed.drafts) ? parsed.drafts : []);\n  }\n} catch (error) {\n  console.error('Could not read pending drafts:', error.message);\n}\n\nconst draft = drafts.find((item) => String(item.id) === draftId);\nconst replyText = draft\n  ? `\ud83d\udccb *\u0645\u0639\u0627\u064a\u0646\u0629 \u0627\u0644\u0645\u0633\u0648\u062f\u0629 #${draft.id}*\\n\\n${draft.text || draft.post_text || draft.content || '(\u0644\u0627 \u064a\u0648\u062c\u062f \u0646\u0635 \u0644\u0644\u0645\u0646\u0634\u0648\u0631)'}\\n\\n${draft.image_path || draft.image ? '\ud83d\uddbc\ufe0f \u0635\u0648\u0631\u0629 \u0627\u0644\u0645\u0633\u0648\u062f\u0629 \u0645\u062d\u0641\u0648\u0638\u0629 \u0645\u0639 \u0627\u0644\u0645\u0646\u0634\u0648\u0631.' : ''}`\n  : `\u26a0\ufe0f \u0644\u0645 \u0623\u062c\u062f \u0627\u0644\u0645\u0633\u0648\u062f\u0629 #${draftId || '\u0627\u0644\u0645\u0637\u0644\u0648\u0628\u0629'} \u0641\u064a \u0642\u0627\u0626\u0645\u0629 \u0627\u0644\u0627\u0646\u062a\u0638\u0627\u0631.`;\nconst replyMarkup = draft ? {\n  inline_keyboard: [[\n    { text: `\u2705 \u0646\u0634\u0631 #${draft.id}`, callback_data: `approve_${draft.id}` },\n    { text: `\ud83d\uddd1\ufe0f \u062d\u0630\u0641 #${draft.id}`, callback_data: `reject_${draft.id}` }\n  ]]\n} : undefined;\n\nreturn [{ json: { chatId, replyText, replyMarkup } }];"
       },
       "id": "handle-show-node",
       "name": "Handle Show Node",
@@ -376,6 +376,38 @@
       "position": [
         1240,
         300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage' }}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "={{ $json.chatId }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.replyText }}"
+            },
+            {
+              "name": "reply_markup",
+              "value": "={{ $json.replyMarkup ? JSON.stringify($json.replyMarkup) : JSON.stringify({\"remove_keyboard\": true}) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "telegram-preview-reply-node",
+      "name": "Telegram Preview Reply Node",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1240,
+        660
       ]
     }
   ],
@@ -532,7 +564,15 @@
       ]
     },
     "Handle Show Node": {
-      "main": []
+      "main": [
+        [
+          {
+            "node": "Telegram Preview Reply Node",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Handle Help Node": {
       "main": [
