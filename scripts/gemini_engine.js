@@ -137,7 +137,70 @@ An engaging technical question directed at fellow software architects and senior
 6. [Hashtags]:
 4 to 6 relevant technical hashtags as plain space-separated text (e.g., #SystemDesign #SoftwareArchitecture #Backend #DistributedSystems). Do NOT use Markdown links.
 
-Maintain an authoritative, insightful tone. Do not use corporate fluff or clickbait. Use only facts in Topic Details; do not invent metrics or outcomes. Before finalizing, silently check that ${qualityCheck}, the post is complete, and no random foreign-language fragments remain. Deliver maximum engineering signal.`;
+  Maintain an authoritative, insightful tone. Do not use corporate fluff or clickbait. Use only facts in Topic Details; do not invent metrics or outcomes. Before finalizing, silently check that ${qualityCheck}, the post is complete, and no random foreign-language fragments remain. Deliver maximum engineering signal.`;
+}
+
+const HASHTAG_ALIASES = new Map([
+  ['postgis', '#PostGIS'],
+  ['postgresql', '#PostgreSQL'],
+  ['postgres', '#PostgreSQL'],
+  ['gist', '#GiST'],
+  ['spatial-indexing', '#SpatialIndexing'],
+  ['geospatial', '#Geospatial'],
+  ['django-rest', '#Django'],
+  ['django', '#Django'],
+  ['redis', '#Redis'],
+  ['celery', '#Celery'],
+  ['kafka', '#Kafka'],
+  ['graphql', '#GraphQL'],
+  ['system-design', '#SystemDesign'],
+  ['distributed-systems', '#DistributedSystems'],
+  ['software-architecture', '#SoftwareArchitecture'],
+  ['backend', '#Backend'],
+  ['database', '#Database'],
+  ['database-design', '#DatabaseDesign'],
+  ['machine-learning', '#MachineLearning'],
+  ['api', '#API'],
+]);
+
+/**
+ * Guarantees every generated post ends with 4–6 relevant LinkedIn hashtags.
+ * Models are instructed to provide hashtags, but this deterministic guard also
+ * covers truncated or low-quality responses from either text provider.
+ */
+export function ensureHashtags(text, topic = {}) {
+  const source = String(text || '').trim();
+  const existing = source.match(/#[\p{L}\p{N}_-]+/gu) || [];
+  const candidates = [];
+  const add = (tag) => {
+    if (!tag || candidates.includes(tag)) return;
+    candidates.push(tag);
+  };
+
+  existing.forEach(add);
+  const topicTerms = [
+    ...(Array.isArray(topic?.keywords) ? topic.keywords : []),
+    topic?.slug,
+    topic?.title,
+    topic?.concept,
+  ].filter(Boolean).join(' ').toLowerCase();
+
+  for (const [term, tag] of HASHTAG_ALIASES) {
+    if (topicTerms.includes(term)) add(tag);
+    if (candidates.length >= 6) break;
+  }
+
+  ['#SoftwareEngineering', '#SystemDesign', '#Backend', '#Technology']
+    .forEach(add);
+
+  const hashtags = candidates.slice(0, 6);
+  const withoutInlineTags = source
+    .replace(/(^|\s)#[\p{L}\p{N}_-]+/gu, '$1')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
+  return `${withoutInlineTags}\n\n${hashtags.slice(0, 4).length >= 4 ? hashtags.join(' ') : '#SoftwareEngineering #SystemDesign #Backend #Technology'}`;
 }
 
 /**
@@ -276,7 +339,7 @@ export async function generatePostContentCloudflare(topic, options = {}) {
   }
 
   return {
-    text: text.trim(),
+    text: ensureHashtags(text, topic),
     model,
     provider: 'cloudflare',
   };
@@ -388,7 +451,7 @@ export async function generatePostContent(topic, options = {}) {
     }
 
     return {
-      text: text.trim(),
+      text: ensureHashtags(text, topic),
       model: validModel,
       provider: 'gemini',
     };

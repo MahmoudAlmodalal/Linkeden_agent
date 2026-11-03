@@ -13,6 +13,7 @@ import {
   normalizeTextModel,
   normalizeVisualModel,
   buildContentPrompt,
+  ensureHashtags,
   buildVisualPrompt,
   resolveVisualAsset,
   generatePostContent,
@@ -23,6 +24,25 @@ import {
   synthesizeDraft,
   createGeminiClient,
 } from '../scripts/gemini_engine.js';
+
+describe('Gemini Engine - Mandatory LinkedIn Hashtags', () => {
+  it('appends relevant hashtags when the model omits them', () => {
+    const result = ensureHashtags('محتوى تقني عن البحث الجغرافي.', {
+      keywords: ['postgis', 'spatial-indexing', 'postgresql'],
+    });
+    const tags = result.match(/#[\p{L}\p{N}_-]+/gu) || [];
+    assert.ok(tags.length >= 4 && tags.length <= 6);
+    assert.match(result, /#PostGIS/);
+    assert.match(result, /#PostgreSQL/);
+  });
+
+  it('normalizes existing hashtags and keeps the post ending with hashtags', () => {
+    const result = ensureHashtags('Post body\n\n#Backend #SystemDesign', { keywords: [] });
+    const tags = result.match(/#[\p{L}\p{N}_-]+/gu) || [];
+    assert.ok(tags.length >= 4 && tags.length <= 6);
+    assert.match(result, /#Backend #SystemDesign/);
+  });
+});
 
 describe('Gemini Engine - Model Enforcement & Deprecation Rules', () => {
   it('defaults to gemini-3.8-flash for text generation', () => {
@@ -369,7 +389,7 @@ describe('Gemini Engine - Dual-Visual Synthesis Priority Pipeline', () => {
 
     // Verify text was generated with gemini-3.8-flash
     assert.equal(result.modelUsed.text, 'gemini-3.8-flash');
-    assert.equal(result.text, 'Deep-dive content for distributed locking');
+    assert.match(result.text, /^Deep-dive content for distributed locking\n\n#/);
 
     // Verify client was ONLY called once for text, NEVER for image!
     assert.equal(calls.length, 1);
@@ -593,7 +613,7 @@ describe('Cloudflare Workers AI Fallback Engine', () => {
     });
 
     assert.equal(result.provider, 'gemini');
-    assert.equal(result.text, 'Gemini generated text');
+    assert.match(result.text, /^Gemini generated text\n\n#/);
     assert.equal(cfCalled, false);
   });
 
@@ -629,7 +649,7 @@ describe('Cloudflare Workers AI Fallback Engine', () => {
 
     assert.equal(cfCalled, true);
     assert.equal(result.provider, 'cloudflare');
-    assert.equal(result.text, 'Cloudflare fallback post content with 5 elements');
+    assert.match(result.text, /^Cloudflare fallback post content with 5 elements\n\n#/);
   });
 
   it('generateVisualAsset falls back to Cloudflare Workers AI when Gemini visual fails', async () => {
@@ -716,7 +736,7 @@ describe('Cloudflare Workers AI Fallback Engine', () => {
 
       assert.equal(result.providerUsed.text, 'cloudflare');
       assert.equal(result.providerUsed.visual, 'cloudflare');
-      assert.equal(result.text, 'Cloudflare synthesized post text');
+      assert.match(result.text, /^Cloudflare synthesized post text\n\n#/);
       assert.ok(fs.existsSync(result.visualPath));
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
