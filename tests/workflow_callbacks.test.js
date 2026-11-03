@@ -67,7 +67,7 @@ test('webhook has a registered callback-query acknowledgement path', () => {
   assert.equal(answerNode?.parameters?.bodyParameters?.parameters?.[0]?.name, 'callback_query_id');
 });
 
-test('show callback returns the selected post through the Telegram reply node', () => {
+test('show callback uploads the draft image and returns the selected post through Telegram', async () => {
   const showCode = nodes.get('Handle Show Node')?.parameters?.jsCode || '';
   assert.doesNotMatch(showCode, /child_process|execSync/);
   assert.match(showCode, /replyText/);
@@ -82,21 +82,35 @@ test('show callback returns the selected post through the Telegram reply node', 
   );
 
   const fakeFs = {
-    existsSync: () => true,
-    readFileSync: () => JSON.stringify([{ id: 7, text: 'Preview body', image_path: '/data/generated_images/post.png' }]),
+    existsSync: (file) => file === '/data/pending_drafts.json' || file === '/data/generated_images/post.png',
+    statSync: () => ({ isFile: () => true, size: 256 }),
+    readFileSync: (file, encoding) => file === '/data/pending_drafts.json'
+      ? JSON.stringify([{ id: 7, text: 'Preview body', image_path: '/data/generated_images/post.png' }])
+      : Buffer.from('fake-image-bytes'),
   };
-  const execute = new Function('$', 'require', showCode);
-  const result = execute(
+  let photoRequest;
+  const execute = new Function('$', 'require', '$env', 'fetch', `return (async () => {${showCode}})();`);
+  const result = (await execute(
     () => ({ first: () => ({ json: { chatId: 12345, draftId: '7' } }) }),
     (name) => {
-      assert.equal(name, 'fs');
-      return fakeFs;
+      if (name === 'fs') return fakeFs;
+      if (name === 'path') return path;
+      throw new Error(`Unexpected module: ${name}`);
     },
-  )[0].json;
+    { TELEGRAM_BOT_TOKEN: 'test-token' },
+    async (url, init) => {
+      photoRequest = { url, init };
+      return { ok: true, status: 200, json: async () => ({ ok: true }) };
+    },
+  ))[0].json;
 
   assert.equal(result.chatId, 12345);
   assert.match(result.replyText, /Preview body/);
   assert.match(result.replyText, /#7/);
   assert.equal(result.replyMarkup.inline_keyboard[0][0].callback_data, 'approve_7');
   assert.equal(result.replyMarkup.inline_keyboard[0][1].callback_data, 'reject_7');
+  assert.equal(photoRequest.url, 'https://api.telegram.org/bottest-token/sendPhoto');
+  assert.equal(photoRequest.init.method, 'POST');
+  assert.equal(photoRequest.init.body.get('chat_id'), '12345');
+  assert.equal(photoRequest.init.body.get('photo').name, 'post.png');
 });

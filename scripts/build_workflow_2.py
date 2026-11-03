@@ -179,6 +179,7 @@ return [{
 }];"""
 
 js_show = r"""const fs = require('fs');
+const path = require('path');
 const prev = $('Security & Command Parser').first().json;
 const chatId = prev.chatId;
 const draftId = String(prev.draftId || '').trim();
@@ -194,8 +195,9 @@ try {
 }
 
 const draft = drafts.find((item) => String(item.id) === draftId);
+const postText = draft?.text || draft?.post_text || draft?.content || '(لا يوجد نص للمنشور)';
 const replyText = draft
-  ? `📋 *معاينة المسودة #${draft.id}*\n\n${draft.text || draft.post_text || draft.content || '(لا يوجد نص للمنشور)'}\n\n${draft.image_path || draft.image ? '🖼️ صورة المسودة محفوظة مع المنشور.' : ''}`
+  ? `📋 معاينة المسودة #${draft.id}\n\n${postText}`
   : `⚠️ لم أجد المسودة #${draftId || 'المطلوبة'} في قائمة الانتظار.`;
 const replyMarkup = draft ? {
   inline_keyboard: [[
@@ -203,6 +205,62 @@ const replyMarkup = draft ? {
     { text: `🗑️ حذف #${draft.id}`, callback_data: `reject_${draft.id}` }
   ]]
 } : undefined;
+
+// Upload a local draft image directly from this workflow. Avoid spawning a
+// separate Node process, whose environment may not include the Telegram token.
+if (draft) {
+  const imageRef = draft.image_path || draft.image || draft.photo || draft.image_url;
+  const botToken = $env.TELEGRAM_BOT_TOKEN;
+  if (imageRef && botToken) {
+    try {
+      const photoCaption = `معاينة صورة المسودة #${draft.id}`;
+      const telegramUrl = `https://api.telegram.org/bot${botToken}/sendPhoto`;
+      let response;
+
+      if (/^https?:\/\//i.test(imageRef)) {
+        response = await fetch(telegramUrl, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ chat_id: String(chatId), photo: imageRef, caption: photoCaption })
+        });
+      } else {
+        const filename = path.basename(imageRef);
+        const localCandidates = [
+          imageRef,
+          path.resolve(imageRef),
+          path.resolve('/data', imageRef),
+          path.join('/data/generated_images', filename),
+          path.join('/assets', filename)
+        ];
+        const imagePath = localCandidates.find((candidate) => {
+          try { return fs.existsSync(candidate) && fs.statSync(candidate).isFile() && fs.statSync(candidate).size > 100; }
+          catch { return false; }
+        });
+
+        if (imagePath) {
+          const extension = path.extname(imagePath).toLowerCase();
+          const mimeType = extension === '.png' ? 'image/png' : (extension === '.webp' ? 'image/webp' : 'image/jpeg');
+          const form = new FormData();
+          form.append('chat_id', String(chatId));
+          form.append('caption', photoCaption);
+          form.append('photo', new Blob([fs.readFileSync(imagePath)], { type: mimeType }), path.basename(imagePath));
+          response = await fetch(telegramUrl, { method: 'POST', body: form });
+        } else {
+          console.warn(`Draft #${draft.id} image file not found; sending the post text only.`);
+        }
+      }
+
+      if (response) {
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.ok) {
+          console.warn(`Draft #${draft.id} photo upload failed: ${result.description || response.status}`);
+        }
+      }
+    } catch (error) {
+      console.error(`Draft #${draft.id} photo upload error:`, error.message);
+    }
+  }
+}
 
 return [{ json: { chatId, replyText, replyMarkup } }];"""
 
