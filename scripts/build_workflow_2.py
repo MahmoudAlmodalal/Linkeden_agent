@@ -17,7 +17,7 @@ if (callback) {
   text = (message.text || '').trim();
 }
 
-const allowedId = String(process.env.TELEGRAM_ALLOWED_USER_ID || '').trim();
+const allowedId = String($input.item.json.allowedTelegramUserId || '').trim();
 
 if (!fromId || !allowedId || fromId !== allowedId) {
   return [{
@@ -228,6 +228,27 @@ wf2 = {
     },
     {
       "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "allowed-telegram-user-id",
+              "name": "allowedTelegramUserId",
+              "value": "={{ $env.TELEGRAM_ALLOWED_USER_ID }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": True,
+        "options": {}
+      },
+      "id": "read-telegram-config",
+      "name": "Read Telegram Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [320, 100]
+    },
+    {
+      "parameters": {
         "jsCode": js_security
       },
       "id": "security-check",
@@ -386,6 +407,9 @@ wf2 = {
   ],
   "connections": {
     "Telegram Webhook Trigger": {
+      "main": [[{ "node": "Read Telegram Config", "type": "main", "index": 0 }]]
+    },
+    "Read Telegram Config": {
       "main": [[{ "node": "Security & Command Parser", "type": "main", "index": 0 }]]
     },
     "Security & Command Parser": {
