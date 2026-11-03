@@ -24,5 +24,6 @@ WORKDIR /home/node
 ENV N8N_PORT=5678
 EXPOSE 5678
 
-# The n8n image is a minimal runtime without a shell; use Node directly.
-CMD ["node", "/scripts/start_n8n.mjs"]
+# Keep the official n8n image entrypoint and command. The image runtime does
+# not expose shell or Node commands to Render's custom command resolver.
+CMD ["n8n"]
