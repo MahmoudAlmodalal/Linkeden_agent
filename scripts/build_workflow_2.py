@@ -17,7 +17,7 @@ if (callback) {
   text = (message.text || '').trim();
 }
 
-const allowedId = '1565239721';
+const allowedId = String(process.env.TELEGRAM_ALLOWED_USER_ID || '').trim();
 
 if (!fromId || !allowedId || fromId !== allowedId) {
   return [{
@@ -34,7 +34,7 @@ if (!fromId || !allowedId || fromId !== allowedId) {
 let command = 'unknown';
 let draftId = null;
 
-if (text.startsWith('approve:') || text.startsWith('/approve') || text.includes('/approve') || text.startsWith('✅ نشر')) {
+if (text.startsWith('approve:') || /^(?:\/approve(?:@\w+)?)(?:\s|$)/u.test(text) || text.startsWith('✅ نشر')) {
   command = 'approve';
   if (text.startsWith('approve:')) {
     draftId = text.split(':')[1];
@@ -42,7 +42,7 @@ if (text.startsWith('approve:') || text.startsWith('/approve') || text.includes(
     const numMatch = text.match(/#?(\d+)/);
     if (numMatch) draftId = numMatch[1];
   }
-} else if (text.startsWith('reject:') || text.startsWith('/reject') || text.includes('/reject') || text.startsWith('🗑️ رفض') || text.startsWith('❌ رفض') || text.includes('حذف')) {
+} else if (text.startsWith('reject:') || /^(?:\/reject(?:@\w+)?)(?:\s|$)/u.test(text) || text.startsWith('🗑️ رفض') || text.startsWith('❌ رفض')) {
   command = 'reject';
   if (text.startsWith('reject:')) {
     draftId = text.split(':')[1];
@@ -365,7 +365,7 @@ wf2 = {
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://api.telegram.org/bot[removed-token]/sendMessage",
+        "url": "={{ 'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage' }}",
         "sendBody": True,
         "bodyParameters": {
           "parameters": [

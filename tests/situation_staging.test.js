@@ -97,7 +97,7 @@ describe('Situation Prompt - Persistence & Bot State Management', () => {
   afterEach(cleanupTestFiles);
 
   it('tracks user state in bot_state.json', () => {
-    const userId = '1565239721';
+    const userId = 'test-authorized-user';
     setUserState(userId, { state: 'awaiting_situation' }, TEST_STATE_PATH);
 
     const retrieved = getUserState(userId, TEST_STATE_PATH);
@@ -112,12 +112,12 @@ describe('Situation Prompt - Persistence & Bot State Management', () => {
   it('archives scenarios to scenarios.json with incremental IDs', () => {
     const item1 = addScenario({
       situation: 'First scenario incident',
-      submitted_by: '1565239721',
+      submitted_by: 'test-authorized-user',
     }, TEST_SCENARIOS_PATH);
 
     const item2 = addScenario({
       situation: 'Second scenario incident',
-      submitted_by: '1565239721',
+      submitted_by: 'test-authorized-user',
     }, TEST_SCENARIOS_PATH);
 
     assert.equal(item1.id, 1);
@@ -134,12 +134,12 @@ describe('Situation Prompt - Telegram Router Stateful Interaction', () => {
   beforeEach(cleanupTestFiles);
   afterEach(cleanupTestFiles);
 
-  const allowedUserId = '1565239721';
+  const allowedUserId = 'test-authorized-user';
 
   it('handles empty /situation by entering awaiting_situation state', async () => {
     const update = {
       message: {
-        from: { id: 1565239721 },
+        from: { id: 'test-authorized-user' },
         text: '/situation',
       },
     };
@@ -168,7 +168,7 @@ describe('Situation Prompt - Telegram Router Stateful Interaction', () => {
 
     const update = {
       message: {
-        from: { id: 1565239721 },
+        from: { id: 'test-authorized-user' },
         text: 'انقطاع كامل في خدمة التنبيهات بسبب تجاوز الـ rate limit في FCM',
       },
     };
@@ -200,7 +200,7 @@ describe('Situation Prompt - Telegram Router Stateful Interaction', () => {
 
     const update = {
       message: {
-        from: { id: 1565239721 },
+        from: { id: 'test-authorized-user' },
         text: '/cancel',
       },
     };
@@ -228,7 +228,7 @@ describe('Situation Prompt - Telegram Router Stateful Interaction', () => {
 
     const update = {
       message: {
-        from: { id: 1565239721 },
+        from: { id: 'test-authorized-user' },
         text: incidentText,
       },
     };

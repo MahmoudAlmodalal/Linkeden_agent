@@ -3,7 +3,7 @@ import os
 
 js_code = r"""const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { spawnSync } = require('child_process');
 
 const input = $input.first().json;
 const draftId = input.draftId || 1;
@@ -15,11 +15,13 @@ let imagePath = null;
 let project = 'portfolio';
 
 try {
-  const queryArg = query ? `--query "${query.replace(/"/g, '\\"')}"` : '';
-  const sitArg = situation ? `--situation "${situation.replace(/"/g, '\\"')}"` : '';
-  const cmd = `node /scripts/generate_rag_draft.js ${queryArg} ${sitArg} --id ${draftId}`;
-  const out = execSync(cmd, { encoding: 'utf8', timeout: 60000 });
-  const result = JSON.parse(out);
+  const args = ['/scripts/generate_rag_draft.js', '--id', String(draftId)];
+  if (query) args.push('--query', query);
+  if (situation) args.push('--situation', situation);
+  const child = spawnSync('node', args, { encoding: 'utf8', timeout: 60000 });
+  if (child.error) throw child.error;
+  if (child.status !== 0) throw new Error(child.stderr || `RAG process exited with ${child.status}`);
+  const result = JSON.parse(child.stdout);
   if (result.success && result.draft) {
     postText = result.draft.text;
     imagePath = result.draft.image_path;
@@ -54,8 +56,8 @@ const safeCaption = postText.length > 900
   ? `[Draft ID: #${draftId}]\n\n` + postText.slice(0, 850) + '...'
   : `[Draft ID: #${draftId}]\n\n` + postText;
 
-const botToken = process.env.TELEGRAM_BOT_TOKEN || '[removed-token]';
-const chatId = process.env.TELEGRAM_ALLOWED_USER_ID || '1565239721';
+const chatId = process.env.TELEGRAM_ALLOWED_USER_ID;
+if (!chatId) throw new Error('TELEGRAM_ALLOWED_USER_ID is required to dispatch a draft');
 
 try {
   execSync(`node /scripts/telegram_router.js --show-draft ${draftId} --chat-id ${chatId}`, { encoding: 'utf8', timeout: 15000 });
