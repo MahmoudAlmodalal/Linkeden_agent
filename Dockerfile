@@ -13,6 +13,7 @@ COPY ./config /config
 COPY ./workflows /workflows
 COPY ./assets /assets
 COPY ./scripts /scripts
+RUN chmod +x /scripts/start_n8n.sh
 
 # Ensure node user owns the required directories
 RUN chown -R node:node /data /config /workflows /assets /scripts /app
@@ -22,3 +23,5 @@ WORKDIR /home/node
 
 ENV N8N_PORT=5678
 EXPOSE 5678
+
+CMD ["/scripts/start_n8n.sh"]
