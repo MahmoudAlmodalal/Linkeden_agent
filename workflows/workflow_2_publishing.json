@@ -318,7 +318,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const fs = require('fs');\nconst path = require('path');\nconst prev = $('Security & Command Parser').first().json;\nconst chatId = prev.chatId;\nconst draftId = String(prev.draftId || '').trim();\nconst filePath = '/data/pending_drafts.json';\nlet drafts = [];\ntry {\n  if (fs.existsSync(filePath)) {\n    const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));\n    drafts = Array.isArray(parsed) ? parsed : (Array.isArray(parsed.drafts) ? parsed.drafts : []);\n  }\n} catch (error) {\n  console.error('Could not read pending drafts:', error.message);\n}\n\nconst draft = drafts.find((item) => String(item.id) === draftId);\nconst postText = draft?.text || draft?.post_text || draft?.content || '(\u0644\u0627 \u064a\u0648\u062c\u062f \u0646\u0635 \u0644\u0644\u0645\u0646\u0634\u0648\u0631)';\nconst replyText = draft\n  ? `\ud83d\udccb \u0645\u0639\u0627\u064a\u0646\u0629 \u0627\u0644\u0645\u0633\u0648\u062f\u0629 #${draft.id}\\n\\n${postText}`\n  : `\u26a0\ufe0f \u0644\u0645 \u0623\u062c\u062f \u0627\u0644\u0645\u0633\u0648\u062f\u0629 #${draftId || '\u0627\u0644\u0645\u0637\u0644\u0648\u0628\u0629'} \u0641\u064a \u0642\u0627\u0626\u0645\u0629 \u0627\u0644\u0627\u0646\u062a\u0638\u0627\u0631.`;\nconst replyMarkup = draft ? {\n  inline_keyboard: [[\n    { text: `\u2705 \u0646\u0634\u0631 #${draft.id}`, callback_data: `approve_${draft.id}` },\n    { text: `\ud83d\uddd1\ufe0f \u062d\u0630\u0641 #${draft.id}`, callback_data: `reject_${draft.id}` }\n  ]]\n} : undefined;\n\n// Upload a local draft image directly from this workflow. Avoid spawning a\n// separate Node process, whose environment may not include the Telegram token.\nif (draft) {\n  const imageRef = draft.image_path || draft.image || draft.photo || draft.image_url;\n  const botToken = $env.TELEGRAM_BOT_TOKEN;\n  if (imageRef && botToken) {\n    try {\n      const photoCaption = `\u0645\u0639\u0627\u064a\u0646\u0629 \u0635\u0648\u0631\u0629 \u0627\u0644\u0645\u0633\u0648\u062f\u0629 #${draft.id}`;\n      const telegramUrl = `https://api.telegram.org/bot${botToken}/sendPhoto`;\n      let response;\n\n      if (/^https?:\\/\\//i.test(imageRef)) {\n        response = await fetch(telegramUrl, {\n          method: 'POST',\n          headers: { 'content-type': 'application/json' },\n          body: JSON.stringify({ chat_id: String(chatId), photo: imageRef, caption: photoCaption })\n        });\n      } else {\n        const filename = path.basename(imageRef);\n        const localCandidates = [\n          imageRef,\n          path.resolve(imageRef),\n          path.resolve('/data', imageRef),\n          path.join('/data/generated_images', filename),\n          path.join('/assets', filename)\n        ];\n        const imagePath = localCandidates.find((candidate) => {\n          try { return fs.existsSync(candidate) && fs.statSync(candidate).isFile() && fs.statSync(candidate).size > 100; }\n          catch { return false; }\n        });\n\n        if (imagePath) {\n          const extension = path.extname(imagePath).toLowerCase();\n          const mimeType = extension === '.png' ? 'image/png' : (extension === '.webp' ? 'image/webp' : 'image/jpeg');\n          const form = new FormData();\n          form.append('chat_id', String(chatId));\n          form.append('caption', photoCaption);\n          form.append('photo', new Blob([fs.readFileSync(imagePath)], { type: mimeType }), path.basename(imagePath));\n          response = await fetch(telegramUrl, { method: 'POST', body: form });\n        } else {\n          console.warn(`Draft #${draft.id} image file not found; sending the post text only.`);\n        }\n      }\n\n      if (response) {\n        const result = await response.json().catch(() => ({}));\n        if (!response.ok || !result.ok) {\n          console.warn(`Draft #${draft.id} photo upload failed: ${result.description || response.status}`);\n        }\n      }\n    } catch (error) {\n      console.error(`Draft #${draft.id} photo upload error:`, error.message);\n    }\n  }\n}\n\nreturn [{ json: { chatId, replyText, replyMarkup } }];"
+        "jsCode": "const fs = require('fs');\nconst path = require('path');\nconst prev = $('Security & Command Parser').first().json;\nconst chatId = prev.chatId;\nconst draftId = String(prev.draftId || '').trim();\nconst filePath = '/data/pending_drafts.json';\nlet drafts = [];\ntry {\n  if (fs.existsSync(filePath)) {\n    const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));\n    drafts = Array.isArray(parsed) ? parsed : (Array.isArray(parsed.drafts) ? parsed.drafts : []);\n  }\n} catch (error) {\n  console.error('Could not read pending drafts:', error.message);\n}\n\nconst draft = drafts.find((item) => String(item.id) === draftId);\nconst postText = draft?.text || draft?.post_text || draft?.content || '(\u0644\u0627 \u064a\u0648\u062c\u062f \u0646\u0635 \u0644\u0644\u0645\u0646\u0634\u0648\u0631)';\nlet imagePath = null;\nif (draft) {\n  const imageRef = draft.image_path || draft.image || draft.photo || draft.image_url;\n  if (imageRef && !/^https?:\\/\\//i.test(imageRef)) {\n    const filename = path.basename(imageRef);\n    const candidates = [imageRef, path.resolve(imageRef), path.resolve('/data', imageRef),\n      path.join('/data/generated_images', filename), path.join('/assets', filename)];\n    imagePath = candidates.find((candidate) => {\n      try { return fs.existsSync(candidate) && fs.statSync(candidate).isFile() && fs.statSync(candidate).size > 100; }\n      catch { return false; }\n    }) || null;\n  }\n}\n\nconst replyText = draft\n  ? `\ud83d\udccb \u0645\u0639\u0627\u064a\u0646\u0629 \u0627\u0644\u0645\u0633\u0648\u062f\u0629 #${draft.id}\\n\\n${postText}${imagePath ? '' : '\\n\\n\u26a0\ufe0f \u0644\u0645 \u0623\u062c\u062f \u0645\u0644\u0641 \u0635\u0648\u0631\u0629 \u0644\u0647\u0630\u0647 \u0627\u0644\u0645\u0633\u0648\u062f\u0629 \u0639\u0644\u0649 \u0627\u0644\u062e\u0627\u062f\u0645.'}`\n  : `\u26a0\ufe0f \u0644\u0645 \u0623\u062c\u062f \u0627\u0644\u0645\u0633\u0648\u062f\u0629 #${draftId || '\u0627\u0644\u0645\u0637\u0644\u0648\u0628\u0629'} \u0641\u064a \u0642\u0627\u0626\u0645\u0629 \u0627\u0644\u0627\u0646\u062a\u0638\u0627\u0631.`;\nconst replyMarkup = draft ? {\n  inline_keyboard: [[\n    { text: `\u2705 \u0646\u0634\u0631 #${draft.id}`, callback_data: `approve_${draft.id}` },\n    { text: `\ud83d\uddd1\ufe0f \u062d\u0630\u0641 #${draft.id}`, callback_data: `reject_${draft.id}` }\n  ]]\n} : undefined;\nconst json = { chatId, draftId, replyText, replyMarkup, hasImage: Boolean(imagePath), photoCaption: draft ? `\u0645\u0639\u0627\u064a\u0646\u0629 \u0635\u0648\u0631\u0629 \u0627\u0644\u0645\u0633\u0648\u062f\u0629 #${draft.id}` : '' };\nconst item = { json };\nif (imagePath) {\n  const extension = path.extname(imagePath).toLowerCase();\n  const mimeType = extension === '.png' ? 'image/png' : (extension === '.webp' ? 'image/webp' : 'image/jpeg');\n  item.binary = { photo: { data: fs.readFileSync(imagePath).toString('base64'), fileName: path.basename(imagePath), mimeType } };\n}\nreturn [item];"
       },
       "id": "handle-show-node",
       "name": "Handle Show Node",
@@ -409,6 +409,41 @@
         1240,
         660
       ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendPhoto' }}",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "={{ $json.chatId }}"
+            },
+            {
+              "name": "caption",
+              "value": "={{ $json.photoCaption }}"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "photo",
+              "inputDataFieldName": "photo"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "telegram-preview-photo-node",
+      "name": "Telegram Preview Photo Node",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1240,
+        820
+      ],
+      "continueOnFail": true
     }
   ],
   "connections": {
@@ -568,6 +603,11 @@
         [
           {
             "node": "Telegram Preview Reply Node",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Telegram Preview Photo Node",
             "type": "main",
             "index": 0
           }

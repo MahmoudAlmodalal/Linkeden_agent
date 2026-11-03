@@ -67,19 +67,25 @@ test('webhook has a registered callback-query acknowledgement path', () => {
   assert.equal(answerNode?.parameters?.bodyParameters?.parameters?.[0]?.name, 'callback_query_id');
 });
 
-test('show callback uploads the draft image and returns the selected post through Telegram', async () => {
+test('show callback returns image binary and sends it through Telegram multipart upload', () => {
   const showCode = nodes.get('Handle Show Node')?.parameters?.jsCode || '';
   assert.doesNotMatch(showCode, /child_process|execSync/);
   assert.match(showCode, /replyText/);
-  assert.equal(
-    workflow.connections['Handle Show Node']?.main?.[0]?.[0]?.node,
-    'Telegram Preview Reply Node',
-  );
+  const showLinks = workflow.connections['Handle Show Node']?.main?.[0] || [];
+  assert.deepEqual(showLinks.map((link) => link.node).sort(), [
+    'Telegram Preview Photo Node', 'Telegram Preview Reply Node',
+  ].sort());
   assert.equal(nodes.get('Telegram Preview Reply Node')?.type, 'n8n-nodes-base.httpRequest');
   assert.doesNotMatch(
     JSON.stringify(nodes.get('Telegram Preview Reply Node')?.parameters?.bodyParameters?.parameters || []),
     /parse_mode/,
   );
+  const photoNode = nodes.get('Telegram Preview Photo Node');
+  assert.equal(photoNode?.type, 'n8n-nodes-base.httpRequest');
+  assert.match(photoNode?.parameters?.url || '', /sendPhoto/);
+  assert.equal(photoNode?.parameters?.contentType, 'multipart-form-data');
+  assert.equal(photoNode?.parameters?.bodyParameters?.parameters?.[2]?.parameterType, 'formBinaryData');
+  assert.equal(photoNode?.parameters?.bodyParameters?.parameters?.[2]?.inputDataFieldName, 'photo');
 
   const fakeFs = {
     existsSync: (file) => file === '/data/pending_drafts.json' || file === '/data/generated_images/post.png',
@@ -88,29 +94,23 @@ test('show callback uploads the draft image and returns the selected post throug
       ? JSON.stringify([{ id: 7, text: 'Preview body', image_path: '/data/generated_images/post.png' }])
       : Buffer.from('fake-image-bytes'),
   };
-  let photoRequest;
-  const execute = new Function('$', 'require', '$env', 'fetch', `return (async () => {${showCode}})();`);
-  const result = (await execute(
+  const execute = new Function('$', 'require', showCode);
+  const result = execute(
     () => ({ first: () => ({ json: { chatId: 12345, draftId: '7' } }) }),
     (name) => {
       if (name === 'fs') return fakeFs;
       if (name === 'path') return path;
       throw new Error(`Unexpected module: ${name}`);
     },
-    { TELEGRAM_BOT_TOKEN: 'test-token' },
-    async (url, init) => {
-      photoRequest = { url, init };
-      return { ok: true, status: 200, json: async () => ({ ok: true }) };
-    },
-  ))[0].json;
+  )[0];
 
-  assert.equal(result.chatId, 12345);
-  assert.match(result.replyText, /Preview body/);
-  assert.match(result.replyText, /#7/);
-  assert.equal(result.replyMarkup.inline_keyboard[0][0].callback_data, 'approve_7');
-  assert.equal(result.replyMarkup.inline_keyboard[0][1].callback_data, 'reject_7');
-  assert.equal(photoRequest.url, 'https://api.telegram.org/bottest-token/sendPhoto');
-  assert.equal(photoRequest.init.method, 'POST');
-  assert.equal(photoRequest.init.body.get('chat_id'), '12345');
-  assert.equal(photoRequest.init.body.get('photo').name, 'post.png');
+  assert.equal(result.json.chatId, 12345);
+  assert.match(result.json.replyText, /Preview body/);
+  assert.match(result.json.replyText, /#7/);
+  assert.equal(result.json.hasImage, true);
+  assert.equal(result.json.replyMarkup.inline_keyboard[0][0].callback_data, 'approve_7');
+  assert.equal(result.json.replyMarkup.inline_keyboard[0][1].callback_data, 'reject_7');
+  assert.equal(result.binary.photo.fileName, 'post.png');
+  assert.equal(result.binary.photo.mimeType, 'image/png');
+  assert.equal(Buffer.from(result.binary.photo.data, 'base64').toString(), 'fake-image-bytes');
 });
