@@ -26,4 +26,4 @@ EXPOSE 5678
 
 # The official image contains Node at this absolute path, while Render's
 # custom command resolver may not provide /usr/local/bin in PATH.
-CMD ["/usr/local/bin/node", "/scripts/start_n8n.mjs"]
+CMD ["/usr/bin/node", "/scripts/start_n8n.mjs"]

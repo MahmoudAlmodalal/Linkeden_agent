@@ -20,6 +20,17 @@ for (const workflow of workflows) {
   }
 }
 
+// n8n 2.x uses publish/unpublish instead of the old active toggle. Publishing
+// this workflow registers its production Telegram webhook before the server
+// starts accepting Telegram updates.
+const publish = spawnSync(n8n, ['publish:workflow', '--id=workflow-2-publishing'], {
+  env: process.env,
+  stdio: 'inherit',
+});
+if (publish.error || publish.status !== 0) {
+  console.warn('Telegram workflow publish skipped or failed');
+}
+
 const host = process.env.N8N_HOST || '0.0.0.0';
 const port = process.env.PORT || process.env.N8N_PORT || '5678';
 const child = spawn(n8n, ['start', '--host', host, '--port', port], {
