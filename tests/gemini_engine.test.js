@@ -22,6 +22,7 @@ import {
   generateVisualAssetCloudflare,
   callCloudflareWorkersAI,
   synthesizeDraft,
+  synthesizeRAGDraft,
   createGeminiClient,
 } from '../scripts/gemini_engine.js';
 
@@ -740,6 +741,49 @@ describe('Cloudflare Workers AI Fallback Engine', () => {
       assert.ok(fs.existsSync(result.visualPath));
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+});
+
+
+describe('Gemini Engine - RAG Generation Efficiency', () => {
+  it('requests a remote visual only once when no local asset exists', async () => {
+    const assetsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rag-empty-assets-'));
+    const outputDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rag-generated-'));
+    const calls = [];
+    const challenge = {
+      id: 901,
+      project: 'project-without-local-asset',
+      project_name: 'Project Without Local Asset',
+      title: 'Remote visual generation',
+      dilemma: 'Avoid duplicate provider requests',
+      keywords: ['Backend'],
+    };
+    const client = {
+      interactions: {
+        create: async ({ model }) => {
+          calls.push(model);
+          if (model === DEFAULT_VISUAL_MODEL) {
+            return { output_image: { data: Buffer.from('image-once').toString('base64') } };
+          }
+          return { output_text: 'A grounded post generated once.' };
+        },
+      },
+    };
+
+    try {
+      const result = await synthesizeRAGDraft({
+        challenge,
+        client,
+        assetsDir,
+        outputDir,
+      });
+      assert.equal(calls.filter((model) => model === DEFAULT_VISUAL_MODEL).length, 1);
+      assert.equal(calls.filter((model) => model === DEFAULT_TEXT_MODEL).length, 1);
+      assert.equal(result.visualSource, 'generated');
+    } finally {
+      fs.rmSync(assetsDir, { recursive: true, force: true });
+      fs.rmSync(outputDir, { recursive: true, force: true });
     }
   });
 });

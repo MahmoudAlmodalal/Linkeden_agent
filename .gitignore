@@ -8,6 +8,7 @@ node_modules/
 
 # Runtime & application data
 *.log
+data/rag/embedding_cache.json
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

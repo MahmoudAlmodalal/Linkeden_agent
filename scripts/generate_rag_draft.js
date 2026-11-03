@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { synthesizeRAGDraft } from './gemini_engine.js';
+import { createGeminiClient, synthesizeRAGDraft } from './gemini_engine.js';
 import { addPendingDraft, loadPendingDrafts, addScenario } from './telegram_router.js';
 import { renderCardImage, extractCardContent } from './card_generator.js';
 
@@ -107,7 +107,18 @@ if (process.argv[1] && process.argv[1].endsWith('generate_rag_draft.js')) {
 
   const noCard = args.includes('--no-card');
 
-  runRAGStaging({ query, situation, draftId, useBrandedCard: !noCard })
+  const clientPromise = process.env.GEMINI_API_KEY
+    ? createGeminiClient()
+    : Promise.resolve(null);
+
+  clientPromise
+    .then((client) => runRAGStaging({
+      query,
+      situation,
+      draftId,
+      client,
+      useBrandedCard: !noCard,
+    }))
     .then((res) => {
       console.log(JSON.stringify(res, null, 2));
     })

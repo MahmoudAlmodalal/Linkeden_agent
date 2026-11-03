@@ -427,7 +427,7 @@ export async function generatePostContent(topic, options = {}) {
     client = null,
     model = DEFAULT_TEXT_MODEL,
     fetchClient = globalThis.fetch,
-    timeoutMs = 8000,
+    timeoutMs = Number(process.env.GEMINI_TIMEOUT_MS) || 5000,
   } = options;
 
   const validModel = normalizeTextModel(model);
@@ -475,7 +475,7 @@ export async function generateVisualAsset(topic, options = {}) {
     model = DEFAULT_VISUAL_MODEL,
     outputDir = 'data/generated_images',
     fetchClient = globalThis.fetch,
-    timeoutMs = 8000,
+    timeoutMs = Number(process.env.GEMINI_TIMEOUT_MS) || 5000,
   } = options;
 
   const validModel = normalizeVisualModel(model);
@@ -671,27 +671,16 @@ export async function synthesizeRAGDraft(options = {}) {
     localAsset = resolveVisualAsset(topicObj.slug, { assetsDir });
   }
 
-  let visualResult;
-  if (localAsset) {
-    visualResult = {
+  // 2–3. Generate text and a remote visual concurrently when no local asset exists.
+  // Do not pre-generate the visual here: that would issue the same remote
+  // request twice before Promise.all() awaited the second request.
+  const visualPromise = localAsset
+    ? Promise.resolve({
       visualPath: localAsset,
       visualSource: 'local',
       model: null,
       provider: 'local',
-    };
-  } else {
-    visualResult = await generateVisualAsset(topicObj, {
-      ...options,
-      client,
-      model: visualModel,
-      outputDir,
-      fetchClient,
-    });
-  }
-
-  // 2–3. Generate text and a remote visual concurrently when no local asset exists.
-  const visualPromise = localAsset
-    ? Promise.resolve(visualResult)
+    })
     : generateVisualAsset(topicObj, {
       ...options,
       client,

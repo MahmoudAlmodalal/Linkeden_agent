@@ -219,6 +219,39 @@ describe('RAG Engine - Hybrid Retrieval & Rank Fusion', () => {
     assert.ok(result.challenge);
     assert.match(result.challenge.title, /Hybrid Search|Normalization|RRF/i);
   });
+
+  it('reuses persistent document and in-memory query embedding caches', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rag-embedding-cache-'));
+    const cachePath = path.join(tempDir, 'embedding_cache.json');
+    let calls = 0;
+    const mockClient = {
+      models: {
+        embedContent: async ({ contents }) => {
+          calls += 1;
+          const value = String(contents).includes('PostGIS') ? 1 : 0.5;
+          return { embedding: { values: [value, 1, 0] } };
+        },
+      },
+    };
+
+    try {
+      await retrieveProjectContext('unique cache PostGIS radius query', {
+        geminiClient: mockClient,
+        embeddingCachePath: cachePath,
+      });
+      const callsAfterFirstSearch = calls;
+      assert.ok(callsAfterFirstSearch > 1, 'First search should populate query and document embeddings');
+      assert.ok(fs.existsSync(cachePath));
+
+      await retrieveProjectContext('unique cache PostGIS radius query', {
+        geminiClient: mockClient,
+        embeddingCachePath: cachePath,
+      });
+      assert.equal(calls, callsAfterFirstSearch, 'Second search should use both caches');
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('RAG Engine - Grounded Prompt Construction', () => {

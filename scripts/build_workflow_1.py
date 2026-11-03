@@ -1,9 +1,7 @@
 import json
 import os
 
-js_code = r"""const fs = require('fs');
-const path = require('path');
-const { spawnSync } = require('child_process');
+js_code = r"""const { spawnSync } = require('child_process');
 
 const input = $input.first().json;
 const draftId = input.draftId || 1;

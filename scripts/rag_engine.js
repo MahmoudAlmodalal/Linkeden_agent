@@ -1,11 +1,17 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 export const DEFAULT_KB_DIR = path.resolve(process.cwd(), 'data', 'rag', 'knowledge_base');
 export const DEFAULT_CHALLENGES_PATH = path.resolve(process.cwd(), 'data', 'rag', 'challenges_matrix.json');
 export const DEFAULT_STYLE_GUIDE_PATH = path.resolve(process.cwd(), 'data', 'rag', 'author_style_guide.md');
 export const DEFAULT_RAG_STATE_PATH = path.resolve(process.cwd(), 'data', 'rag', 'rag_state.json');
+export const DEFAULT_EMBEDDING_CACHE_PATH = path.resolve(process.cwd(), 'data', 'rag', 'embedding_cache.json');
+export const DEFAULT_EMBEDDING_MODEL = 'text-embedding-004';
+
+const QUERY_EMBEDDING_CACHE = new Map();
+const MAX_QUERY_EMBEDDING_CACHE_ENTRIES = 100;
 
 const EASTERN_DIGIT_MAP = {
   '٠': '0', '١': '1', '٢': '2', '٣': '3', '٤': '4',
@@ -251,6 +257,69 @@ export function cosineSimilarity(vecA, vecB) {
 }
 
 /**
+ * Creates a stable cache key that invalidates automatically when either the
+ * embedding model or the source text changes.
+ */
+export function getEmbeddingCacheKey(text, model = DEFAULT_EMBEDDING_MODEL) {
+  return crypto
+    .createHash('sha256')
+    .update(`${model}\n${String(text || '')}`)
+    .digest('hex');
+}
+
+/**
+ * Loads the persistent document embedding cache. Corrupt or incompatible
+ * cache files are ignored so BM25 retrieval remains available.
+ */
+export function loadEmbeddingCache(cachePath = DEFAULT_EMBEDDING_CACHE_PATH) {
+  try {
+    if (!fs.existsSync(cachePath)) return { version: 1, entries: {} };
+    const parsed = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
+    if (parsed?.version !== 1 || !parsed.entries || typeof parsed.entries !== 'object') {
+      return { version: 1, entries: {} };
+    }
+    return parsed;
+  } catch {
+    return { version: 1, entries: {} };
+  }
+}
+
+/**
+ * Writes the embedding cache atomically to avoid corrupting it on interruption.
+ */
+export function saveEmbeddingCache(cache, cachePath = DEFAULT_EMBEDDING_CACHE_PATH) {
+  const directory = path.dirname(cachePath);
+  fs.mkdirSync(directory, { recursive: true });
+  const temporaryPath = `${cachePath}.tmp`;
+  fs.writeFileSync(temporaryPath, `${JSON.stringify(cache)}\n`, 'utf8');
+  fs.renameSync(temporaryPath, cachePath);
+}
+
+async function embedText(text, geminiClient, model) {
+  const response = await geminiClient.models.embedContent({
+    model,
+    contents: text,
+  });
+  return response?.embedding?.values || null;
+}
+
+async function mapWithConcurrency(items, worker, concurrency = 4) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+  const workerCount = Math.max(1, Math.min(concurrency, items.length || 1));
+
+  await Promise.all(Array.from({ length: workerCount }, async () => {
+    while (true) {
+      const index = nextIndex++;
+      if (index >= items.length) return;
+      results[index] = await worker(items[index], index);
+    }
+  }));
+
+  return results;
+}
+
+/**
  * Reciprocal Rank Fusion (RRF) combining dense and lexical rankings.
  */
 export function reciprocalRankFusion(lexicalHits = [], denseHits = [], { rrfK = 60, topK = 4 } = {}) {
@@ -290,6 +359,9 @@ export async function retrieveProjectContext(query, options = {}) {
     challengesPath = DEFAULT_CHALLENGES_PATH,
     topK = 3,
     geminiClient = null,
+    embeddingModel = DEFAULT_EMBEDDING_MODEL,
+    embeddingCachePath = DEFAULT_EMBEDDING_CACHE_PATH,
+    embeddingConcurrency = 4,
   } = options;
 
   const chunks = loadProjectChunks(kbDir);
@@ -323,31 +395,50 @@ export async function retrieveProjectContext(query, options = {}) {
   let denseHits = [];
   if (geminiClient && typeof geminiClient.models?.embedContent === 'function') {
     try {
-      const queryEmbeddingResp = await geminiClient.models.embedContent({
-        model: 'text-embedding-004',
-        contents: query,
-      });
-      const queryVec = queryEmbeddingResp?.embedding?.values;
-      if (queryVec) {
-        // Simple top-K evaluation against pre-indexed or runtime candidates
-        // (For sub-second lightweight execution, candidate rerank)
-        const candidates = lexicalHits.length > 0 ? lexicalHits.map((h) => h.doc) : searchableDocs.slice(0, 15);
-        const scoredCandidates = [];
-        for (const doc of candidates) {
-          const docEmbResp = await geminiClient.models.embedContent({
-            model: 'text-embedding-004',
-            contents: doc.text.slice(0, 1000),
-          });
-          const docVec = docEmbResp?.embedding?.values;
-          if (docVec) {
-            scoredCandidates.push({
-              doc,
-              score: cosineSimilarity(queryVec, docVec),
-            });
+      const queryKey = getEmbeddingCacheKey(query, embeddingModel);
+      let queryVec = QUERY_EMBEDDING_CACHE.get(queryKey);
+      if (!queryVec) {
+        queryVec = await embedText(query, geminiClient, embeddingModel);
+        if (queryVec) {
+          QUERY_EMBEDDING_CACHE.set(queryKey, queryVec);
+          while (QUERY_EMBEDDING_CACHE.size > MAX_QUERY_EMBEDDING_CACHE_ENTRIES) {
+            QUERY_EMBEDDING_CACHE.delete(QUERY_EMBEDDING_CACHE.keys().next().value);
           }
         }
-        scoredCandidates.sort((a, b) => b.score - a.score);
-        denseHits = scoredCandidates;
+      }
+
+      if (queryVec) {
+        const embeddingCache = loadEmbeddingCache(embeddingCachePath);
+        const candidates = lexicalHits.length > 0 ? lexicalHits.map((h) => h.doc) : searchableDocs.slice(0, 15);
+        const scoredCandidates = await mapWithConcurrency(candidates, async (doc) => {
+          const text = doc.text.slice(0, 1000);
+          const cacheKey = getEmbeddingCacheKey(text, embeddingModel);
+          const cached = embeddingCache.entries[cacheKey];
+          const docVec = cached?.model === embeddingModel && Array.isArray(cached.values)
+            ? cached.values
+            : await embedText(text, geminiClient, embeddingModel);
+
+          if (!docVec) return null;
+
+          if (!cached) {
+            embeddingCache.entries[cacheKey] = {
+              docId: doc.id,
+              model: embeddingModel,
+              values: docVec,
+              updatedAt: new Date().toISOString(),
+            };
+          }
+
+          return {
+            doc,
+            score: cosineSimilarity(queryVec, docVec),
+          };
+        }, embeddingConcurrency);
+
+        saveEmbeddingCache(embeddingCache, embeddingCachePath);
+        denseHits = scoredCandidates
+          .filter(Boolean)
+          .sort((a, b) => b.score - a.score);
       }
     } catch (embErr) {
       // Fallback gracefully to BM25
