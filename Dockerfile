@@ -14,6 +14,8 @@ COPY ./workflows /workflows
 COPY ./assets /assets
 COPY ./scripts /scripts
 RUN test -s /scripts/start_n8n.mjs
+COPY ./scripts/docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 
 # Ensure node user owns the required directories
 RUN chown -R node:node /data /config /workflows /assets /scripts /app
@@ -23,7 +25,3 @@ WORKDIR /home/node
 
 ENV N8N_PORT=5678
 EXPOSE 5678
-
-# The official image contains Node at this absolute path, while Render's
-# custom command resolver may not provide /usr/local/bin in PATH.
-CMD ["/usr/bin/node", "/scripts/start_n8n.mjs"]
