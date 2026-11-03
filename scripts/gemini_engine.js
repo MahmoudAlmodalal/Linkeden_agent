@@ -91,8 +91,18 @@ export function buildContentPrompt(topic) {
   const isEnglish = topic?.language === 'en';
   const languageDirective = isEnglish
     ? 'Language: English. Write in authoritative, crisp, professional engineering English.'
-    : `Language: Professional Arabic enriched with standard English technical terms.
-Keep all core technical terminology in English (e.g. "Distributed Lock", "Event-Driven", "Cache Invalidation", "Throughput", "Latency", "Race Condition", "Idempotency", "ACID", "Split-Brain", "Deadlock", "Single Point of Failure", "Consensus Algorithm", "Message Queue"). Do NOT translate or transliterate these standard English technical concepts into awkward Arabic.`;
+    : `Language: Professional Arabic enriched with standard English technical terms. English technical terms are allowed ONLY for established technical names, APIs, operators, framework names, metrics, and hashtags (for example: PostgreSQL, PostGIS, GiST index, ST_DWithin, Redis, Django, P95 latency, Race Condition, Idempotency).
+Do not insert random English words or any other language. Never output words such as "enabled", "problem", "cause", or "solution" inside Arabic sentences. Do NOT translate or transliterate established technical names. Do not use Chinese or machine-translated fragments.`;
+
+  const hookExample = isEnglish
+    ? 'A database transaction is not a lock.'
+    : 'استخدام DB::transaction وحده لا يحمي تطبيقك من الـ Race Conditions إذا لم تقفل السجلات أثناء القراءة.';
+  const ruleExample = isEnglish
+    ? 'Engineering rule: protect correctness at the database boundary, not only in the UI.'
+    : 'الدرس الهندسي: لا تعتمد على حماية الواجهة لمنع تكرار العمليات الحساسة، وقاعدة البيانات هي خط الدفاع الحقيقي الوحيد.';
+  const ctaLine = isEnglish ? 'Share your approach in the comments.' : 'اكتبوا لنا في التعليقات 👇';
+  const rootCauseExample = isEnglish ? 'state the root cause clearly' : 'اذكر السبب الجذري بوضوح';
+  const qualityCheck = isEnglish ? 'the English is coherent' : 'the Arabic is coherent';
 
   return `You are a Principal Software Architect writing a high-signal technical post for LinkedIn aimed at engineering leaders, CTOs, and hiring managers.
 
@@ -109,25 +119,25 @@ CRITICAL FORMATTING RULE: Absolutely NEVER output section numbers, brackets, mar
 Follow this natural narrative structure:
 
 1. [The Hook - Architectural Dilemma]:
-Start immediately on line 1 with a bold, punchy, counter-intuitive architectural dilemma or technical statement (e.g., "استخدام DB::transaction وحده لا يحمي تطبيقك من الـ Race Conditions إذا لم تقفل السجلات أثناء القراءة."). Avoid generic introductions. Hook the reader immediately with an engineering dilemma.
+Start immediately on line 1 with a bold, punchy, counter-intuitive architectural dilemma or technical statement (e.g., "${hookExample}"). Avoid generic introductions. Hook the reader immediately with an engineering dilemma.
 
 2. [Deep-Dive - Technical Mechanics & Incident]:
-Describe the real production context, the subtle failure mode or race condition that emerged under high concurrency or throughput, the initial hypothesis, and how you wrote an automated test to isolate and prove the issue. Explain the "how" and "why" under the hood with technical depth and state the root cause clearly (e.g. "السبب الجذري:...").
+Describe the real production context, the subtle failure mode or race condition that emerged under high concurrency or throughput, the initial hypothesis, and how you wrote an automated test to isolate and prove the issue. Explain the "how" and "why" under the hood with technical depth and ${rootCauseExample}.
 
 3. [Actionable Concrete Solution]:
 Present the direct solution in 2 numbered steps (1. and 2.) featuring exact framework/database mechanisms and code constructs.
 
 4. [Key Takeaways - Engineering Rules]:
-Provide a memorable, battle-tested engineering rule of thumb starting with "الدرس الهندسي:" (e.g. "الدرس الهندسي: لا تعتمد على حماية الواجهة لمنع تكرار العمليات الحساسة، وقاعدة البيانات هي خط الدفاع الحقيقي الوحيد.").
+Provide a memorable, battle-tested engineering rule of thumb (e.g. "${ruleExample}").
 
 5. [Call to Action - Peer Question]:
 An engaging technical question directed at fellow software architects and senior engineers to foster discussion in the comments, followed immediately by:
-"اكتبوا لنا في التعليقات 👇"
+"${ctaLine}"
 
 6. [Hashtags]:
 4 to 6 relevant technical hashtags as plain space-separated text (e.g., #SystemDesign #SoftwareArchitecture #Backend #DistributedSystems). Do NOT use Markdown links.
 
-Maintain an authoritative, insightful tone. Do not use corporate fluff or clickbait. Deliver maximum engineering signal.`;
+Maintain an authoritative, insightful tone. Do not use corporate fluff or clickbait. Use only facts in Topic Details; do not invent metrics or outcomes. Before finalizing, silently check that ${qualityCheck}, the post is complete, and no random foreign-language fragments remain. Deliver maximum engineering signal.`;
 }
 
 /**

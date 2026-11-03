@@ -400,8 +400,19 @@ export function buildGroundedRAGPrompt({
 } = {}) {
   const languageDirective = isEnglish
     ? 'Language: English. Write in authoritative, crisp, battle-tested engineering English.'
-    : `Language: Professional Arabic enriched with standard English technical nomenclature.
-Keep all core technical terminology in English (e.g. "Distributed Lock", "Event-Driven", "Cache Invalidation", "Throughput", "Latency", "Race Condition", "Idempotency", "ACID", "Split-Brain", "Deadlock", "Single Point of Failure", "PostGIS", "GIST Index", "Multi-Tenancy", "Row-Level Security", "Reciprocal Rank Fusion", "BM25", "ChromaDB", "Celery", "FSM", "Subdomain Isolation"). Do NOT translate or transliterate these standard English technical concepts into awkward Arabic.`;
+    : `Language: Arabic only, written in polished Modern Standard Arabic with a natural Palestinian/Saudi technical voice.
+English is allowed ONLY for established technical names, APIs, database operators, framework names, metrics, and hashtags (for example: PostgreSQL, PostGIS, GiST index, ST_DWithin, Haversine, P95 latency, CPU throttling, Django, Redis, Celery, Race Condition, Idempotency).
+Do not insert random English words or any other language. Never output words such as "enabled", "problem", "cause", or "solution" inside Arabic sentences. Do not use Chinese, Turkish, or machine-translated fragments. Do not translate or transliterate established technical names awkwardly.`;
+
+  const hookExample = isEnglish
+    ? 'A database transaction is not a lock.'
+    : 'استخدام DB::transaction وحده لا يحمي تطبيقك من الـ Race Conditions إذا لم تقفل السجلات أثناء القراءة.';
+  const ruleExample = isEnglish
+    ? 'Engineering rule: protect correctness at the database boundary, not only in the UI.'
+    : 'الدرس الهندسي: لا تعتمد على حماية الواجهة لمنع تكرار العمليات الحساسة، وقاعدة البيانات هي خط الدفاع الحقيقي الوحيد.';
+  const ctaLine = isEnglish ? 'Share your approach in the comments.' : 'اكتبوا لنا في التعليقات 👇';
+  const rootCauseExample = isEnglish ? 'state the root cause clearly' : 'اذكر السبب الجذري بوضوح';
+  const qualityCheck = isEnglish ? 'the English is coherent' : 'the Arabic is coherent';
 
   const contextSnippets = retrievedDocs
     .map((doc, idx) => `[Fact Source ${idx + 1}: ${doc.title || doc.project}]\n${doc.text}`)
@@ -445,13 +456,13 @@ ${contextSnippets || 'Refer to primary engineering specifications and trade-offs
 === AUTHOR IDENTITY & STYLE RULES ===
 1. You write from first-person authority as a hands-on builder and leader ("في أحد مشاريعنا...", "قمت بكتابة اختبار آلي...").
 2. Focus on REAL production failure modes, concurrency clashes, database bottlenecks, and architectural trade-offs—never generic fluff or textbook theory.
-3. Explicitly state the exact metrics, tools, and trade-offs (e.g. PostGIS GIST vs Haversine, Redis SET NX PX vs Late Rollbacks, Row-Level Django Policy vs DB-per-tenant, Pure-Python BM25/RRF vs Elasticsearch, lockForUpdate, decrement).
+3. Use only facts present in the grounding context. Never invent metrics, project details, tests, locations, or outcomes. Preserve exact numbers and names when provided. For this project, write “GiST spatial index”; never write “GIST R-tree”.
 4. STRICT FORMATTING RULE: Absolutely NEVER output section numbers, brackets, markdown headers or labels like "[1. The Hook]" or "### Root Cause". The output MUST be a seamless, beautifully spaced LinkedIn engineering post with double line-breaks between short paragraphs.
 
 Structure your post strictly according to this natural engineering narrative:
 
 1. [The Hook - Architectural Dilemma]:
-Start immediately on line 1 with a bold, punchy, counter-intuitive architectural dilemma or technical statement (e.g., "استخدام DB::transaction وحده لا يحمي تطبيقك من الـ Race Conditions إذا لم تقفل السجلات أثناء القراءة."). No greeting, no fluff, no brackets.
+Start immediately on line 1 with a bold, punchy, counter-intuitive architectural dilemma or technical statement (e.g., "${hookExample}"). No greeting, no fluff, no brackets.
 
 2. [Real Project Context & Incident]:
 Describe the real project (${challenge?.project_name || 'the system'}) and the subtle production issue / failure mode that emerged under concurrency or scale (e.g. negative balances on concurrent requests, duplicate voucher redemption, or latency spikes).
@@ -460,7 +471,7 @@ Describe the real project (${challenge?.project_name || 'the system'}) and the s
 Mention the initial suspicion/hypothesis (e.g. frontend double-click or queue worker issue), then explain that you wrote an automated test simulating concurrent requests to isolate and prove the race condition / bottleneck.
 
 4. [Root Cause Analysis & Technical Mechanics]:
-Explain the exact root cause under the hood with technical depth (e.g. "السبب الجذري: الـ Transaction تضمن الذرية (Atomicity) فقط، لكنها لا تمنع العمليات الأخرى من قراءة القيمة الحالية إذا لم تستخدم Lock صريحاً.").
+Explain the exact root cause under the hood with technical depth and ${rootCauseExample}.
 
 5. [Actionable Concrete Solution]:
 Present the direct solution in 2 numbered steps (1. and 2.) featuring exact framework/database mechanisms (e.g. Pessimistic Locking with lockForUpdate / SELECT FOR UPDATE, and direct atomic DB operations like decrement).
@@ -469,16 +480,16 @@ Present the direct solution in 2 numbered steps (1. and 2.) featuring exact fram
 Confirm that re-running the automated test proved zero race conditions and total data protection. Contrast the chosen approach with the rejected alternatives (${challenge?.tradeoff || 'Chosen vs Rejected'}) and cite the real production metric (${challenge?.metrics || 'zero anomalies'}).
 
 7. [Key Takeaways - Battle-Tested Engineering Rules]:
-Provide exactly one powerful, memorable golden rule starting with "الدرس الهندسي:" (e.g. "الدرس الهندسي: لا تعتمد على حماية الواجهة لمنع تكرار العمليات الحساسة، وقاعدة البيانات هي خط الدفاع الحقيقي الوحيد.").
+Provide exactly one powerful, memorable golden rule (e.g. "${ruleExample}").
 
 8. [Call to Action - Peer Question]:
 An engaging technical question directed at fellow software architects, backend leads, and senior engineers, followed by:
-"اكتبوا لنا في التعليقات 👇"
+"${ctaLine}"
 
 9. [Clean Hashtags]:
 4 to 6 relevant technical hashtags formatted as plain space-separated text (e.g., #Laravel #PHP #WebDevelopment #DatabaseDesign #SoftwareEngineering). Do NOT use Markdown links.
 
-Deliver maximum engineering signal. No corporate buzzwords.`;
+Deliver maximum engineering signal. No corporate buzzwords. Before finalizing, silently check that ${qualityCheck}, the post is complete, and no random foreign-language fragments remain.`;
 }
 
 // CLI test / preview runner

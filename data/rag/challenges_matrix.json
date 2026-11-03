@@ -6,7 +6,7 @@
     "title": "PostGIS Spatial Indexing vs In-Memory Haversine: Sub-12ms Radius Lookups",
     "category": "geospatial-database",
     "dilemma": "How to query partner service center polygons across Riyadh & Jeddah under high concurrency without CPU throttling or slow table scans.",
-    "solution": "PostgreSQL PostGIS with GIST R-tree spatial indexing and ST_DWithin queries, dropping lookup P95 from 340ms to 11.4ms.",
+    "solution": "PostgreSQL PostGIS with GiST spatial indexing and ST_DWithin queries, dropping lookup P95 from 340ms to 11.4ms.",
     "keywords": ["postgis", "spatial-indexing", "gist", "postgresql", "geospatial", "django-rest", "lat-long"],
     "metrics": "P95 < 12ms",
     "tradeoff": "PostGIS ST_DWithin + GIST Index vs In-memory Haversine filtering on unindexed rows"

@@ -74,7 +74,7 @@ describe('Card Generator - Color Themes & Brand Identity', () => {
 
 📌 نصائح للمهندسين:
 • اعتمد على إضافة PostGIS مع نوع البيانات GEOMETRY
-• أنشئ فهرس GIST R-tree لتقليل تعقيد البحث
+• أنشئ فهرس GiST لتقليل تعقيد البحث
 • استخدم ST_DWithin وتجنب حساب مسافات Haversine برمجياً
 
 💬 سؤال للمهندسين؟`;

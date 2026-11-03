@@ -52,9 +52,8 @@ if (!imagePath) {
   imagePath = '/assets/2wash.webp';
 }
 
-const safeCaption = postText.length > 900
-  ? `[Draft ID: #${draftId}]\n\n` + postText.slice(0, 850) + '...'
-  : `[Draft ID: #${draftId}]\n\n` + postText;
+const previewCaption = `[Draft ID: #${draftId}]\n\n` +
+  `تم توليد مسودة كاملة عن ${project}. ستصل الرسالة الكاملة بعد الصورة.`;
 
 const chatId = process.env.TELEGRAM_ALLOWED_USER_ID;
 if (!chatId) throw new Error('TELEGRAM_ALLOWED_USER_ID is required to dispatch a draft');
@@ -71,7 +70,7 @@ return [{
     project: project,
     text: postText,
     image_path: imagePath,
-    caption: safeCaption
+    caption: previewCaption
   }
 }];"""
 
@@ -144,6 +143,21 @@ wf = {
       "position": [960, 340],
       "continueOnFail": True
     }
+,    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $env.TELEGRAM_ALLOWED_USER_ID }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": {}
+      },
+      "id": "7b8d4c9a-6666-4444-8888-000000000006",
+      "name": "Telegram Send Full Post",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1220, 340],
+      "continueOnFail": True
+    }
   ],
   "connections": {
     "Schedule Trigger": {
@@ -157,6 +171,9 @@ wf = {
     },
     "Gemini Generation & Visual Stager": {
       "main": [[{"node": "Telegram Send Photo", "type": "main", "index": 0}]]
+    },
+    "Telegram Send Photo": {
+      "main": [[{"node": "Telegram Send Full Post", "type": "main", "index": 0}]]
     }
   },
   "active": True,

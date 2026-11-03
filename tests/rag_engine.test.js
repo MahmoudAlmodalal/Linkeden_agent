@@ -74,7 +74,7 @@ describe('RAG Engine - Arabic Normalization & Tokenization', () => {
 
 describe('RAG Engine - BM25 In-Memory Index', () => {
   const sampleDocs = [
-    { id: 'doc-1', text: 'PostGIS spatial indexing with GIST R-tree for sub-12ms radius search in 2Wash' },
+    { id: 'doc-1', text: 'PostGIS spatial indexing with GiST for sub-12ms radius search in 2Wash' },
     { id: 'doc-2', text: 'EduTracker multi-tenant school operations with row-level security and 64 entities' },
     { id: 'doc-3', text: 'clientMORE applied RAG hybrid search combining ChromaDB dense vectors and BM25 RRF' },
   ];
@@ -228,7 +228,7 @@ describe('RAG Engine - Grounded Prompt Construction', () => {
       project_name: '2Wash',
       title: 'PostGIS Spatial Indexing vs In-Memory Haversine',
       dilemma: 'How to query partner service center polygons across Riyadh & Jeddah under high concurrency.',
-      solution: 'PostgreSQL PostGIS with GIST R-tree spatial indexing and ST_DWithin queries.',
+      solution: 'PostgreSQL PostGIS with GiST spatial indexing and ST_DWithin queries.',
       metrics: 'P95 < 12ms',
       tradeoff: 'PostGIS ST_DWithin + GIST Index vs In-memory Haversine filtering',
     };

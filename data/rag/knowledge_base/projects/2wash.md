@@ -22,7 +22,7 @@
                                          |                              |                             |
                                  [PostgreSQL 15]                  [Redis 7 Cluster]             [Celery Workers]
                                  + PostGIS Spatial                - Distributed Locks           - Async Settlements
-                                 - GIST R-tree Index              - Bay Queue TTL               - Bank Payouts
+                                 - GiST Index              - Bay Queue TTL               - Bank Payouts
 ```
 
 ---
@@ -31,7 +31,7 @@
 
 ### Challenge 1: Sub-100ms Geospatial Hub Lookup at Scale
 - **The Dilemma**: When a customer requests car care, the system must search all partner service centers whose dynamic service radius polygon encompasses the customer's coordinates. In-memory Haversine distance filtering on unindexed rows quickly caused latency spikes and CPU throttling under high concurrent searches.
-- **The Chosen Solution**: Integrated PostgreSQL `postgis` extension with `ST_DWithin` spatial operators evaluated directly against spatial geometries indexed with GIST R-tree indexes:
+- **The Chosen Solution**: Integrated PostgreSQL `postgis` extension with `ST_DWithin` spatial operators evaluated directly against spatial geometries indexed with GiST indexes:
   ```sql
   CREATE INDEX idx_partner_centers_location_gist ON partner_centers USING GIST (location);
   
