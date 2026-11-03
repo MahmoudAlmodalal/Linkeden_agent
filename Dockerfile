@@ -25,6 +25,6 @@ WORKDIR /home/node
 ENV N8N_PORT=5678
 EXPOSE 5678
 
-# Invoke through the base image's shell so startup does not depend on Render
-# resolving the script as a directly executable command.
-CMD ["sh", "/scripts/start_n8n.sh"]
+# Invoke through the absolute shell path because the runtime PATH in the n8n
+# image does not expose the shell name to Render's command resolver.
+CMD ["/bin/sh", "/scripts/start_n8n.sh"]
