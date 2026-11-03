@@ -23,7 +23,3 @@ WORKDIR /home/node
 
 ENV N8N_PORT=5678
 EXPOSE 5678
-
-# Keep the official n8n image entrypoint and command. The image runtime does
-# not expose shell or Node commands to Render's custom command resolver.
-CMD ["n8n"]
