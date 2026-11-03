@@ -23,5 +23,6 @@ RUN chown -R node:node /data /config /workflows /assets /scripts /app
 USER node
 WORKDIR /home/node
 
+ENV N8N_BLOCK_ENV_ACCESS_IN_NODE=false
 ENV N8N_PORT=5678
 EXPOSE 5678
