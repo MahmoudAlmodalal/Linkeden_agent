@@ -18,6 +18,9 @@ try {
   const args = ['/scripts/generate_rag_draft.js', '--id', String(draftId)];
   if (query) args.push('--query', query);
   if (situation) args.push('--situation', situation);
+  // Use the fast local project visual in the staging workflow. Branded cards
+  // remain available for manual/local runs via generate_rag_draft.js.
+  args.push('--no-card');
   const child = spawnSync('node', args, { encoding: 'utf8', timeout: 60000 });
   if (child.error) throw child.error;
   if (child.status !== 0) throw new Error(child.stderr || `RAG process exited with ${child.status}`);
@@ -57,12 +60,6 @@ const previewCaption = `[Draft ID: #${draftId}]\n\n` +
 
 const chatId = process.env.TELEGRAM_ALLOWED_USER_ID;
 if (!chatId) throw new Error('TELEGRAM_ALLOWED_USER_ID is required to dispatch a draft');
-
-try {
-  execSync(`node /scripts/telegram_router.js --show-draft ${draftId} --chat-id ${chatId}`, { encoding: 'utf8', timeout: 15000 });
-} catch (tgErr) {
-  console.error('Telegram dispatch error:', tgErr.message);
-}
 
 return [{
   json: {
