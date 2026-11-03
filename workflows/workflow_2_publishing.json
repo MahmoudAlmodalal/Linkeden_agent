@@ -387,15 +387,15 @@
           "parameters": [
             {
               "name": "chat_id",
-              "value": "={{ $json.chatId }}"
+              "value": "={{ $('Handle Show Node').first().json.chatId }}"
             },
             {
               "name": "text",
-              "value": "={{ $json.replyText }}"
+              "value": "={{ $('Handle Show Node').first().json.replyText }}"
             },
             {
               "name": "reply_markup",
-              "value": "={{ $json.replyMarkup ? JSON.stringify($json.replyMarkup) : JSON.stringify({\"remove_keyboard\": true}) }}"
+              "value": "={{ $('Handle Show Node').first().json.replyMarkup ? JSON.stringify($('Handle Show Node').first().json.replyMarkup) : JSON.stringify({\"remove_keyboard\": true}) }}"
             }
           ]
         },
@@ -605,7 +605,13 @@
             "node": "Telegram Preview Photo Node",
             "type": "main",
             "index": 0
-          },
+          }
+        ]
+      ]
+    },
+    "Telegram Preview Photo Node": {
+      "main": [
+        [
           {
             "node": "Telegram Preview Reply Node",
             "type": "main",

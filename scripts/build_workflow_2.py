@@ -491,9 +491,9 @@ wf2 = {
         "sendBody": True,
         "bodyParameters": {
           "parameters": [
-            { "name": "chat_id", "value": "={{ $json.chatId }}" },
-            { "name": "text", "value": "={{ $json.replyText }}" },
-            { "name": "reply_markup", "value": "={{ $json.replyMarkup ? JSON.stringify($json.replyMarkup) : JSON.stringify({\"remove_keyboard\": true}) }}" }
+            { "name": "chat_id", "value": "={{ $('Handle Show Node').first().json.chatId }}" },
+            { "name": "text", "value": "={{ $('Handle Show Node').first().json.replyText }}" },
+            { "name": "reply_markup", "value": "={{ $('Handle Show Node').first().json.replyMarkup ? JSON.stringify($('Handle Show Node').first().json.replyMarkup) : JSON.stringify({\"remove_keyboard\": true}) }}" }
           ]
         },
         "options": {}
@@ -569,10 +569,10 @@ wf2 = {
       "main": [[{ "node": "Telegram Reply Node", "type": "main", "index": 0 }]]
     },
     "Handle Show Node": {
-      "main": [[
-        { "node": "Telegram Preview Photo Node", "type": "main", "index": 0 },
-        { "node": "Telegram Preview Reply Node", "type": "main", "index": 0 }
-      ]]
+      "main": [[{ "node": "Telegram Preview Photo Node", "type": "main", "index": 0 }]]
+    },
+    "Telegram Preview Photo Node": {
+      "main": [[{ "node": "Telegram Preview Reply Node", "type": "main", "index": 0 }]]
     },
     "Handle Help Node": {
       "main": [[{ "node": "Telegram Reply Node", "type": "main", "index": 0 }]]
