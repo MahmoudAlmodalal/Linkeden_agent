@@ -326,18 +326,21 @@ export function parseCommand(text) {
     }
   }
 
-  // 2. Telegram callback query formats: e.g. "approve:42", "reject:5", "show:5", "generate", "drafts"
-  if (trimmed.startsWith('approve:') || trimmed.startsWith('reject:') || trimmed.startsWith('show:') || trimmed.startsWith('preview:')) {
-    const [cmd, arg] = trimmed.split(':');
-    const parsedNum = parseInt(arg?.trim(), 10);
+  // 2. Telegram callback data: underscore format is canonical; colon format remains compatible.
+  const draftCallback = trimmed.match(/^(approve|reject|show|preview)[_:](\d+)$/iu);
+  if (draftCallback) {
+    const cmd = draftCallback[1].toLowerCase();
     return {
       command: cmd === 'preview' ? 'show' : cmd,
-      draftId: Number.isNaN(parsedNum) ? null : parsedNum,
+      draftId: Number(draftCallback[2]),
       raw: trimmed,
     };
   }
-  if (trimmed === 'generate') {
+  if (trimmed === 'generate_new' || trimmed === 'generate') {
     return { command: 'generate', draftId: null, raw: trimmed };
+  }
+  if (trimmed === 'approve') {
+    return { command: 'approve', draftId: null, raw: trimmed };
   }
   if (trimmed === 'drafts' || trimmed === 'draft' || trimmed === 'grafs' || trimmed === 'graf' || trimmed === 'list') {
     return { command: 'drafts', draftId: null, raw: trimmed };
@@ -605,6 +608,38 @@ export async function dispatchSituationDraft({ situation, senderFromId, options 
 }
 
 /**
+ * Acknowledges a Telegram inline-keyboard callback so Telegram stops its loading spinner.
+ *
+ * @param {string} callbackQueryId
+ * @param {object} [options={}] - Supports botToken and fetch injection for tests.
+ * @returns {Promise<object>}
+ */
+export async function answerTelegramCallbackQuery(callbackQueryId, options = {}) {
+  const botToken = options.botToken ?? process.env.TELEGRAM_BOT_TOKEN;
+  if (!callbackQueryId || !botToken) return { skipped: true };
+
+  const fetchImpl = options.fetch ?? globalThis.fetch;
+  if (typeof fetchImpl !== 'function') {
+    throw new Error('No fetch implementation is available to answer Telegram callback queries.');
+  }
+
+  const response = await fetchImpl(
+    `https://api.telegram.org/bot${botToken}/answerCallbackQuery`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ callback_query_id: String(callbackQueryId) }),
+    },
+  );
+
+  if (!response.ok) {
+    const details = typeof response.text === 'function' ? await response.text() : '';
+    throw new Error(`Telegram answerCallbackQuery failed (${response.status}): ${details}`);
+  }
+  return typeof response.json === 'function' ? response.json() : { ok: true };
+}
+
+/**
  * Handles incoming Telegram webhook updates, enforces security, and routes commands.
  *
  * @param {object} update - Incoming Telegram update object
@@ -619,6 +654,16 @@ export async function handleTelegramUpdate(update, options = {}) {
 
   const callbackQuery = update?.callback_query;
   const message = callbackQuery ? callbackQuery : (update?.message || update?.edited_message || update);
+
+  // Acknowledge callback taps before authorization and any slower draft/publish work.
+  if (callbackQuery?.id) {
+    try {
+      const acknowledge = options.answerCallbackQuery ?? answerTelegramCallbackQuery;
+      await acknowledge(callbackQuery.id, options);
+    } catch (error) {
+      options.logger?.warn?.('Could not answer Telegram callback query:', error.message);
+    }
+  }
 
   // 1. Enforce strict authorization
   if (!isAuthorized(message, allowedUserId)) {
@@ -795,7 +840,7 @@ export async function handleTelegramUpdate(update, options = {}) {
             'لا توجد حالياً أي مسودات معلقة في قائمة المراجعة.\n\n' +
             '💡 يمكنك توليد مسودة جديدة الآن بالضغط على الزر أدناه:',
           inlineKeyboard: [
-            [{ text: '⚡ توليد مسودة الآن', callback_data: 'generate' }],
+            [{ text: '⚡ توليد مسودة الآن', callback_data: 'generate_new' }],
           ],
           replyMarkup: TELEGRAM_REPLY_KEYBOARD,
         };
@@ -810,15 +855,15 @@ export async function handleTelegramUpdate(update, options = {}) {
         const preview = (draft.text || draft.post_text || '').slice(0, 80).replace(/\n/g, ' ');
         draftListText += `• *مسودة #${draftId}* (${topic}):\n  _${preview}..._\n\n`;
         inlineButtons.push([
-          { text: `👁️ معاينة #${draftId}`, callback_data: `show:${draftId}` },
-          { text: `✅ نشر #${draftId}`, callback_data: `approve:${draftId}` },
-          { text: `🗑️ حذف #${draftId}`, callback_data: `reject:${draftId}` },
+          { text: `👁️ معاينة #${draftId}`, callback_data: `show_${draftId}` },
+          { text: `✅ نشر #${draftId}`, callback_data: `approve_${draftId}` },
+          { text: `🗑️ حذف #${draftId}`, callback_data: `reject_${draftId}` },
         ]);
       }
 
       draftListText += '👇 اختر أي مسودة لمعاينتها أو اتخاذ إجراء بشأنها:';
       inlineButtons.push([
-        { text: '⚡ توليد مسودة جديدة', callback_data: 'generate' },
+        { text: '⚡ توليد مسودة جديدة', callback_data: 'generate_new' },
       ]);
 
       return {
@@ -852,7 +897,7 @@ export async function handleTelegramUpdate(update, options = {}) {
             command: 'show',
             draftId: parsed.draftId,
             replyText: '⚠️ لا توجد مسودات معلقة حالياً في النظام.\n\nاضغط /generate لتوليد منشور هندسي جديد لمشاريعك فوراً!',
-            inlineKeyboard: [[{ text: '⚡ توليد مسودة الآن', callback_data: 'generate' }]],
+            inlineKeyboard: [[{ text: '⚡ توليد مسودة الآن', callback_data: 'generate_new' }]],
             replyMarkup: TELEGRAM_REPLY_KEYBOARD,
           };
         }
@@ -870,12 +915,12 @@ export async function handleTelegramUpdate(update, options = {}) {
       const showText = `[Draft ID: #${draft.id}]\n\n${draft.text || draft.post_text || ''}`;
       const showButtons = [
         [
-          { text: `✅ اعتماد ونشر #${draft.id}`, callback_data: `approve:${draft.id}` },
-          { text: `🗑️ حذف #${draft.id}`, callback_data: `reject:${draft.id}` },
+          { text: `✅ اعتماد ونشر #${draft.id}`, callback_data: `approve_${draft.id}` },
+          { text: `🗑️ حذف #${draft.id}`, callback_data: `reject_${draft.id}` },
         ],
         [
           { text: '📋 رجوع لقائمة المسودات', callback_data: 'drafts' },
-          { text: '⚡ توليد جديد', callback_data: 'generate' },
+          { text: '⚡ توليد جديد', callback_data: 'generate_new' },
         ],
       ];
 
@@ -1203,7 +1248,7 @@ export async function dispatchDraftsList(chatId = process.env.TELEGRAM_ALLOWED_U
       text: '⚠️ *لا توجد مسودات معلقة حالياً.*\n\nاضغط /generate لتوليد منشور جديد!',
       replyMarkup: {
         inline_keyboard: [
-          [{ text: '⚡ توليد مسودة الآن', callback_data: 'generate' }]
+          [{ text: '⚡ توليد مسودة الآن', callback_data: 'generate_new' }]
         ]
       }
     });
@@ -1219,14 +1264,14 @@ export async function dispatchDraftsList(chatId = process.env.TELEGRAM_ALLOWED_U
     const preview = (d.text || d.post_text || '').slice(0, 70).replace(/\n/g, ' ');
     listText += `• *مسودة #${d.id}* (${topic}):\n  _${preview}..._\n\n`;
     buttons.push([
-      { text: `👁️ عرض المنشور #${d.id}`, callback_data: `show:${d.id}` },
-      { text: `✅ نشر #${d.id}`, callback_data: `approve:${d.id}` },
-      { text: `🗑️ حذف #${d.id}`, callback_data: `reject:${d.id}` },
+      { text: `👁️ عرض المنشور #${d.id}`, callback_data: `show_${d.id}` },
+      { text: `✅ نشر #${d.id}`, callback_data: `approve_${d.id}` },
+      { text: `🗑️ حذف #${d.id}`, callback_data: `reject_${d.id}` },
     ]);
   }
 
   buttons.push([
-    { text: '⚡ توليد مسودة جديدة', callback_data: 'generate' }
+    { text: '⚡ توليد مسودة جديدة', callback_data: 'generate_new' }
   ]);
 
   listText += '👇 اضغط "👁️ عرض المنشور" لمعاينة المحتوى كاملاً مع الصورة، أو اختر النشر المباشر:';
@@ -1270,7 +1315,7 @@ export async function dispatchDraftPreview(draftId, chatId = process.env.TELEGRA
         text: '⚠️ *لا توجد مسودات معلقة حالياً لعرضها.*\n\nاضغط /generate لتوليد مسودة جديدة لمشاريعك فوراً!',
         replyMarkup: {
           inline_keyboard: [
-            [{ text: '⚡ توليد مسودة الآن', callback_data: 'generate' }]
+            [{ text: '⚡ توليد مسودة الآن', callback_data: 'generate_new' }]
           ]
         }
       });
@@ -1290,12 +1335,12 @@ export async function dispatchDraftPreview(draftId, chatId = process.env.TELEGRA
   const formattedCaption = `[Draft ID: #${target.id}]\n\n${target.text || target.post_text || ''}`;
   const inlineKeyboard = [
     [
-      { text: `✅ نشر #${target.id}`, callback_data: `approve:${target.id}` },
-      { text: `🗑️ حذف #${target.id}`, callback_data: `reject:${target.id}` },
+      { text: `✅ نشر #${target.id}`, callback_data: `approve_${target.id}` },
+      { text: `🗑️ حذف #${target.id}`, callback_data: `reject_${target.id}` },
     ],
     [
       { text: '📋 رجوع لقائمة المسودات', callback_data: 'drafts' },
-      { text: '🔄 توليد جديد', callback_data: 'generate' }
+      { text: '🔄 توليد جديد', callback_data: 'generate_new' }
     ]
   ];
 

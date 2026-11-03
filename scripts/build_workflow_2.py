@@ -34,7 +34,14 @@ if (!fromId || !allowedId || fromId !== allowedId) {
 let command = 'unknown';
 let draftId = null;
 
-if (text.startsWith('approve:') || /^(?:\/approve(?:@\w+)?)(?:\s|$)/u.test(text) || text.startsWith('✅ نشر')) {
+const inlineCallback = text.match(/^(show|approve|reject)_(\d+)$/u);
+
+if (inlineCallback) {
+  command = inlineCallback[1];
+  draftId = inlineCallback[2];
+} else if (text === 'generate_new') {
+  command = 'generate';
+} else if (text.startsWith('approve:') || /^(?:\/approve(?:@\w+)?)(?:\s|$)/u.test(text) || text.startsWith('✅ نشر')) {
   command = 'approve';
   if (text.startsWith('approve:')) {
     draftId = text.split(':')[1];
@@ -141,7 +148,7 @@ if (drafts.length === 0) {
   replyText = '⚠️ *لا توجد مسودات معلقة حالياً.*\n\nاضغط /generate لتوليد منشور جديد!';
   replyMarkup = {
     inline_keyboard: [
-      [{ text: '⚡ توليد مسودة الآن', callback_data: 'generate' }]
+      [{ text: '⚡ توليد مسودة الآن', callback_data: 'generate_new' }]
     ]
   };
 } else {
@@ -153,12 +160,12 @@ if (drafts.length === 0) {
     const preview = (d.text || d.post_text || '').slice(0, 60).replace(/\n/g, ' ');
     replyText += `• *مسودة #${d.id}* (${topic}):\n  _${preview}..._\n\n`;
     buttons.push([
-      { text: `👁️ عرض المنشور #${d.id}`, callback_data: `show:${d.id}` },
-      { text: `✅ نشر #${d.id}`, callback_data: `approve:${d.id}` },
-      { text: `🗑️ حذف #${d.id}`, callback_data: `reject:${d.id}` }
+      { text: `👁️ عرض المنشور #${d.id}`, callback_data: `show_${d.id}` },
+      { text: `✅ نشر #${d.id}`, callback_data: `approve_${d.id}` },
+      { text: `🗑️ حذف #${d.id}`, callback_data: `reject_${d.id}` }
     ]);
   }
-  buttons.push([{ text: '⚡ توليد مسودة جديدة', callback_data: 'generate' }]);
+  buttons.push([{ text: '⚡ توليد مسودة جديدة', callback_data: 'generate_new' }]);
   replyText += '👇 اضغط "👁️ عرض المنشور" لمعاينة المحتوى، أو اختر النشر المباشر:';
   replyMarkup = { inline_keyboard: buttons };
 }
@@ -225,6 +232,47 @@ wf2 = {
       "typeVersion": 2,
       "position": [100, 300],
       "webhookId": "telegram-webhook"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": True, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            {
+              "id": "callback-query-id-present",
+              "leftValue": "={{ $json.body?.callback_query?.id || $json.callback_query?.id || '' }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "notEmpty", "singleValue": True }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "callback-query-check",
+      "name": "Is Telegram Callback Query?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [320, 500]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/answerCallbackQuery' }}",
+        "sendBody": True,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "callback_query_id", "value": "={{ $json.body?.callback_query?.id || $json.callback_query?.id }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "answer-telegram-callback-query",
+      "name": "Answer Telegram Callback Query",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [540, 500],
+      "continueOnFail": True
     },
     {
       "parameters": {
@@ -407,7 +455,13 @@ wf2 = {
   ],
   "connections": {
     "Telegram Webhook Trigger": {
-      "main": [[{ "node": "Read Telegram Config", "type": "main", "index": 0 }]]
+      "main": [[
+        { "node": "Is Telegram Callback Query?", "type": "main", "index": 0 },
+        { "node": "Read Telegram Config", "type": "main", "index": 0 }
+      ]]
+    },
+    "Is Telegram Callback Query?": {
+      "main": [[{ "node": "Answer Telegram Callback Query", "type": "main", "index": 0 }], []]
     },
     "Read Telegram Config": {
       "main": [[{ "node": "Security & Command Parser", "type": "main", "index": 0 }]]

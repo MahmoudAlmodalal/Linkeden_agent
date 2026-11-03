@@ -171,6 +171,13 @@ describe('Telegram Command Parsing', () => {
     });
   });
 
+  it('parses canonical underscore callback data for draft actions', () => {
+    assert.deepEqual(parseCommand('show_1'), { command: 'show', draftId: 1, raw: 'show_1' });
+    assert.deepEqual(parseCommand('approve_2'), { command: 'approve', draftId: 2, raw: 'approve_2' });
+    assert.deepEqual(parseCommand('reject_3'), { command: 'reject', draftId: 3, raw: 'reject_3' });
+    assert.deepEqual(parseCommand('generate_new'), { command: 'generate', draftId: null, raw: 'generate_new' });
+  });
+
   it('parses /show and /preview commands', () => {
     assert.deepEqual(parseCommand('/show 9'), {
       command: 'show',
@@ -345,6 +352,36 @@ describe('Telegram Update Router (handleTelegramUpdate)', () => {
     assert.equal(response.status, 'blocked');
     assert.ok(response.message.toLowerCase().includes('unauthorized'));
     assert.equal(workflowTriggered, false);
+  });
+
+  it('answers callback queries immediately and routes underscore actions with their draft ID', async () => {
+    savePendingDrafts([{ id: 1, text: 'Draft 1 preview' }], testDraftsPath);
+    let apiCall;
+    const update = {
+      callback_query: {
+        id: 'callback-query-abc',
+        from: { id: allowedId },
+        message: { chat: { id: allowedId } },
+        data: 'show_1',
+      },
+    };
+
+    const response = await handleTelegramUpdate(update, {
+      allowedUserId: allowedId,
+      pendingDraftsPath: testDraftsPath,
+      botToken: 'test-token',
+      fetch: async (url, init) => {
+        apiCall = { url, init };
+        return { ok: true, status: 200, json: async () => ({ ok: true }) };
+      },
+    });
+
+    assert.equal(apiCall.url, 'https://api.telegram.org/bottest-token/answerCallbackQuery');
+    assert.equal(apiCall.init.method, 'POST');
+    assert.deepEqual(JSON.parse(apiCall.init.body), { callback_query_id: 'callback-query-abc' });
+    assert.equal(response.authorized, true);
+    assert.equal(response.command, 'show');
+    assert.equal(response.draft.id, 1);
   });
 
   it('handles /approve [id] with specified draft ID', async () => {
@@ -544,6 +581,8 @@ describe('Telegram Update Router (handleTelegramUpdate)', () => {
     assert.equal(response.command, 'drafts');
     assert.equal(response.drafts.length, 2);
     assert.ok(response.inlineKeyboard.length >= 2);
+    assert.deepEqual(response.inlineKeyboard[0].map((button) => button.callback_data), ['show_1', 'approve_1', 'reject_1']);
+    assert.equal(response.inlineKeyboard.at(-1)[0].callback_data, 'generate_new');
     assert.ok(response.replyMarkup && (response.replyMarkup.keyboard || response.replyMarkup.remove_keyboard));
   });
 
