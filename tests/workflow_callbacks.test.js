@@ -72,9 +72,9 @@ test('show callback returns image binary and sends it through Telegram multipart
   assert.doesNotMatch(showCode, /child_process|execSync/);
   assert.match(showCode, /replyText/);
   const showLinks = workflow.connections['Handle Show Node']?.main?.[0] || [];
-  assert.deepEqual(showLinks.map((link) => link.node).sort(), [
+  assert.deepEqual(showLinks.map((link) => link.node), [
     'Telegram Preview Photo Node', 'Telegram Preview Reply Node',
-  ].sort());
+  ]);
   assert.equal(nodes.get('Telegram Preview Reply Node')?.type, 'n8n-nodes-base.httpRequest');
   assert.doesNotMatch(
     JSON.stringify(nodes.get('Telegram Preview Reply Node')?.parameters?.bodyParameters?.parameters || []),

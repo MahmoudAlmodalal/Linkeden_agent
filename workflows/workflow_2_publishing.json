@@ -602,12 +602,12 @@
       "main": [
         [
           {
-            "node": "Telegram Preview Reply Node",
+            "node": "Telegram Preview Photo Node",
             "type": "main",
             "index": 0
           },
           {
-            "node": "Telegram Preview Photo Node",
+            "node": "Telegram Preview Reply Node",
             "type": "main",
             "index": 0
           }

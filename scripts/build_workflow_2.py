@@ -570,8 +570,8 @@ wf2 = {
     },
     "Handle Show Node": {
       "main": [[
-        { "node": "Telegram Preview Reply Node", "type": "main", "index": 0 },
-        { "node": "Telegram Preview Photo Node", "type": "main", "index": 0 }
+        { "node": "Telegram Preview Photo Node", "type": "main", "index": 0 },
+        { "node": "Telegram Preview Reply Node", "type": "main", "index": 0 }
       ]]
     },
     "Handle Help Node": {
