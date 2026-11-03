@@ -12,5 +12,9 @@ done
 # n8n 2.x registers production webhooks when a workflow is published.
 n8n publish:workflow --id=workflow-2-publishing || echo "Telegram workflow publish skipped"
 
+# Explicitly subscribe to callback_query updates as well as normal messages.
+# Telegram can retain an older allowed_updates filter after bot configuration changes.
+node /scripts/register_telegram_webhook.mjs || echo "Telegram webhook registration skipped or failed"
+
 # Preserve the official image's normal startup arguments and signal handling.
 exec n8n "$@"
