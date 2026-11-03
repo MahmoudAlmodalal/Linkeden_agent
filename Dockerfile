@@ -13,7 +13,8 @@ COPY ./config /config
 COPY ./workflows /workflows
 COPY ./assets /assets
 COPY ./scripts /scripts
-RUN chmod +x /scripts/start_n8n.sh
+RUN test -s /scripts/start_n8n.sh \
+    && chmod +x /scripts/start_n8n.sh
 
 # Ensure node user owns the required directories
 RUN chown -R node:node /data /config /workflows /assets /scripts /app
@@ -24,4 +25,6 @@ WORKDIR /home/node
 ENV N8N_PORT=5678
 EXPOSE 5678
 
-CMD ["/scripts/start_n8n.sh"]
+# Invoke through the base image's shell so startup does not depend on Render
+# resolving the script as a directly executable command.
+CMD ["sh", "/scripts/start_n8n.sh"]
