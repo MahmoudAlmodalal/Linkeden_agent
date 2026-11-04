@@ -1,13 +1,204 @@
 [
   {
-    "id": 1,
+    "id": 4,
+    "project": "portfolio",
+    "topic": "منشور هندسة عربي: حالة Race Condition في معالجة المدفوعات",
+    "situation": null,
+    "text": "استخدام DB::transaction وحده لا يحمي تطبيقك من الـ Race Conditions إذا لم تقفل السجلات أثناء القراءة.\n\nفي أحد مشاريع معالجة المدفوعات والاشتراكات، ظهرت مشكلة دقيقة: رصيد العميل ينزل إلى قيمة سالبة عند إرسال طلبين في نفس الجزء من الثانية، أو يتم شحن نفس كود التفعيل مرتين.\n\nالافتراض الأول كان وجود خطأ في الـ Frontend يسمح بالضغط المزدوج على زر التأكيد، أو خلل في الـ Queue Worker الذي يعالج العملية.\n\nقمت بكتابة اختبار آلي يحاكي طلبين متزامنين على نفس الحساب للتأكد من المشكلة. المفاجأة كانت أن كل شيء يعمل داخل DB::transaction بشكل سليم نظريا، لكن السجلات كانت تقرأ نفس الرصيد القديم قبل انتهاء المعاملة الأولى.\n\nالسبب الجذري: الـ Transaction تضمن الذرية (Atomicity) فقط، لكنها لا تمنع العمليات الأخرى من قراءة القيمة الحالية إذا لم تستخدم Lock صريحا.\n\nالحل كان في خطوتين مباشرتين:\n1. استخدام Pessimistic Locking عبر استدعاء lockForUpdate عند جلب سجل الرصيد داخل المعاملة، لمنع أي عملية أخرى من قراءته أو تعديله حتى اكتمال التحديث.\n2. الاعتماد على العمليات الذرية المباشرة في قاعدة البيانات مثل decrement بدلا من قراءة القيمة وتعديلها في الذاكرة ثم حفظها.\n\nبعد تعديل الكود، أعدت تشغيل الاختبار وأثبت فشل أي محاولة خصم مزدوج مع حماية تامة للبيانات.\n\nالدرس الهندسي: لا تعتمد على حماية الواجهة لمنع تكرار العمليات الحساسة، وقاعدة البيانات هي خط الدفاع الحقيقي الوحيد.\n\nكيف تتعامل مع معالجة الرصيد والعمليات المالية المتزامنة في مشاريعك؟\nاكتبوا لنا في التعليقات 👇\n\n#Laravel #PHP #WebDevelopment #DatabaseDesign #SoftwareEngineering",
+    "post_text": "استخدام DB::transaction وحده لا يحمي تطبيقك من الـ Race Conditions إذا لم تقفل السجلات أثناء القراءة.\n\nفي أحد مشاريع معالجة المدفوعات والاشتراكات، ظهرت مشكلة دقيقة: رصيد العميل ينزل إلى قيمة سالبة عند إرسال طلبين في نفس الجزء من الثانية، أو يتم شحن نفس كود التفعيل مرتين.\n\nالافتراض الأول كان وجود خطأ في الـ Frontend يسمح بالضغط المزدوج على زر التأكيد، أو خلل في الـ Queue Worker الذي يعالج العملية.\n\nقمت بكتابة اختبار آلي يحاكي طلبين متزامنين على نفس الحساب للتأكد من المشكلة. المفاجأة كانت أن كل شيء يعمل داخل DB::transaction بشكل سليم نظريا، لكن السجلات كانت تقرأ نفس الرصيد القديم قبل انتهاء المعاملة الأولى.\n\nالسبب الجذري: الـ Transaction تضمن الذرية (Atomicity) فقط، لكنها لا تمنع العمليات الأخرى من قراءة القيمة الحالية إذا لم تستخدم Lock صريحا.\n\nالحل كان في خطوتين مباشرتين:\n1. استخدام Pessimistic Locking عبر استدعاء lockForUpdate عند جلب سجل الرصيد داخل المعاملة، لمنع أي عملية أخرى من قراءته أو تعديله حتى اكتمال التحديث.\n2. الاعتماد على العمليات الذرية المباشرة في قاعدة البيانات مثل decrement بدلا من قراءة القيمة وتعديلها في الذاكرة ثم حفظها.\n\nبعد تعديل الكود، أعدت تشغيل الاختبار وأثبت فشل أي محاولة خصم مزدوج مع حماية تامة للبيانات.\n\nالدرس الهندسي: لا تعتمد على حماية الواجهة لمنع تكرار العمليات الحساسة، وقاعدة البيانات هي خط الدفاع الحقيقي الوحيد.\n\nكيف تتعامل مع معالجة الرصيد والعمليات المالية المتزامنة في مشاريعك؟\nاكتبوا لنا في التعليقات 👇\n\n#Laravel #PHP #WebDevelopment #DatabaseDesign #SoftwareEngineering",
+    "image_path": "/assets/2wash.webp",
+    "visual_source": "local_fallback",
+    "provider_used": {
+      "text": "fallback",
+      "visual": "local"
+    },
+    "status": "pending",
+    "created_at": "2026-11-04T12:00:16.227Z"
+  },
+  {
+    "id": 5,
+    "project": "portfolio",
+    "topic": "منشور هندسة عربي: حالة Race Condition في معالجة المدفوعات",
+    "situation": null,
+    "text": "استخدام DB::transaction وحده لا يحمي تطبيقك من الـ Race Conditions إذا لم تقفل السجلات أثناء القراءة.\n\nفي أحد مشاريع معالجة المدفوعات والاشتراكات، ظهرت مشكلة دقيقة: رصيد العميل ينزل إلى قيمة سالبة عند إرسال طلبين في نفس الجزء من الثانية، أو يتم شحن نفس كود التفعيل مرتين.\n\nالافتراض الأول كان وجود خطأ في الـ Frontend يسمح بالضغط المزدوج على زر التأكيد، أو خلل في الـ Queue Worker الذي يعالج العملية.\n\nقمت بكتابة اختبار آلي يحاكي طلبين متزامنين على نفس الحساب للتأكد من المشكلة. المفاجأة كانت أن كل شيء يعمل داخل DB::transaction بشكل سليم نظريا، لكن السجلات كانت تقرأ نفس الرصيد القديم قبل انتهاء المعاملة الأولى.\n\nالسبب الجذري: الـ Transaction تضمن الذرية (Atomicity) فقط، لكنها لا تمنع العمليات الأخرى من قراءة القيمة الحالية إذا لم تستخدم Lock صريحا.\n\nالحل كان في خطوتين مباشرتين:\n1. استخدام Pessimistic Locking عبر استدعاء lockForUpdate عند جلب سجل الرصيد داخل المعاملة، لمنع أي عملية أخرى من قراءته أو تعديله حتى اكتمال التحديث.\n2. الاعتماد على العمليات الذرية المباشرة في قاعدة البيانات مثل decrement بدلا من قراءة القيمة وتعديلها في الذاكرة ثم حفظها.\n\nبعد تعديل الكود، أعدت تشغيل الاختبار وأثبت فشل أي محاولة خصم مزدوج مع حماية تامة للبيانات.\n\nالدرس الهندسي: لا تعتمد على حماية الواجهة لمنع تكرار العمليات الحساسة، وقاعدة البيانات هي خط الدفاع الحقيقي الوحيد.\n\nكيف تتعامل مع معالجة الرصيد والعمليات المالية المتزامنة في مشاريعك؟\nاكتبوا لنا في التعليقات 👇\n\n#Laravel #PHP #WebDevelopment #DatabaseDesign #SoftwareEngineering",
+    "post_text": "استخدام DB::transaction وحده لا يحمي تطبيقك من الـ Race Conditions إذا لم تقفل السجلات أثناء القراءة.\n\nفي أحد مشاريع معالجة المدفوعات والاشتراكات، ظهرت مشكلة دقيقة: رصيد العميل ينزل إلى قيمة سالبة عند إرسال طلبين في نفس الجزء من الثانية، أو يتم شحن نفس كود التفعيل مرتين.\n\nالافتراض الأول كان وجود خطأ في الـ Frontend يسمح بالضغط المزدوج على زر التأكيد، أو خلل في الـ Queue Worker الذي يعالج العملية.\n\nقمت بكتابة اختبار آلي يحاكي طلبين متزامنين على نفس الحساب للتأكد من المشكلة. المفاجأة كانت أن كل شيء يعمل داخل DB::transaction بشكل سليم نظريا، لكن السجلات كانت تقرأ نفس الرصيد القديم قبل انتهاء المعاملة الأولى.\n\nالسبب الجذري: الـ Transaction تضمن الذرية (Atomicity) فقط، لكنها لا تمنع العمليات الأخرى من قراءة القيمة الحالية إذا لم تستخدم Lock صريحا.\n\nالحل كان في خطوتين مباشرتين:\n1. استخدام Pessimistic Locking عبر استدعاء lockForUpdate عند جلب سجل الرصيد داخل المعاملة، لمنع أي عملية أخرى من قراءته أو تعديله حتى اكتمال التحديث.\n2. الاعتماد على العمليات الذرية المباشرة في قاعدة البيانات مثل decrement بدلا من قراءة القيمة وتعديلها في الذاكرة ثم حفظها.\n\nبعد تعديل الكود، أعدت تشغيل الاختبار وأثبت فشل أي محاولة خصم مزدوج مع حماية تامة للبيانات.\n\nالدرس الهندسي: لا تعتمد على حماية الواجهة لمنع تكرار العمليات الحساسة، وقاعدة البيانات هي خط الدفاع الحقيقي الوحيد.\n\nكيف تتعامل مع معالجة الرصيد والعمليات المالية المتزامنة في مشاريعك؟\nاكتبوا لنا في التعليقات 👇\n\n#Laravel #PHP #WebDevelopment #DatabaseDesign #SoftwareEngineering",
+    "image_path": "/assets/2wash.webp",
+    "visual_source": "local_fallback",
+    "provider_used": {
+      "text": "fallback",
+      "visual": "local"
+    },
+    "status": "pending",
+    "created_at": "2026-11-04T13:04:53.669Z"
+  },
+  {
+    "id": 999,
+    "project": "EduTracker",
+    "topic": "Row-Level Multi-Tenancy vs Database-per-Tenant Sprawl Across 40+ Schools",
+    "situation": null,
+    "text": "غالباً ما نفترض أن استخدام قاعدة بيانات مشتركة سيكون الحل الأمثل لتحقيق التعددية الإيجار في تطبيقاتنا، ولكن الواقع التقني يقول العكس. في أحد مشاريعنا، EduTracker، واجهنا تحديًا حقيقيًا في تصميم قاعدة بيانات تخدم أكثر من 40 مدرسة في 5 مناطق مختلفة.\n\nفي البداية، اعتقدنا أن إنشاء قاعدة بيانات منفصلة لكل عميل سيكون الحل الأفضل، ولكن سرعان ما وجدنا أن هذا النهج سيؤدي إلى تسرب كبير في عمليات DevOps وتضخم في الاتصالات. في نفس الوقت، كانت قاعدة البيانات المشتركة تعرضنا لخطر تسريب البيانات بين العملاء.\n\nلذلك، قمت بكتابة اختبار آلي لتحديد الأسباب الجذرية لهذا التسرب، واكتشفت أن السبب الرئيسي يكمن في عدم وجود سياسة حماية صارمة على مستوى الصفوف في قاعدة البيانات. لذلك، قمت بتصميم طبقة سياسة حماية صارمة على مستوى الصفوف في ق\n\n#PostgreSQL #Django #Database #DatabaseDesign #SoftwareEngineering #SystemDesign",
+    "post_text": "غالباً ما نفترض أن استخدام قاعدة بيانات مشتركة سيكون الحل الأمثل لتحقيق التعددية الإيجار في تطبيقاتنا، ولكن الواقع التقني يقول العكس. في أحد مشاريعنا، EduTracker، واجهنا تحديًا حقيقيًا في تصميم قاعدة بيانات تخدم أكثر من 40 مدرسة في 5 مناطق مختلفة.\n\nفي البداية، اعتقدنا أن إنشاء قاعدة بيانات منفصلة لكل عميل سيكون الحل الأفضل، ولكن سرعان ما وجدنا أن هذا النهج سيؤدي إلى تسرب كبير في عمليات DevOps وتضخم في الاتصالات. في نفس الوقت، كانت قاعدة البيانات المشتركة تعرضنا لخطر تسريب البيانات بين العملاء.\n\nلذلك، قمت بكتابة اختبار آلي لتحديد الأسباب الجذرية لهذا التسرب، واكتشفت أن السبب الرئيسي يكمن في عدم وجود سياسة حماية صارمة على مستوى الصفوف في قاعدة البيانات. لذلك، قمت بتصميم طبقة سياسة حماية صارمة على مستوى الصفوف في ق\n\n#PostgreSQL #Django #Database #DatabaseDesign #SoftwareEngineering #SystemDesign",
+    "image_path": "data/generated_images/card-draft-999.png",
+    "visual_source": "branded_card",
+    "model_used": {
+      "text": "@cf/meta/llama-3.1-70b-instruct",
+      "visual": null
+    },
+    "provider_used": {
+      "text": "cloudflare",
+      "visual": "local"
+    },
+    "challenge": {
+      "id": 4,
+      "project": "edutracker",
+      "project_name": "EduTracker",
+      "title": "Row-Level Multi-Tenancy vs Database-per-Tenant Sprawl Across 40+ Schools",
+      "category": "multi-tenancy-architecture",
+      "dilemma": "Serving 40+ schools across 5 districts: database-per-tenant creates massive DevOps sprawl and connection bloat, while naive shared databases risk catastrophic cross-tenant data leaks.",
+      "solution": "Single shared PostgreSQL 16 database enforced by strict row-level policy scoping layers on work_stream_id across all 64 relational entities, validated by 665 automated CI tests.",
+      "keywords": [
+        "multi-tenancy",
+        "row-level-security",
+        "django",
+        "postgresql",
+        "saas-architecture",
+        "database-design"
+      ],
+      "metrics": "64 relational entities, 40+ schools, 665 green CI tests",
+      "tradeoff": "Shared DB + Strict Service Policy Layer vs Database-per-tenant with high DevOps sprawl"
+    },
+    "status": "pending",
+    "created_at": "2026-11-04T13:08:16.507Z"
+  },
+  {
+    "id": 100,
+    "project": "EduTracker",
+    "topic": "Origin-Scoped Subdomain Storage vs Shared Root Cookie Session Bleeding",
+    "situation": null,
+    "text": "غالباً ما نفترض أن استخدام قواعد البيانات المُستضافة بشكل مشترك يُخفف من الحمل على فريق الإدارة، ولكن الواقع التقني يقول العكس. في أحد مشاريعنا، EduTracker، واجهنا تحديًا كبيرًا في التصميم الهندسي حيث كان من الضروري الحفاظ على فصل données المدارس المختلفة في قاعدة بيانات واحدة.\n\nفي EduTracker، نخدم أكثر من 40 مدرسة عبر 5 مناطق، وهذا يثير تحديًا كبيرًا في الحفاظ على سلامة البيانات بين المؤسسات. لقد قمت بكتابة اختبار آلي لتحديد مشكلة تسرب البيانات بين المؤسسات، واكتشفت أن استخدام قاعدة بيانات مشتركة يخفي خطر تسرب البيانات بين المؤسسات.\n\nلقد اتبعت نهجًا مختلفًا، حيث قمت بإنشاء طبقات سياسة صارمة على مستوى الصفوف في قاعدة البيانات، وذلك لضمان فصل بيانات المدارس بشكل صارم. هذا الحل يعتمد على استخدام PostgreSQL مع طبقات سياسة صارمة على مستوى الصفوف، مما يضمن فصل بيانات\n\n#SoftwareEngineering #SystemDesign #Backend #Technology",
+    "post_text": "غالباً ما نفترض أن استخدام قواعد البيانات المُستضافة بشكل مشترك يُخفف من الحمل على فريق الإدارة، ولكن الواقع التقني يقول العكس. في أحد مشاريعنا، EduTracker، واجهنا تحديًا كبيرًا في التصميم الهندسي حيث كان من الضروري الحفاظ على فصل données المدارس المختلفة في قاعدة بيانات واحدة.\n\nفي EduTracker، نخدم أكثر من 40 مدرسة عبر 5 مناطق، وهذا يثير تحديًا كبيرًا في الحفاظ على سلامة البيانات بين المؤسسات. لقد قمت بكتابة اختبار آلي لتحديد مشكلة تسرب البيانات بين المؤسسات، واكتشفت أن استخدام قاعدة بيانات مشتركة يخفي خطر تسرب البيانات بين المؤسسات.\n\nلقد اتبعت نهجًا مختلفًا، حيث قمت بإنشاء طبقات سياسة صارمة على مستوى الصفوف في قاعدة البيانات، وذلك لضمان فصل بيانات المدارس بشكل صارم. هذا الحل يعتمد على استخدام PostgreSQL مع طبقات سياسة صارمة على مستوى الصفوف، مما يضمن فصل بيانات\n\n#SoftwareEngineering #SystemDesign #Backend #Technology",
+    "image_path": "assets/edutracker.webp",
+    "visual_source": "local",
+    "model_used": {
+      "text": "@cf/meta/llama-3.1-70b-instruct",
+      "visual": null
+    },
+    "provider_used": {
+      "text": "cloudflare",
+      "visual": "local"
+    },
+    "challenge": {
+      "id": 5,
+      "project": "edutracker",
+      "project_name": "EduTracker",
+      "title": "Origin-Scoped Subdomain Storage vs Shared Root Cookie Session Bleeding",
+      "category": "security-authentication",
+      "dilemma": "Tenants accessing customized subdomains (*.edutracker.site) risking cross-tenant privilege escalation or token leakage if global root cookies are shared.",
+      "solution": "Wildcard DNS with host header tenant resolution (P95 < 2.8ms) and origin-scoped sessionStorage JWT storage, strictly enforced by browser origin boundaries.",
+      "keywords": [
+        "subdomains",
+        "wildcard-dns",
+        "jwt",
+        "session-storage",
+        "origin-isolation",
+        "security",
+        "nginx"
+      ],
+      "metrics": "Subdomain resolution P95 < 2.8ms, zero cross-tenant leakage",
+      "tradeoff": "Subdomain DNS + Origin-Scoped Storage vs Global SSO cookies spanning all tenant subdomains"
+    },
+    "status": "pending",
+    "created_at": "2026-11-04T13:12:25.228Z"
+  },
+  {
+    "id": 777,
+    "project": "EduTracker",
+    "topic": "Asynchronous Batch PDF Report Card Compilation vs HTTP Gateway Timeouts",
+    "situation": null,
+    "text": "غالباً ما نفترض أن استخدام Celery لتشغيل المهام في الخلفية يضمن تجنب مشكلات الـ Gateway Timeouts، ولكن الواقع التقني يقول العكس. في أحد مشاريعنا، EduTracker، واجهنا مشكلة في توليد تقارير الدرجات الأكاديمية لآلاف الطلاب في نهاية الفصل الدراسي، مما تسبب في حدوث 504 Gateway Timeouts وتعطيل خيوط الخادم الويب.\n\nكانت الفكرة الأولية هي أن مشكلة التعطيل ت归ز إلى قلة الموارد على الخادم، ولكن بعد إجراء الاختبارات الآلية ومراقبة السلوك في بيئة الإنتاج، اكتشفنا أن المشكلة ت归ز إلى طريقة معالجة الطلبات في الخلفية. كانت الطريقة السابقة تعتمد على معالجة الطلبات بشكل同步، مما تسبب في تعطيل الخادم وحدوث 504 Gateway Timeouts.\n\nلذا، قمت بكتابة اختبار آلي لتحاكي الطلبات المتزامنة وتقديم تقارير الدرجات الأكاديم\n\n#Redis #Celery #SoftwareEngineering #SystemDesign #Backend #Technology",
+    "post_text": "غالباً ما نفترض أن استخدام Celery لتشغيل المهام في الخلفية يضمن تجنب مشكلات الـ Gateway Timeouts، ولكن الواقع التقني يقول العكس. في أحد مشاريعنا، EduTracker، واجهنا مشكلة في توليد تقارير الدرجات الأكاديمية لآلاف الطلاب في نهاية الفصل الدراسي، مما تسبب في حدوث 504 Gateway Timeouts وتعطيل خيوط الخادم الويب.\n\nكانت الفكرة الأولية هي أن مشكلة التعطيل ت归ز إلى قلة الموارد على الخادم، ولكن بعد إجراء الاختبارات الآلية ومراقبة السلوك في بيئة الإنتاج، اكتشفنا أن المشكلة ت归ز إلى طريقة معالجة الطلبات في الخلفية. كانت الطريقة السابقة تعتمد على معالجة الطلبات بشكل同步، مما تسبب في تعطيل الخادم وحدوث 504 Gateway Timeouts.\n\nلذا، قمت بكتابة اختبار آلي لتحاكي الطلبات المتزامنة وتقديم تقارير الدرجات الأكاديم\n\n#Redis #Celery #SoftwareEngineering #SystemDesign #Backend #Technology",
+    "image_path": "assets/edutracker.webp",
+    "visual_source": "local",
+    "model_used": {
+      "text": "@cf/meta/llama-3.1-70b-instruct",
+      "visual": null
+    },
+    "provider_used": {
+      "text": "cloudflare",
+      "visual": "local"
+    },
+    "challenge": {
+      "id": 6,
+      "project": "edutracker",
+      "project_name": "EduTracker",
+      "title": "Asynchronous Batch PDF Report Card Compilation vs HTTP Gateway Timeouts",
+      "category": "asynchronous-processing",
+      "dilemma": "Compiling hundreds of district-wide student gradebook PDFs at semester end causing 504 Gateway Timeouts and starving web server threads.",
+      "solution": "Dedicated Celery worker pools with Redis queue segregation, compiling WeasyPrint PDFs in background tasks with exponential backoff retries and WebSocket readiness notifications.",
+      "keywords": [
+        "celery",
+        "redis",
+        "background-jobs",
+        "weasyprint",
+        "gateway-timeout",
+        "batch-processing"
+      ],
+      "metrics": "Zero HTTP gateway timeouts during mass generation",
+      "tradeoff": "Celery Async Workers + Redis Broker vs Synchronous HTTP request processing"
+    },
+    "status": "pending",
+    "created_at": "2026-11-04T13:13:26.181Z"
+  },
+  {
+    "id": 555,
+    "project": "clientMORE",
+    "topic": "Pure-Python Hybrid Search (BM25 + ChromaDB Dense RRF) Eliminating Elasticsearch",
+    "situation": null,
+    "text": "غالباً ما نفترض أن استخدام خوارزمية البحث الدenser Vector Search وحدها تكفي لتحقيق أداء البحث الأمثل، ولكن الواقع التقني يقول العكس. في أحد مشاريعنا، وهو منصة دعم العملاء clientMORE، واجهنا تحدياً في تحقيق التوازن بين دقة البحث وسرعته.\n\nكانت مشكلتنا الأساسية هي أن البحث الدensi Vector Search وحده لم يكن كافياً لتحقيق نتائج بحث دقيقة، خاصة عند البحث عن عناصر محددة مثل أرقام الطلبات أو أسماء العملاء. لذلك، قمت بكتابة اختبار آلي لتحديد تأثير استخدام خوارزمية البحث الدensi Vector Search مع خوارزمية البحث Lexical BM25 على أداء البحث.\n\nاكتشفت أن استخدام خوارزمية البحث الدensi Vector Search مع BM25 ي 提供 نتائج بحث دقيقة أكثر مقارنة باستخدام خوارزمية البحث الدensi Vector Search وحدها. ومع ذلك، كانت هناك تحديات معينة في تنفيذ هذا الحل، مثل زيادة استهلاك الذاكرة وزيادة تعقيد\n\n#SoftwareEngineering #SystemDesign #Backend #Technology",
+    "post_text": "غالباً ما نفترض أن استخدام خوارزمية البحث الدenser Vector Search وحدها تكفي لتحقيق أداء البحث الأمثل، ولكن الواقع التقني يقول العكس. في أحد مشاريعنا، وهو منصة دعم العملاء clientMORE، واجهنا تحدياً في تحقيق التوازن بين دقة البحث وسرعته.\n\nكانت مشكلتنا الأساسية هي أن البحث الدensi Vector Search وحده لم يكن كافياً لتحقيق نتائج بحث دقيقة، خاصة عند البحث عن عناصر محددة مثل أرقام الطلبات أو أسماء العملاء. لذلك، قمت بكتابة اختبار آلي لتحديد تأثير استخدام خوارزمية البحث الدensi Vector Search مع خوارزمية البحث Lexical BM25 على أداء البحث.\n\nاكتشفت أن استخدام خوارزمية البحث الدensi Vector Search مع BM25 ي 提供 نتائج بحث دقيقة أكثر مقارنة باستخدام خوارزمية البحث الدensi Vector Search وحدها. ومع ذلك، كانت هناك تحديات معينة في تنفيذ هذا الحل، مثل زيادة استهلاك الذاكرة وزيادة تعقيد\n\n#SoftwareEngineering #SystemDesign #Backend #Technology",
+    "image_path": "data/generated_images/card-draft-555.png",
+    "visual_source": "branded_card",
+    "model_used": {
+      "text": "@cf/meta/llama-3.1-70b-instruct",
+      "visual": null
+    },
+    "provider_used": {
+      "text": "cloudflare",
+      "visual": "local"
+    },
+    "challenge": {
+      "id": 7,
+      "project": "clientmore",
+      "project_name": "clientMORE",
+      "title": "Pure-Python Hybrid Search (BM25 + ChromaDB Dense RRF) Eliminating Elasticsearch",
+      "category": "applied-rag",
+      "dilemma": "Dense vector search alone missed exact SKU and order ID lookups, but spinning up Elasticsearch/Meilisearch clusters introduced immense RAM consumption and operational complexity.",
+      "solution": "In-process pure-Python hybrid search combining ChromaDB dense vector queries with an in-memory BM25 lexical index, fused using Reciprocal Rank Fusion (k=60) and MMR diversity filtering.",
+      "keywords": [
+        "hybrid-search",
+        "bm25",
+        "chromadb",
+        "reciprocal-rank-fusion",
+        "rrf",
+        "rag",
+        "vector-search",
+        "python"
+      ],
+      "metrics": "Hybrid retrieval P95 < 92.4ms",
+      "tradeoff": "ChromaDB Dense + Pure-Python BM25 / RRF vs Dense-only vector search or heavy external Elasticsearch clusters"
+    },
+    "status": "pending",
+    "created_at": "2026-11-04T13:39:01.214Z"
+  },
+  {
+    "id": 556,
     "project": "2Wash",
     "topic": "PostGIS Spatial Indexing vs In-Memory Haversine: Sub-12ms Radius Lookups",
     "situation": null,
-    "text": "استخدام PostgreSQL PostGIS مع GIST R-tree Spatial Index لتحسين أداء الاستعلامات الجغرافية في تطبيقات الويب\n\nفي أحد مشاريعنا، 2Wash، واجهنا مشكلة في أداء الاستعلامات الجغرافية عند البحث عن مراكز خدمة شريكة في الرياض وجدة. كانت الاستعلامات تأخذ وقتًا طويلاً، وتسبب في حدوث CPU throttling وتباطؤ في أداء النظام.\n\nقمت بكتابة اختبار آلي لتحديد原因 الجذري للمشكلة، واكتشفت أن问题 كان يرجع إلى استخدام خوارزمية Haversine لتحديد المسافة بين المراكز الخدمية والمستخدمين. كانت هذه الخوارزمية تسبب في حدوث عمليات البحث الكثيرة في قاعدة البيانات، مما يؤدي إلى تباطؤ النظام.\n\nبعد تحليل المشكلة، قمت بتحسين أداء الاستعلامات الجغرافية باستخدام PostgreSQL PostGIS مع GIST R-tree Spatial Index. هذا الحل(enabled) تحسين كبير في أداء الاستعلامات، حيث انخفضت فترة الاستجابة من 340 مللي ثانية",
-    "post_text": "استخدام PostgreSQL PostGIS مع GIST R-tree Spatial Index لتحسين أداء الاستعلامات الجغرافية في تطبيقات الويب\n\nفي أحد مشاريعنا، 2Wash، واجهنا مشكلة في أداء الاستعلامات الجغرافية عند البحث عن مراكز خدمة شريكة في الرياض وجدة. كانت الاستعلامات تأخذ وقتًا طويلاً، وتسبب في حدوث CPU throttling وتباطؤ في أداء النظام.\n\nقمت بكتابة اختبار آلي لتحديد原因 الجذري للمشكلة، واكتشفت أن问题 كان يرجع إلى استخدام خوارزمية Haversine لتحديد المسافة بين المراكز الخدمية والمستخدمين. كانت هذه الخوارزمية تسبب في حدوث عمليات البحث الكثيرة في قاعدة البيانات، مما يؤدي إلى تباطؤ النظام.\n\nبعد تحليل المشكلة، قمت بتحسين أداء الاستعلامات الجغرافية باستخدام PostgreSQL PostGIS مع GIST R-tree Spatial Index. هذا الحل(enabled) تحسين كبير في أداء الاستعلامات، حيث انخفضت فترة الاستجابة من 340 مللي ثانية",
-    "image_path": "data/generated_images/card-draft-1.png",
-    "visual_source": "branded_card",
+    "text": "غالباً ما نفترض أن استخدام GiST spatial index وحده كافٍ لحل مشكلات الـ spatial queries في قواعد البيانات، ولكن الواقع التقني يقول العكس. في أحد مشاريعنا، 2Wash، واجهنا مشكلة في تحسين أداء استعلامات البحث عن مركز خدمة قريب في مدينة الرياض وجدة.\n\nفي البداية، كنا نستخدم طريقة البحث عن أقرب مركز خدمة باستخدام دالة Haversine في الذاكرة، ولكن هذه الطريقة كانت تتسبب في بطء كبير في الاستجابة، حيث كان متوسط زمن الاستجابة يصل إلى 340 مللي ثانية. هذا الوضع كان يسبب مشاكل كبيرة في استخدام التطبيق، حيث كان المستخدمون ينتظرون لفترات طويلة لتحميل النتائج.\n\nلذا، قمت بكتابة اختبار آلي لتحديد السبب الجذري لهذا البطء. هذا الاختبار أظهر أن السبب الجذري هو عدم استخدام GiST spatial index بشكل صحيح. لذلك، قمت بتحسين الاستعلامات باستخدام GiST spatial index و ST_D\n\n#PostGIS #PostgreSQL #GiST #SpatialIndexing #Geospatial #Django",
+    "post_text": "غالباً ما نفترض أن استخدام GiST spatial index وحده كافٍ لحل مشكلات الـ spatial queries في قواعد البيانات، ولكن الواقع التقني يقول العكس. في أحد مشاريعنا، 2Wash، واجهنا مشكلة في تحسين أداء استعلامات البحث عن مركز خدمة قريب في مدينة الرياض وجدة.\n\nفي البداية، كنا نستخدم طريقة البحث عن أقرب مركز خدمة باستخدام دالة Haversine في الذاكرة، ولكن هذه الطريقة كانت تتسبب في بطء كبير في الاستجابة، حيث كان متوسط زمن الاستجابة يصل إلى 340 مللي ثانية. هذا الوضع كان يسبب مشاكل كبيرة في استخدام التطبيق، حيث كان المستخدمون ينتظرون لفترات طويلة لتحميل النتائج.\n\nلذا، قمت بكتابة اختبار آلي لتحديد السبب الجذري لهذا البطء. هذا الاختبار أظهر أن السبب الجذري هو عدم استخدام GiST spatial index بشكل صحيح. لذلك، قمت بتحسين الاستعلامات باستخدام GiST spatial index و ST_D\n\n#PostGIS #PostgreSQL #GiST #SpatialIndexing #Geospatial #Django",
+    "image_path": "assets/2wash.webp",
+    "visual_source": "local",
     "model_used": {
       "text": "@cf/meta/llama-3.1-70b-instruct",
       "visual": null
@@ -23,7 +214,7 @@
       "title": "PostGIS Spatial Indexing vs In-Memory Haversine: Sub-12ms Radius Lookups",
       "category": "geospatial-database",
       "dilemma": "How to query partner service center polygons across Riyadh & Jeddah under high concurrency without CPU throttling or slow table scans.",
-      "solution": "PostgreSQL PostGIS with GIST R-tree spatial indexing and ST_DWithin queries, dropping lookup P95 from 340ms to 11.4ms.",
+      "solution": "PostgreSQL PostGIS with GiST spatial indexing and ST_DWithin queries, dropping lookup P95 from 340ms to 11.4ms.",
       "keywords": [
         "postgis",
         "spatial-indexing",
@@ -37,6 +228,6 @@
       "tradeoff": "PostGIS ST_DWithin + GIST Index vs In-memory Haversine filtering on unindexed rows"
     },
     "status": "pending",
-    "created_at": "2026-11-03T13:20:52.008Z"
+    "created_at": "2026-11-04T13:39:51.026Z"
   }
 ]

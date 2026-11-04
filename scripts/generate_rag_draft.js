@@ -1,8 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { createGeminiClient, synthesizeRAGDraft } from './gemini_engine.js';
+import { createGeminiClient, synthesizeRAGDraft, resolveVisualAsset } from './gemini_engine.js';
 import { addPendingDraft, loadPendingDrafts, addScenario } from './telegram_router.js';
-import { renderCardImage, extractCardContent } from './card_generator.js';
+import { renderCardImage, extractCardContent } from './generate_card_asset.js';
 
 export async function runRAGStaging({
   query = '',
@@ -14,6 +14,7 @@ export async function runRAGStaging({
   assetsDir = 'assets',
   outputDir = 'data/generated_images',
   useBrandedCard = true,
+  useProjectImage = false,
   cfAccountId,
   cfApiToken,
   fetchClient,
@@ -39,9 +40,26 @@ export async function runRAGStaging({
   let finalImagePath = draft.visualPath;
   let finalVisualSource = draft.visualSource;
 
-  if (useBrandedCard) {
+  // Resolve local project asset for branded card background or explicit project image
+  const projectSlug = draft.project || draft.topic?.slug || 'portfolio';
+  const projectImage = resolveVisualAsset(projectSlug, { assetsDir });
+
+  // Check if user explicitly asked to use project image
+  const combinedPrompt = `${query} ${situation}`.toLowerCase();
+  const isProjectImageRequested = Boolean(
+    useProjectImage ||
+    /صورة\s*(?:الـ|لـ)?مشروع|صورة\s*المشروع|project[\s_-]*image|screenshot|صورة\s*حقيقية/i.test(combinedPrompt)
+  );
+
+  if (isProjectImageRequested && projectImage) {
+    // User explicitly requested project image
+    finalImagePath = projectImage;
+    finalVisualSource = 'local';
+  } else if (useBrandedCard) {
+    // Default: Always use mahmoud_card and write post content on it
     try {
       const cardContent = extractCardContent(draft.text, draft.challenge || draft.topic);
+
       const cardResult = await renderCardImage(cardContent, {
         outputDir,
         filename: `card-draft-${calculatedDraftId}.png`,
@@ -106,6 +124,7 @@ if (process.argv[1] && process.argv[1].endsWith('generate_rag_draft.js')) {
   const draftId = idIdx !== -1 && args[idIdx + 1] ? parseInt(args[idIdx + 1], 10) : null;
 
   const noCard = args.includes('--no-card');
+  const projectImage = args.includes('--project-image') || args.includes('--use-project-image');
 
   const clientPromise = process.env.GEMINI_API_KEY
     ? createGeminiClient()
@@ -118,6 +137,7 @@ if (process.argv[1] && process.argv[1].endsWith('generate_rag_draft.js')) {
       draftId,
       client,
       useBrandedCard: !noCard,
+      useProjectImage: projectImage,
     }))
     .then((res) => {
       console.log(JSON.stringify(res, null, 2));

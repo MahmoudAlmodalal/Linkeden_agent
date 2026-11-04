@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { STRATEGIC_ANGLES, HOOK_TEMPLATES, TEXT_LENGTH_VARIANTS } from './innovation_layer.js';
 
 export const DEFAULT_KB_DIR = path.resolve(process.cwd(), 'data', 'rag', 'knowledge_base');
 export const DEFAULT_CHALLENGES_PATH = path.resolve(process.cwd(), 'data', 'rag', 'challenges_matrix.json');
@@ -488,6 +489,7 @@ export function buildGroundedRAGPrompt({
   styleGuide = '',
   isEnglish = false,
   situation = '',
+  innovation = {},
 } = {}) {
   const languageDirective = isEnglish
     ? 'Language: English. Write in authoritative, crisp, battle-tested engineering English.'
@@ -504,6 +506,21 @@ Do not insert random English words or any other language. Never output words suc
   const ctaLine = isEnglish ? 'Share your approach in the comments.' : 'اكتبوا لنا في التعليقات 👇';
   const rootCauseExample = isEnglish ? 'state the root cause clearly' : 'اذكر السبب الجذري بوضوح';
   const qualityCheck = isEnglish ? 'the English is coherent' : 'the Arabic is coherent';
+
+  // --- Text-innovation layer for RAG path ---
+  const angle = innovation?.angle || STRATEGIC_ANGLES[0];
+  const hookTemplate = innovation?.hook || HOOK_TEMPLATES[0];
+  const lengthVariant = innovation?.length || TEXT_LENGTH_VARIANTS[1];
+
+  const innovationSection = `
+=== TEXT-INNOVATION LAYER (MANDATORY — changes every generation) ===
+Strategic Angle: ${angle.labelAr} — ${angle.directiveAr}
+Hook Style: ${angle.hookStyle}
+Suggested opening hook (use as inspiration, adapt to the topic): "${hookTemplate}"
+Post Length & Depth: ${lengthVariant.labelAr} — ${lengthVariant.detailLevel} (approximately ${lengthVariant.paragraphs} paragraphs)
+
+CRITICAL: Do NOT reuse the same narrative lens or hook structure from previous posts about this same project. Apply the strategic angle above to reshape the entire post: the opening, the body, the lesson, and the call-to-action must all reflect this angle. The post must read as if written from a different perspective each time.
+`;
 
   const contextSnippets = retrievedDocs
     .map((doc, idx) => `[Fact Source ${idx + 1}: ${doc.title || doc.project}]\n${doc.text}`)
@@ -538,6 +555,7 @@ You are writing an authoritative, high-signal technical LinkedIn post grounded i
 
 ${languageDirective}
 ${situationSection}
+${innovationSection}
 === REAL PROJECT GROUNDING CONTEXT (DO NOT INVENT FAKE DATA) ===
 ${challengeInfo}
 

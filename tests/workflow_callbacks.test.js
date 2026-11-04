@@ -30,6 +30,25 @@ function runParser(callbackData, userId = 445566) {
   })[0].json;
 }
 
+test('generate callback uses an awaited Workflow 1 trigger and reports failures', () => {
+  const code = nodes.get('Handle Generate Node')?.parameters?.jsCode || '';
+  assert.doesNotMatch(code, /wget|child_process|execSync|fetch|AbortSignal/);
+  assert.match(code, /await\s+triggerGenerateWorkflow/);
+  assert.match(code, /require\('http'\)/);
+  assert.match(code, /path: '\/webhook\/generate'/);
+  assert.match(code, /if \(result\.status < 200 \|\| result\.status >= 300\)/);
+  assert.match(code, /❌ \*تعذر تشغيل Workflow 1/);
+});
+
+test('workflow 1 fallback persists a pending draft before sending the preview', () => {
+  const workflowPath = path.join(repoRoot, 'workflows', 'workflow_1_staging.json');
+  const staging = JSON.parse(fs.readFileSync(workflowPath, 'utf8'));
+  const code = staging.nodes.find((node) => node.name === 'Gemini Generation & Visual Stager')?.parameters?.jsCode || '';
+  assert.match(code, /pending_drafts\.json/);
+  assert.match(code, /visual_source: 'local_fallback'/);
+  assert.match(code, /Could not persist fallback draft/);
+});
+
 test('draft list buttons use explicit callback_data action IDs', () => {
   const code = nodes.get('Handle Drafts Node')?.parameters?.jsCode || '';
   assert.match(code, /callback_data: `show_\$\{d\.id\}`/);
@@ -65,6 +84,13 @@ test('webhook has a registered callback-query acknowledgement path', () => {
   assert.equal(answerNode?.type, 'n8n-nodes-base.httpRequest');
   assert.match(answerNode?.parameters?.url || '', /answerCallbackQuery/);
   assert.equal(answerNode?.parameters?.bodyParameters?.parameters?.[0]?.name, 'callback_query_id');
+});
+
+test('approval publishing reads mounted drafts and sends unparsed Telegram replies', () => {
+  const code = nodes.get('LinkedIn Publishing Node')?.parameters?.jsCode || '';
+  assert.ok(code.includes("cwd: '/', encoding: 'utf8'"));
+  const replyParameters = nodes.get('Telegram Reply Node')?.parameters?.bodyParameters?.parameters || [];
+  assert.doesNotMatch(JSON.stringify(replyParameters), /parse_mode/);
 });
 
 test('show callback returns image binary and sends it through Telegram multipart upload', () => {

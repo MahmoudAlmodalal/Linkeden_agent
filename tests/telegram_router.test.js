@@ -557,6 +557,26 @@ describe('Telegram Update Router (handleTelegramUpdate)', () => {
     assert.ok(response.replyText.toLowerCase().includes('trigger') || response.replyText.toLowerCase().includes('generat'));
   });
 
+  it('handles /generate without a configured trigger by reporting an explicit failure', async () => {
+    const update = {
+      message: {
+        from: { id: allowedId },
+        text: '/generate',
+        chat: { id: allowedId },
+      },
+    };
+
+    const response = await handleTelegramUpdate(update, {
+      allowedUserId: allowedId,
+      pendingDraftsPath: testDraftsPath,
+    });
+
+    assert.equal(response.authorized, true);
+    assert.equal(response.success, false);
+    assert.equal(response.command, 'generate');
+    assert.match(response.replyText, /Workflow 1/);
+  });
+
   it('handles /drafts when pending drafts exist, returning inline buttons', async () => {
     savePendingDrafts([
       { id: 1, text: 'Draft 1 content', topic: 'Sharding' },
@@ -730,16 +750,37 @@ describe('Workflow 1 Staging Specification Validation', () => {
     assert.ok(geminiNode, 'Must have Gemini generation code node');
   });
 
-  it('contains Telegram send photo node configured with TELEGRAM_ALLOWED_USER_ID', () => {
+  it('sends Telegram photos and posts with HTTP Request nodes', () => {
     const data = JSON.parse(fs.readFileSync(workflowPath, 'utf8'));
-    const telegramNode = data.nodes.find(
-      (n) => n.type === 'n8n-nodes-base.telegram'
+    const stager = data.nodes.find((n) => n.name === 'Gemini Generation & Visual Stager');
+    const photoNode = data.nodes.find((n) => n.name === 'Telegram Send Photo');
+    const restoreNode = data.nodes.find((n) => n.name === 'Restore Draft Text After Photo');
+    const postNode = data.nodes.find((n) => n.name === 'Telegram Send Full Post');
+
+    assert.equal(data.id, 'workflow-1-staging');
+    assert.match(stager.parameters?.jsCode || '', /\$env\.TELEGRAM_ALLOWED_USER_ID/);
+    assert.ok(stager.parameters?.jsCode.includes('spawnSync(process.execPath'));
+    assert.match(stager.parameters?.jsCode || '', /cwd: '\/'/);
+    assert.match(stager.parameters?.jsCode || '', /binary:\s*\{\s*photo:/);
+
+    assert.equal(photoNode?.type, 'n8n-nodes-base.httpRequest');
+    assert.equal(photoNode?.typeVersion, 4.2);
+    assert.match(photoNode.parameters?.url || '', /sendPhoto/);
+    assert.equal(photoNode.parameters?.contentType, 'multipart-form-data');
+    assert.equal(photoNode.parameters?.bodyParameters?.parameters?.[2]?.parameterType, 'formBinaryData');
+    assert.match(
+      photoNode.parameters?.bodyParameters?.parameters?.[0]?.value || '',
+      /TELEGRAM_ALLOWED_USER_ID/,
     );
-    assert.ok(telegramNode, 'Telegram node must exist');
-    assert.equal(telegramNode.parameters?.operation, 'sendPhoto');
-    assert.ok(
-      telegramNode.parameters?.chatId?.includes('TELEGRAM_ALLOWED_USER_ID'),
-      'Chat ID parameter must reference TELEGRAM_ALLOWED_USER_ID'
+    assert.equal(
+      data.connections['Telegram Send Photo']?.main?.[0]?.[0]?.node,
+      'Restore Draft Text After Photo',
     );
+    assert.match(restoreNode.parameters?.jsCode || '', /Gemini Generation & Visual Stager/);
+
+    assert.equal(postNode?.type, 'n8n-nodes-base.httpRequest');
+    assert.equal(postNode?.typeVersion, 4.2);
+    assert.match(postNode.parameters?.url || '', /sendMessage/);
+    assert.equal(postNode.parameters?.bodyParameters?.parameters?.[1]?.value, '={{ $json.text }}');
   });
 });

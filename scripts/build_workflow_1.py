@@ -2,6 +2,8 @@ import json
 import os
 
 js_code = r"""const { spawnSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 
 const input = $input.first().json;
 const draftId = input.draftId || 1;
@@ -16,10 +18,12 @@ try {
   const args = ['/scripts/generate_rag_draft.js', '--id', String(draftId)];
   if (query) args.push('--query', query);
   if (situation) args.push('--situation', situation);
-  // Use the fast local project visual in the staging workflow. Branded cards
-  // remain available for manual/local runs via generate_rag_draft.js.
-  args.push('--no-card');
-  const child = spawnSync('node', args, { encoding: 'utf8', timeout: 60000 });
+  const combined = `${query} ${situation}`.toLowerCase();
+  const wantsProjectImage = /صورة\s*(?:الـ|لـ)?مشروع|صورة\s*المشروع|project[\s_-]*image|screenshot/i.test(combined);
+  if (wantsProjectImage) {
+    args.push('--project-image');
+  }
+  const child = spawnSync(process.execPath, args, { cwd: '/', encoding: 'utf8', timeout: 60000 });
   if (child.error) throw child.error;
   if (child.status !== 0) throw new Error(child.stderr || `RAG process exited with ${child.status}`);
   const result = JSON.parse(child.stdout);
@@ -47,17 +51,53 @@ if (!postText) {
     `كيف تتعامل مع معالجة الرصيد والعمليات المالية المتزامنة في مشاريعك؟\n` +
     `اكتبوا لنا في التعليقات 👇\n\n` +
     `#Laravel #PHP #WebDevelopment #DatabaseDesign #SoftwareEngineering`;
+
+  try {
+    const draftsPath = input.draftsPath || '/data/pending_drafts.json';
+    const fallbackId = Number(draftId) || 1;
+    let drafts = [];
+    if (fs.existsSync(draftsPath)) {
+      try {
+        const parsed = JSON.parse(fs.readFileSync(draftsPath, 'utf8'));
+        drafts = Array.isArray(parsed) ? parsed : (Array.isArray(parsed.drafts) ? parsed.drafts : []);
+      } catch {
+        drafts = [];
+      }
+    }
+    if (!drafts.some((d) => Number(d.id) === fallbackId)) {
+      drafts.push({
+        id: fallbackId,
+        project,
+        topic: 'منشور هندسة عربي: حالة Race Condition في معالجة المدفوعات',
+        situation: situation || null,
+        text: postText,
+        post_text: postText,
+        image_path: fs.existsSync('/assets/mahmoud_card.png') ? '/assets/mahmoud_card.png' : '/assets/2wash.webp',
+        visual_source: 'local_fallback',
+        provider_used: { text: 'fallback', visual: 'local' },
+        status: 'pending',
+        created_at: new Date().toISOString(),
+      });
+      fs.writeFileSync(draftsPath, JSON.stringify(drafts, null, 2), 'utf8');
+    }
+  } catch (fallbackErr) {
+    console.error('Could not persist fallback draft:', fallbackErr.message);
+  }
 }
 
 if (!imagePath) {
-  imagePath = '/assets/2wash.webp';
+  imagePath = fs.existsSync('/assets/mahmoud_card.png') ? '/assets/mahmoud_card.png' : '/assets/2wash.webp';
 }
 
 const previewCaption = `[Draft ID: #${draftId}]\n\n` +
   `تم توليد مسودة كاملة عن ${project}. ستصل الرسالة الكاملة بعد الصورة.`;
 
-const chatId = process.env.TELEGRAM_ALLOWED_USER_ID;
+const chatId = $env.TELEGRAM_ALLOWED_USER_ID;
 if (!chatId) throw new Error('TELEGRAM_ALLOWED_USER_ID is required to dispatch a draft');
+
+const resolvedImagePath = path.isAbsolute(imagePath) ? imagePath : path.resolve('/', imagePath);
+const extension = path.extname(resolvedImagePath).toLowerCase();
+const mimeType = extension === '.png' ? 'image/png' : (extension === '.webp' ? 'image/webp' : 'image/jpeg');
 
 return [{
   json: {
@@ -66,10 +106,18 @@ return [{
     text: postText,
     image_path: imagePath,
     caption: previewCaption
+  },
+  binary: {
+    photo: {
+      data: fs.readFileSync(resolvedImagePath).toString('base64'),
+      fileName: path.basename(resolvedImagePath),
+      mimeType
+    }
   }
 }];"""
 
 wf = {
+  "id": "workflow-1-staging",
   "name": "Workflow 1 - Content Generator & Stager",
   "nodes": [
     {
@@ -124,32 +172,53 @@ wf = {
     },
     {
       "parameters": {
-        "resource": "message",
-        "operation": "sendPhoto",
-        "chatId": "={{ $env.TELEGRAM_ALLOWED_USER_ID }}",
-        "file": "={{ $json.image_path }}",
-        "caption": "={{ $json.caption }}",
-        "additionalFields": {}
+        "method": "POST",
+        "url": "={{ 'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendPhoto' }}",
+        "sendBody": True,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "chat_id", "value": "={{ $env.TELEGRAM_ALLOWED_USER_ID }}" },
+            { "name": "caption", "value": "={{ $json.caption }}" },
+            { "parameterType": "formBinaryData", "name": "photo", "inputDataFieldName": "photo" }
+          ]
+        },
+        "options": {}
       },
       "id": "7b8d4c9a-5555-4444-8888-000000000005",
       "name": "Telegram Send Photo",
-      "type": "n8n-nodes-base.telegram",
-      "typeVersion": 1.2,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [960, 340],
       "continueOnFail": True
-    }
-,    {
+    },
+    {
       "parameters": {
-        "resource": "message",
-        "operation": "sendMessage",
-        "chatId": "={{ $env.TELEGRAM_ALLOWED_USER_ID }}",
-        "text": "={{ $json.text }}",
-        "additionalFields": {}
+        "jsCode": "const generated = $('Gemini Generation & Visual Stager').first();\nreturn [{ json: generated.json }];"
+      },
+      "id": "7b8d4c9a-7777-4444-8888-000000000007",
+      "name": "Restore Draft Text After Photo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1090, 340]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage' }}",
+        "sendBody": True,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "chat_id", "value": "={{ $env.TELEGRAM_ALLOWED_USER_ID }}" },
+            { "name": "text", "value": "={{ $json.text }}" }
+          ]
+        },
+        "options": {}
       },
       "id": "7b8d4c9a-6666-4444-8888-000000000006",
       "name": "Telegram Send Full Post",
-      "type": "n8n-nodes-base.telegram",
-      "typeVersion": 1.2,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [1220, 340],
       "continueOnFail": True
     }
@@ -168,6 +237,9 @@ wf = {
       "main": [[{"node": "Telegram Send Photo", "type": "main", "index": 0}]]
     },
     "Telegram Send Photo": {
+      "main": [[{"node": "Restore Draft Text After Photo", "type": "main", "index": 0}]]
+    },
+    "Restore Draft Text After Photo": {
       "main": [[{"node": "Telegram Send Full Post", "type": "main", "index": 0}]]
     }
   },

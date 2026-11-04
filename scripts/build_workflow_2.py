@@ -157,7 +157,7 @@ if (drafts.length === 0) {
   replyText = `📋 *قائمة المسودات المتوفرة في النظام (${drafts.length}):*\n\n`;
   for (const d of displayDrafts) {
     const topic = d.topic || 'بوست تقني';
-    const preview = (d.text || d.post_text || '').slice(0, 60).replace(/\n/g, ' ');
+    const preview = String(d.text || d.post_text || '').slice(0, 60).replace(/[*\/_`]/g, '').replace(/\n/g, ' ');
     replyText += `• *مسودة #${d.id}* (${topic}):\n  _${preview}..._\n\n`;
     buttons.push([
       { text: `👁️ عرض المنشور #${d.id}`, callback_data: `show_${d.id}` },
@@ -247,6 +247,75 @@ return [{
     replyText: helpMsg
   }
 }];"""
+
+js_generate = r"""const prev = $('Security & Command Parser').first().json;
+const chatId = prev.chatId;
+
+async function triggerGenerateWorkflow() {
+  const http = require('http');
+  const port = Number.parseInt(
+    (typeof $env !== 'undefined' && $env.N8N_PORT) ||
+    (typeof process !== 'undefined' && process.env && process.env.N8N_PORT) ||
+    '5678',
+    10,
+  );
+  const payload = JSON.stringify({ source: 'telegram_command', triggeredBy: chatId });
+
+  const result = await new Promise((resolve, reject) => {
+    const request = http.request(
+      {
+        hostname: '127.0.0.1',
+        port,
+        path: '/webhook/generate',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(payload),
+        },
+        timeout: 60000,
+      },
+      (response) => {
+        let body = '';
+        response.setEncoding('utf8');
+        response.on('data', (chunk) => {
+          body += chunk;
+        });
+        response.on('end', () => {
+          resolve({ status: response.statusCode || 0, body });
+        });
+      },
+    );
+
+    request.on('timeout', () => {
+      request.destroy(new Error('Generate webhook timed out after 60s'));
+    });
+    request.on('error', reject);
+    request.write(payload);
+    request.end();
+  });
+
+  if (result.status < 200 || result.status >= 300) {
+    throw new Error(`Generate webhook returned HTTP ${result.status}: ${result.body}`);
+  }
+
+  return [{
+    json: {
+      chatId,
+      replyText: '⚡ *تم تشغيل توليد منشور جديد بالذكاء الاصطناعي...*\n\nستصلك المسودة هنا بعد ثوانٍ قليلة!',
+    },
+  }];
+}
+
+try {
+  return await triggerGenerateWorkflow();
+} catch (error) {
+  return [{
+    json: {
+      chatId,
+      replyText: `❌ *تعذر تشغيل Workflow 1 لتوليد المنشور*\n\nالسبب: ${error.message}\n\nتحقق من أن Workflow 1 يعمل ويستجيب للـ /webhook/generate ثم حاول مرة أخرى.`,
+    },
+  }];
+}"""
 
 wf2 = {
   "id": "workflow-2-publishing",
@@ -394,7 +463,7 @@ wf2 = {
     },
     {
       "parameters": {
-        "jsCode": "const { execSync } = require('child_process');\nconst draftId = $input.item.json.draftId || '';\nlet stdout = '';\nlet stderr = '';\ntry {\n  stdout = execSync(`node /scripts/linkedin_publisher.js ${draftId}`, { encoding: 'utf8' });\n} catch (err) {\n  stderr = err.stderr || err.message || '';\n  stdout = err.stdout || '';\n}\nreturn [{ json: { stdout, stderr } }];"
+        "jsCode": "const { execSync } = require('child_process');\nconst draftId = $input.item.json.draftId || '';\nlet stdout = '';\nlet stderr = '';\ntry {\n  stdout = execSync(`node /scripts/linkedin_publisher.js ${draftId}`, { cwd: '/', encoding: 'utf8' });\n} catch (err) {\n  stderr = err.stderr || err.message || '';\n  stdout = err.stdout || '';\n}\nreturn [{ json: { stdout, stderr } }];"
       },
       "id": "linkedin-publishing-node",
       "name": "LinkedIn Publishing Node",
@@ -425,7 +494,7 @@ wf2 = {
     },
     {
       "parameters": {
-        "jsCode": "const { execSync } = require('child_process');\nconst prev = $('Security & Command Parser').first().json;\nconst chatId = prev.chatId;\ntry { execSync('wget -q -O- --post-data=\"\" http://127.0.0.1:5678/webhook/generate > /dev/null 2>&1 &'); } catch (e) {}\nreturn [{ json: { chatId, replyText: '⚡ *جارٍ توليد منشور جديد وصورة بالذكاء الاصطناعي...*\\n\\nستصلك المسودة هنا بعد ثوانٍ قليلة!' } }];"
+        "jsCode": js_generate
       },
       "id": "handle-generate-node",
       "name": "Handle Generate Node",
@@ -472,7 +541,6 @@ wf2 = {
           "parameters": [
             { "name": "chat_id", "value": "={{ $json.chatId }}" },
             { "name": "text", "value": "={{ $json.replyText }}" },
-            { "name": "parse_mode", "value": "Markdown" },
             { "name": "reply_markup", "value": "={{ $json.replyMarkup ? (typeof $json.replyMarkup === 'string' ? $json.replyMarkup : JSON.stringify($json.replyMarkup)) : JSON.stringify({\"remove_keyboard\": true}) }}" }
           ]
         },

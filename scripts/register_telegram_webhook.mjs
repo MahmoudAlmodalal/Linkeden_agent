@@ -8,7 +8,11 @@ export function resolveTelegramWebhookUrl(env = process.env) {
   const explicitUrl = env.TELEGRAM_WEBHOOK_URL?.trim();
   if (explicitUrl) return explicitUrl.replace(/\/+$/, '');
 
+  const rawNgrok = env.NGROK_DOMAIN?.trim();
+  const ngrokUrl = rawNgrok ? (rawNgrok.startsWith('http') ? rawNgrok : `https://${rawNgrok}`) : '';
+
   const baseUrl = env.WEBHOOK_URL?.trim()
+    || ngrokUrl
     || (env.RENDER_EXTERNAL_HOSTNAME ? `https://${env.RENDER_EXTERNAL_HOSTNAME}` : '');
   if (!baseUrl) return null;
 
@@ -29,24 +33,36 @@ export async function registerTelegramWebhook({
     return { skipped: true };
   }
 
-  const response = await fetchImpl(`https://api.telegram.org/bot${token}/setWebhook`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      url,
-      allowed_updates: ['message', 'edited_message', 'callback_query'],
-      drop_pending_updates: false,
-    }),
-    signal: AbortSignal.timeout(10_000),
-  });
+  let lastError;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const response = await fetchImpl(`https://api.telegram.org/bot${token}/setWebhook`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          url,
+          allowed_updates: ['message', 'edited_message', 'callback_query'],
+          drop_pending_updates: false,
+        }),
+        signal: AbortSignal.timeout(10_000),
+      });
 
-  const result = await response.json();
-  if (!response.ok || !result.ok) {
-    throw new Error(`Telegram setWebhook failed (${response.status}): ${result.description || 'unknown error'}`);
+      const result = await response.json();
+      if (!response.ok || !result.ok) {
+        throw new Error(`Telegram setWebhook failed (${response.status}): ${result.description || 'unknown error'}`);
+      }
+
+      logger.info?.('Telegram webhook registered with message and callback_query updates.');
+      return { ok: true, url };
+    } catch (err) {
+      lastError = err;
+      if (attempt < 3) {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      }
+    }
   }
 
-  logger.info?.('Telegram webhook registered with message and callback_query updates.');
-  return { ok: true, url };
+  throw lastError;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

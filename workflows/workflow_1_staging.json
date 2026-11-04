@@ -1,4 +1,5 @@
 {
+  "id": "workflow-1-staging",
   "name": "Workflow 1 - Content Generator & Stager",
   "nodes": [
     {
@@ -52,7 +53,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const { spawnSync } = require('child_process');\n\nconst input = $input.first().json;\nconst draftId = input.draftId || 1;\nconst query = input.query || '';\nconst situation = input.situation || '';\n\nlet postText = '';\nlet imagePath = null;\nlet project = 'portfolio';\n\ntry {\n  const args = ['/scripts/generate_rag_draft.js', '--id', String(draftId)];\n  if (query) args.push('--query', query);\n  if (situation) args.push('--situation', situation);\n  // Use the fast local project visual in the staging workflow. Branded cards\n  // remain available for manual/local runs via generate_rag_draft.js.\n  args.push('--no-card');\n  const child = spawnSync('node', args, { encoding: 'utf8', timeout: 60000 });\n  if (child.error) throw child.error;\n  if (child.status !== 0) throw new Error(child.stderr || `RAG process exited with ${child.status}`);\n  const result = JSON.parse(child.stdout);\n  if (result.success && result.draft) {\n    postText = result.draft.text;\n    imagePath = result.draft.image_path;\n    project = result.draft.project;\n  }\n} catch (err) {\n  console.error('RAG draft execution error:', err.message);\n}\n\n// Fallback if RAG script execution had an issue\nif (!postText) {\n  postText = `\u0627\u0633\u062a\u062e\u062f\u0627\u0645 DB::transaction \u0648\u062d\u062f\u0647 \u0644\u0627 \u064a\u062d\u0645\u064a \u062a\u0637\u0628\u064a\u0642\u0643 \u0645\u0646 \u0627\u0644\u0640 Race Conditions \u0625\u0630\u0627 \u0644\u0645 \u062a\u0642\u0641\u0644 \u0627\u0644\u0633\u062c\u0644\u0627\u062a \u0623\u062b\u0646\u0627\u0621 \u0627\u0644\u0642\u0631\u0627\u0621\u0629.\\n\\n` +\n    `\u0641\u064a \u0623\u062d\u062f \u0645\u0634\u0627\u0631\u064a\u0639 \u0645\u0639\u0627\u0644\u062c\u0629 \u0627\u0644\u0645\u062f\u0641\u0648\u0639\u0627\u062a \u0648\u0627\u0644\u0627\u0634\u062a\u0631\u0627\u0643\u0627\u062a\u060c \u0638\u0647\u0631\u062a \u0645\u0634\u0643\u0644\u0629 \u062f\u0642\u064a\u0642\u0629: \u0631\u0635\u064a\u062f \u0627\u0644\u0639\u0645\u064a\u0644 \u064a\u0646\u0632\u0644 \u0625\u0644\u0649 \u0642\u064a\u0645\u0629 \u0633\u0627\u0644\u0628\u0629 \u0639\u0646\u062f \u0625\u0631\u0633\u0627\u0644 \u0637\u0644\u0628\u064a\u0646 \u0641\u064a \u0646\u0641\u0633 \u0627\u0644\u062c\u0632\u0621 \u0645\u0646 \u0627\u0644\u062b\u0627\u0646\u064a\u0629\u060c \u0623\u0648 \u064a\u062a\u0645 \u0634\u062d\u0646 \u0646\u0641\u0633 \u0643\u0648\u062f \u0627\u0644\u062a\u0641\u0639\u064a\u0644 \u0645\u0631\u062a\u064a\u0646.\\n\\n` +\n    `\u0627\u0644\u0627\u0641\u062a\u0631\u0627\u0636 \u0627\u0644\u0623\u0648\u0644 \u0643\u0627\u0646 \u0648\u062c\u0648\u062f \u062e\u0637\u0623 \u0641\u064a \u0627\u0644\u0640 Frontend \u064a\u0633\u0645\u062d \u0628\u0627\u0644\u0636\u063a\u0637 \u0627\u0644\u0645\u0632\u062f\u0648\u062c \u0639\u0644\u0649 \u0632\u0631 \u0627\u0644\u062a\u0623\u0643\u064a\u062f\u060c \u0623\u0648 \u062e\u0644\u0644 \u0641\u064a \u0627\u0644\u0640 Queue Worker \u0627\u0644\u0630\u064a \u064a\u0639\u0627\u0644\u062c \u0627\u0644\u0639\u0645\u0644\u064a\u0629.\\n\\n` +\n    `\u0642\u0645\u062a \u0628\u0643\u062a\u0627\u0628\u0629 \u0627\u062e\u062a\u0628\u0627\u0631 \u0622\u0644\u064a \u064a\u062d\u0627\u0643\u064a \u0637\u0644\u0628\u064a\u0646 \u0645\u062a\u0632\u0627\u0645\u0646\u064a\u0646 \u0639\u0644\u0649 \u0646\u0641\u0633 \u0627\u0644\u062d\u0633\u0627\u0628 \u0644\u0644\u062a\u0623\u0643\u062f \u0645\u0646 \u0627\u0644\u0645\u0634\u0643\u0644\u0629. \u0627\u0644\u0645\u0641\u0627\u062c\u0623\u0629 \u0643\u0627\u0646\u062a \u0623\u0646 \u0643\u0644 \u0634\u064a\u0621 \u064a\u0639\u0645\u0644 \u062f\u0627\u062e\u0644 DB::transaction \u0628\u0634\u0643\u0644 \u0633\u0644\u064a\u0645 \u0646\u0638\u0631\u064a\u0627\u060c \u0644\u0643\u0646 \u0627\u0644\u0633\u062c\u0644\u0627\u062a \u0643\u0627\u0646\u062a \u062a\u0642\u0631\u0623 \u0646\u0641\u0633 \u0627\u0644\u0631\u0635\u064a\u062f \u0627\u0644\u0642\u062f\u064a\u0645 \u0642\u0628\u0644 \u0627\u0646\u062a\u0647\u0627\u0621 \u0627\u0644\u0645\u0639\u0627\u0645\u0644\u0629 \u0627\u0644\u0623\u0648\u0644\u0649.\\n\\n` +\n    `\u0627\u0644\u0633\u0628\u0628 \u0627\u0644\u062c\u0630\u0631\u064a: \u0627\u0644\u0640 Transaction \u062a\u0636\u0645\u0646 \u0627\u0644\u0630\u0631\u064a\u0629 (Atomicity) \u0641\u0642\u0637\u060c \u0644\u0643\u0646\u0647\u0627 \u0644\u0627 \u062a\u0645\u0646\u0639 \u0627\u0644\u0639\u0645\u0644\u064a\u0627\u062a \u0627\u0644\u0623\u062e\u0631\u0649 \u0645\u0646 \u0642\u0631\u0627\u0621\u0629 \u0627\u0644\u0642\u064a\u0645\u0629 \u0627\u0644\u062d\u0627\u0644\u064a\u0629 \u0625\u0630\u0627 \u0644\u0645 \u062a\u0633\u062a\u062e\u062f\u0645 Lock \u0635\u0631\u064a\u062d\u0627.\\n\\n` +\n    `\u0627\u0644\u062d\u0644 \u0643\u0627\u0646 \u0641\u064a \u062e\u0637\u0648\u062a\u064a\u0646 \u0645\u0628\u0627\u0634\u0631\u062a\u064a\u0646:\\n` +\n    `1. \u0627\u0633\u062a\u062e\u062f\u0627\u0645 Pessimistic Locking \u0639\u0628\u0631 \u0627\u0633\u062a\u062f\u0639\u0627\u0621 lockForUpdate \u0639\u0646\u062f \u062c\u0644\u0628 \u0633\u062c\u0644 \u0627\u0644\u0631\u0635\u064a\u062f \u062f\u0627\u062e\u0644 \u0627\u0644\u0645\u0639\u0627\u0645\u0644\u0629\u060c \u0644\u0645\u0646\u0639 \u0623\u064a \u0639\u0645\u0644\u064a\u0629 \u0623\u062e\u0631\u0649 \u0645\u0646 \u0642\u0631\u0627\u0621\u062a\u0647 \u0623\u0648 \u062a\u0639\u062f\u064a\u0644\u0647 \u062d\u062a\u0649 \u0627\u0643\u062a\u0645\u0627\u0644 \u0627\u0644\u062a\u062d\u062f\u064a\u062b.\\n` +\n    `2. \u0627\u0644\u0627\u0639\u062a\u0645\u0627\u062f \u0639\u0644\u0649 \u0627\u0644\u0639\u0645\u0644\u064a\u0627\u062a \u0627\u0644\u0630\u0631\u064a\u0629 \u0627\u0644\u0645\u0628\u0627\u0634\u0631\u0629 \u0641\u064a \u0642\u0627\u0639\u062f\u0629 \u0627\u0644\u0628\u064a\u0627\u0646\u0627\u062a \u0645\u062b\u0644 decrement \u0628\u062f\u0644\u0627 \u0645\u0646 \u0642\u0631\u0627\u0621\u0629 \u0627\u0644\u0642\u064a\u0645\u0629 \u0648\u062a\u0639\u062f\u064a\u0644\u0647\u0627 \u0641\u064a \u0627\u0644\u0630\u0627\u0643\u0631\u0629 \u062b\u0645 \u062d\u0641\u0638\u0647\u0627.\\n\\n` +\n    `\u0628\u0639\u062f \u062a\u0639\u062f\u064a\u0644 \u0627\u0644\u0643\u0648\u062f\u060c \u0623\u0639\u062f\u062a \u062a\u0634\u063a\u064a\u0644 \u0627\u0644\u0627\u062e\u062a\u0628\u0627\u0631 \u0648\u0623\u062b\u0628\u062a \u0641\u0634\u0644 \u0623\u064a \u0645\u062d\u0627\u0648\u0644\u0629 \u062e\u0635\u0645 \u0645\u0632\u062f\u0648\u062c \u0645\u0639 \u062d\u0645\u0627\u064a\u0629 \u062a\u0627\u0645\u0629 \u0644\u0644\u0628\u064a\u0627\u0646\u0627\u062a.\\n\\n` +\n    `\u0627\u0644\u062f\u0631\u0633 \u0627\u0644\u0647\u0646\u062f\u0633\u064a: \u0644\u0627 \u062a\u0639\u062a\u0645\u062f \u0639\u0644\u0649 \u062d\u0645\u0627\u064a\u0629 \u0627\u0644\u0648\u0627\u062c\u0647\u0629 \u0644\u0645\u0646\u0639 \u062a\u0643\u0631\u0627\u0631 \u0627\u0644\u0639\u0645\u0644\u064a\u0627\u062a \u0627\u0644\u062d\u0633\u0627\u0633\u0629\u060c \u0648\u0642\u0627\u0639\u062f\u0629 \u0627\u0644\u0628\u064a\u0627\u0646\u0627\u062a \u0647\u064a \u062e\u0637 \u0627\u0644\u062f\u0641\u0627\u0639 \u0627\u0644\u062d\u0642\u064a\u0642\u064a \u0627\u0644\u0648\u062d\u064a\u062f.\\n\\n` +\n    `\u0643\u064a\u0641 \u062a\u062a\u0639\u0627\u0645\u0644 \u0645\u0639 \u0645\u0639\u0627\u0644\u062c\u0629 \u0627\u0644\u0631\u0635\u064a\u062f \u0648\u0627\u0644\u0639\u0645\u0644\u064a\u0627\u062a \u0627\u0644\u0645\u0627\u0644\u064a\u0629 \u0627\u0644\u0645\u062a\u0632\u0627\u0645\u0646\u0629 \u0641\u064a \u0645\u0634\u0627\u0631\u064a\u0639\u0643\u061f\\n` +\n    `\u0627\u0643\u062a\u0628\u0648\u0627 \u0644\u0646\u0627 \u0641\u064a \u0627\u0644\u062a\u0639\u0644\u064a\u0642\u0627\u062a \ud83d\udc47\\n\\n` +\n    `#Laravel #PHP #WebDevelopment #DatabaseDesign #SoftwareEngineering`;\n}\n\nif (!imagePath) {\n  imagePath = '/assets/2wash.webp';\n}\n\nconst previewCaption = `[Draft ID: #${draftId}]\\n\\n` +\n  `\u062a\u0645 \u062a\u0648\u0644\u064a\u062f \u0645\u0633\u0648\u062f\u0629 \u0643\u0627\u0645\u0644\u0629 \u0639\u0646 ${project}. \u0633\u062a\u0635\u0644 \u0627\u0644\u0631\u0633\u0627\u0644\u0629 \u0627\u0644\u0643\u0627\u0645\u0644\u0629 \u0628\u0639\u062f \u0627\u0644\u0635\u0648\u0631\u0629.`;\n\nconst chatId = process.env.TELEGRAM_ALLOWED_USER_ID;\nif (!chatId) throw new Error('TELEGRAM_ALLOWED_USER_ID is required to dispatch a draft');\n\nreturn [{\n  json: {\n    id: draftId,\n    project: project,\n    text: postText,\n    image_path: imagePath,\n    caption: previewCaption\n  }\n}];"
+        "jsCode": "const { spawnSync } = require('child_process');\nconst fs = require('fs');\nconst path = require('path');\n\nconst input = $input.first().json;\nconst draftId = input.draftId || 1;\nconst query = input.query || '';\nconst situation = input.situation || '';\n\nlet postText = '';\nlet imagePath = null;\nlet project = 'portfolio';\n\ntry {\n  const args = ['/scripts/generate_rag_draft.js', '--id', String(draftId)];\n  if (query) args.push('--query', query);\n  if (situation) args.push('--situation', situation);\n  const combined = `${query} ${situation}`.toLowerCase();\n  const wantsProjectImage = /\u0635\u0648\u0631\u0629\\s*(?:\u0627\u0644\u0640|\u0644\u0640)?\u0645\u0634\u0631\u0648\u0639|\u0635\u0648\u0631\u0629\\s*\u0627\u0644\u0645\u0634\u0631\u0648\u0639|project[\\s_-]*image|screenshot/i.test(combined);\n  if (wantsProjectImage) {\n    args.push('--project-image');\n  }\n  const child = spawnSync(process.execPath, args, { cwd: '/', encoding: 'utf8', timeout: 60000 });\n  if (child.error) throw child.error;\n  if (child.status !== 0) throw new Error(child.stderr || `RAG process exited with ${child.status}`);\n  const result = JSON.parse(child.stdout);\n  if (result.success && result.draft) {\n    postText = result.draft.text;\n    imagePath = result.draft.image_path;\n    project = result.draft.project;\n  }\n} catch (err) {\n  console.error('RAG draft execution error:', err.message);\n}\n\n// Fallback if RAG script execution had an issue\nif (!postText) {\n  postText = `\u0627\u0633\u062a\u062e\u062f\u0627\u0645 DB::transaction \u0648\u062d\u062f\u0647 \u0644\u0627 \u064a\u062d\u0645\u064a \u062a\u0637\u0628\u064a\u0642\u0643 \u0645\u0646 \u0627\u0644\u0640 Race Conditions \u0625\u0630\u0627 \u0644\u0645 \u062a\u0642\u0641\u0644 \u0627\u0644\u0633\u062c\u0644\u0627\u062a \u0623\u062b\u0646\u0627\u0621 \u0627\u0644\u0642\u0631\u0627\u0621\u0629.\\n\\n` +\n    `\u0641\u064a \u0623\u062d\u062f \u0645\u0634\u0627\u0631\u064a\u0639 \u0645\u0639\u0627\u0644\u062c\u0629 \u0627\u0644\u0645\u062f\u0641\u0648\u0639\u0627\u062a \u0648\u0627\u0644\u0627\u0634\u062a\u0631\u0627\u0643\u0627\u062a\u060c \u0638\u0647\u0631\u062a \u0645\u0634\u0643\u0644\u0629 \u062f\u0642\u064a\u0642\u0629: \u0631\u0635\u064a\u062f \u0627\u0644\u0639\u0645\u064a\u0644 \u064a\u0646\u0632\u0644 \u0625\u0644\u0649 \u0642\u064a\u0645\u0629 \u0633\u0627\u0644\u0628\u0629 \u0639\u0646\u062f \u0625\u0631\u0633\u0627\u0644 \u0637\u0644\u0628\u064a\u0646 \u0641\u064a \u0646\u0641\u0633 \u0627\u0644\u062c\u0632\u0621 \u0645\u0646 \u0627\u0644\u062b\u0627\u0646\u064a\u0629\u060c \u0623\u0648 \u064a\u062a\u0645 \u0634\u062d\u0646 \u0646\u0641\u0633 \u0643\u0648\u062f \u0627\u0644\u062a\u0641\u0639\u064a\u0644 \u0645\u0631\u062a\u064a\u0646.\\n\\n` +\n    `\u0627\u0644\u0627\u0641\u062a\u0631\u0627\u0636 \u0627\u0644\u0623\u0648\u0644 \u0643\u0627\u0646 \u0648\u062c\u0648\u062f \u062e\u0637\u0623 \u0641\u064a \u0627\u0644\u0640 Frontend \u064a\u0633\u0645\u062d \u0628\u0627\u0644\u0636\u063a\u0637 \u0627\u0644\u0645\u0632\u062f\u0648\u062c \u0639\u0644\u0649 \u0632\u0631 \u0627\u0644\u062a\u0623\u0643\u064a\u062f\u060c \u0623\u0648 \u062e\u0644\u0644 \u0641\u064a \u0627\u0644\u0640 Queue Worker \u0627\u0644\u0630\u064a \u064a\u0639\u0627\u0644\u062c \u0627\u0644\u0639\u0645\u0644\u064a\u0629.\\n\\n` +\n    `\u0642\u0645\u062a \u0628\u0643\u062a\u0627\u0628\u0629 \u0627\u062e\u062a\u0628\u0627\u0631 \u0622\u0644\u064a \u064a\u062d\u0627\u0643\u064a \u0637\u0644\u0628\u064a\u0646 \u0645\u062a\u0632\u0627\u0645\u0646\u064a\u0646 \u0639\u0644\u0649 \u0646\u0641\u0633 \u0627\u0644\u062d\u0633\u0627\u0628 \u0644\u0644\u062a\u0623\u0643\u062f \u0645\u0646 \u0627\u0644\u0645\u0634\u0643\u0644\u0629. \u0627\u0644\u0645\u0641\u0627\u062c\u0623\u0629 \u0643\u0627\u0646\u062a \u0623\u0646 \u0643\u0644 \u0634\u064a\u0621 \u064a\u0639\u0645\u0644 \u062f\u0627\u062e\u0644 DB::transaction \u0628\u0634\u0643\u0644 \u0633\u0644\u064a\u0645 \u0646\u0638\u0631\u064a\u0627\u060c \u0644\u0643\u0646 \u0627\u0644\u0633\u062c\u0644\u0627\u062a \u0643\u0627\u0646\u062a \u062a\u0642\u0631\u0623 \u0646\u0641\u0633 \u0627\u0644\u0631\u0635\u064a\u062f \u0627\u0644\u0642\u062f\u064a\u0645 \u0642\u0628\u0644 \u0627\u0646\u062a\u0647\u0627\u0621 \u0627\u0644\u0645\u0639\u0627\u0645\u0644\u0629 \u0627\u0644\u0623\u0648\u0644\u0649.\\n\\n` +\n    `\u0627\u0644\u0633\u0628\u0628 \u0627\u0644\u062c\u0630\u0631\u064a: \u0627\u0644\u0640 Transaction \u062a\u0636\u0645\u0646 \u0627\u0644\u0630\u0631\u064a\u0629 (Atomicity) \u0641\u0642\u0637\u060c \u0644\u0643\u0646\u0647\u0627 \u0644\u0627 \u062a\u0645\u0646\u0639 \u0627\u0644\u0639\u0645\u0644\u064a\u0627\u062a \u0627\u0644\u0623\u062e\u0631\u0649 \u0645\u0646 \u0642\u0631\u0627\u0621\u0629 \u0627\u0644\u0642\u064a\u0645\u0629 \u0627\u0644\u062d\u0627\u0644\u064a\u0629 \u0625\u0630\u0627 \u0644\u0645 \u062a\u0633\u062a\u062e\u062f\u0645 Lock \u0635\u0631\u064a\u062d\u0627.\\n\\n` +\n    `\u0627\u0644\u062d\u0644 \u0643\u0627\u0646 \u0641\u064a \u062e\u0637\u0648\u062a\u064a\u0646 \u0645\u0628\u0627\u0634\u0631\u062a\u064a\u0646:\\n` +\n    `1. \u0627\u0633\u062a\u062e\u062f\u0627\u0645 Pessimistic Locking \u0639\u0628\u0631 \u0627\u0633\u062a\u062f\u0639\u0627\u0621 lockForUpdate \u0639\u0646\u062f \u062c\u0644\u0628 \u0633\u062c\u0644 \u0627\u0644\u0631\u0635\u064a\u062f \u062f\u0627\u062e\u0644 \u0627\u0644\u0645\u0639\u0627\u0645\u0644\u0629\u060c \u0644\u0645\u0646\u0639 \u0623\u064a \u0639\u0645\u0644\u064a\u0629 \u0623\u062e\u0631\u0649 \u0645\u0646 \u0642\u0631\u0627\u0621\u062a\u0647 \u0623\u0648 \u062a\u0639\u062f\u064a\u0644\u0647 \u062d\u062a\u0649 \u0627\u0643\u062a\u0645\u0627\u0644 \u0627\u0644\u062a\u062d\u062f\u064a\u062b.\\n` +\n    `2. \u0627\u0644\u0627\u0639\u062a\u0645\u0627\u062f \u0639\u0644\u0649 \u0627\u0644\u0639\u0645\u0644\u064a\u0627\u062a \u0627\u0644\u0630\u0631\u064a\u0629 \u0627\u0644\u0645\u0628\u0627\u0634\u0631\u0629 \u0641\u064a \u0642\u0627\u0639\u062f\u0629 \u0627\u0644\u0628\u064a\u0627\u0646\u0627\u062a \u0645\u062b\u0644 decrement \u0628\u062f\u0644\u0627 \u0645\u0646 \u0642\u0631\u0627\u0621\u0629 \u0627\u0644\u0642\u064a\u0645\u0629 \u0648\u062a\u0639\u062f\u064a\u0644\u0647\u0627 \u0641\u064a \u0627\u0644\u0630\u0627\u0643\u0631\u0629 \u062b\u0645 \u062d\u0641\u0638\u0647\u0627.\\n\\n` +\n    `\u0628\u0639\u062f \u062a\u0639\u062f\u064a\u0644 \u0627\u0644\u0643\u0648\u062f\u060c \u0623\u0639\u062f\u062a \u062a\u0634\u063a\u064a\u0644 \u0627\u0644\u0627\u062e\u062a\u0628\u0627\u0631 \u0648\u0623\u062b\u0628\u062a \u0641\u0634\u0644 \u0623\u064a \u0645\u062d\u0627\u0648\u0644\u0629 \u062e\u0635\u0645 \u0645\u0632\u062f\u0648\u062c \u0645\u0639 \u062d\u0645\u0627\u064a\u0629 \u062a\u0627\u0645\u0629 \u0644\u0644\u0628\u064a\u0627\u0646\u0627\u062a.\\n\\n` +\n    `\u0627\u0644\u062f\u0631\u0633 \u0627\u0644\u0647\u0646\u062f\u0633\u064a: \u0644\u0627 \u062a\u0639\u062a\u0645\u062f \u0639\u0644\u0649 \u062d\u0645\u0627\u064a\u0629 \u0627\u0644\u0648\u0627\u062c\u0647\u0629 \u0644\u0645\u0646\u0639 \u062a\u0643\u0631\u0627\u0631 \u0627\u0644\u0639\u0645\u0644\u064a\u0627\u062a \u0627\u0644\u062d\u0633\u0627\u0633\u0629\u060c \u0648\u0642\u0627\u0639\u062f\u0629 \u0627\u0644\u0628\u064a\u0627\u0646\u0627\u062a \u0647\u064a \u062e\u0637 \u0627\u0644\u062f\u0641\u0627\u0639 \u0627\u0644\u062d\u0642\u064a\u0642\u064a \u0627\u0644\u0648\u062d\u064a\u062f.\\n\\n` +\n    `\u0643\u064a\u0641 \u062a\u062a\u0639\u0627\u0645\u0644 \u0645\u0639 \u0645\u0639\u0627\u0644\u062c\u0629 \u0627\u0644\u0631\u0635\u064a\u062f \u0648\u0627\u0644\u0639\u0645\u0644\u064a\u0627\u062a \u0627\u0644\u0645\u0627\u0644\u064a\u0629 \u0627\u0644\u0645\u062a\u0632\u0627\u0645\u0646\u0629 \u0641\u064a \u0645\u0634\u0627\u0631\u064a\u0639\u0643\u061f\\n` +\n    `\u0627\u0643\u062a\u0628\u0648\u0627 \u0644\u0646\u0627 \u0641\u064a \u0627\u0644\u062a\u0639\u0644\u064a\u0642\u0627\u062a \ud83d\udc47\\n\\n` +\n    `#Laravel #PHP #WebDevelopment #DatabaseDesign #SoftwareEngineering`;\n\n  try {\n    const draftsPath = input.draftsPath || '/data/pending_drafts.json';\n    const fallbackId = Number(draftId) || 1;\n    let drafts = [];\n    if (fs.existsSync(draftsPath)) {\n      try {\n        const parsed = JSON.parse(fs.readFileSync(draftsPath, 'utf8'));\n        drafts = Array.isArray(parsed) ? parsed : (Array.isArray(parsed.drafts) ? parsed.drafts : []);\n      } catch {\n        drafts = [];\n      }\n    }\n    if (!drafts.some((d) => Number(d.id) === fallbackId)) {\n      drafts.push({\n        id: fallbackId,\n        project,\n        topic: '\u0645\u0646\u0634\u0648\u0631 \u0647\u0646\u062f\u0633\u0629 \u0639\u0631\u0628\u064a: \u062d\u0627\u0644\u0629 Race Condition \u0641\u064a \u0645\u0639\u0627\u0644\u062c\u0629 \u0627\u0644\u0645\u062f\u0641\u0648\u0639\u0627\u062a',\n        situation: situation || null,\n        text: postText,\n        post_text: postText,\n        image_path: fs.existsSync('/assets/mahmoud_card.png') ? '/assets/mahmoud_card.png' : '/assets/2wash.webp',\n        visual_source: 'local_fallback',\n        provider_used: { text: 'fallback', visual: 'local' },\n        status: 'pending',\n        created_at: new Date().toISOString(),\n      });\n      fs.writeFileSync(draftsPath, JSON.stringify(drafts, null, 2), 'utf8');\n    }\n  } catch (fallbackErr) {\n    console.error('Could not persist fallback draft:', fallbackErr.message);\n  }\n}\n\nif (!imagePath) {\n  imagePath = fs.existsSync('/assets/mahmoud_card.png') ? '/assets/mahmoud_card.png' : '/assets/2wash.webp';\n}\n\nconst previewCaption = `[Draft ID: #${draftId}]\\n\\n` +\n  `\u062a\u0645 \u062a\u0648\u0644\u064a\u062f \u0645\u0633\u0648\u062f\u0629 \u0643\u0627\u0645\u0644\u0629 \u0639\u0646 ${project}. \u0633\u062a\u0635\u0644 \u0627\u0644\u0631\u0633\u0627\u0644\u0629 \u0627\u0644\u0643\u0627\u0645\u0644\u0629 \u0628\u0639\u062f \u0627\u0644\u0635\u0648\u0631\u0629.`;\n\nconst chatId = $env.TELEGRAM_ALLOWED_USER_ID;\nif (!chatId) throw new Error('TELEGRAM_ALLOWED_USER_ID is required to dispatch a draft');\n\nconst resolvedImagePath = path.isAbsolute(imagePath) ? imagePath : path.resolve('/', imagePath);\nconst extension = path.extname(resolvedImagePath).toLowerCase();\nconst mimeType = extension === '.png' ? 'image/png' : (extension === '.webp' ? 'image/webp' : 'image/jpeg');\n\nreturn [{\n  json: {\n    id: draftId,\n    project: project,\n    text: postText,\n    image_path: imagePath,\n    caption: previewCaption\n  },\n  binary: {\n    photo: {\n      data: fs.readFileSync(resolvedImagePath).toString('base64'),\n      fileName: path.basename(resolvedImagePath),\n      mimeType\n    }\n  }\n}];"
       },
       "id": "7b8d4c9a-4444-4444-8888-000000000004",
       "name": "Gemini Generation & Visual Stager",
@@ -65,17 +66,33 @@
     },
     {
       "parameters": {
-        "resource": "message",
-        "operation": "sendPhoto",
-        "chatId": "={{ $env.TELEGRAM_ALLOWED_USER_ID }}",
-        "file": "={{ $json.image_path }}",
-        "caption": "={{ $json.caption }}",
-        "additionalFields": {}
+        "method": "POST",
+        "url": "={{ 'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendPhoto' }}",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "={{ $env.TELEGRAM_ALLOWED_USER_ID }}"
+            },
+            {
+              "name": "caption",
+              "value": "={{ $json.caption }}"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "photo",
+              "inputDataFieldName": "photo"
+            }
+          ]
+        },
+        "options": {}
       },
       "id": "7b8d4c9a-5555-4444-8888-000000000005",
       "name": "Telegram Send Photo",
-      "type": "n8n-nodes-base.telegram",
-      "typeVersion": 1.2,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
         960,
         340
@@ -84,16 +101,40 @@
     },
     {
       "parameters": {
-        "resource": "message",
-        "operation": "sendMessage",
-        "chatId": "={{ $env.TELEGRAM_ALLOWED_USER_ID }}",
-        "text": "={{ $json.text }}",
-        "additionalFields": {}
+        "jsCode": "const generated = $('Gemini Generation & Visual Stager').first();\nreturn [{ json: generated.json }];"
+      },
+      "id": "7b8d4c9a-7777-4444-8888-000000000007",
+      "name": "Restore Draft Text After Photo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1090,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage' }}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "={{ $env.TELEGRAM_ALLOWED_USER_ID }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.text }}"
+            }
+          ]
+        },
+        "options": {}
       },
       "id": "7b8d4c9a-6666-4444-8888-000000000006",
       "name": "Telegram Send Full Post",
-      "type": "n8n-nodes-base.telegram",
-      "typeVersion": 1.2,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
         1220,
         340
@@ -147,6 +188,17 @@
       ]
     },
     "Telegram Send Photo": {
+      "main": [
+        [
+          {
+            "node": "Restore Draft Text After Photo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore Draft Text After Photo": {
       "main": [
         [
           {

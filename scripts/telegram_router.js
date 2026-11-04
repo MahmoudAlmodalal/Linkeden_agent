@@ -794,37 +794,72 @@ export async function handleTelegramUpdate(update, options = {}) {
     case 'generate': {
       const senderFromId = message?.from?.id;
       const query = parsed.query || null;
-      if (typeof options.triggerWorkflow1 === 'function') {
-        await options.triggerWorkflow1({
-          source: 'telegram_command',
-          triggeredBy: senderFromId,
-          query,
-          timestamp: new Date().toISOString(),
-        });
-      } else if (options.workflow1WebhookUrl) {
-        await fetch(options.workflow1WebhookUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            source: 'telegram_command',
-            triggeredBy: senderFromId,
-            query,
-          }),
-        });
-      }
-
-      const replyText = query
-        ? `Draft generation triggered for Workflow 1 staging run (Topic/Project: "${query}").`
-        : 'Draft generation triggered for Workflow 1 staging run.';
-
-      return {
-        authorized: true,
-        success: true,
-        command: 'generate',
+      const payload = {
+        source: 'telegram_command',
+        triggeredBy: senderFromId,
         query,
-        replyText,
-        replyMarkup: TELEGRAM_REPLY_KEYBOARD,
+        timestamp: new Date().toISOString(),
       };
+      const fetchImpl = options.fetch ?? globalThis.fetch;
+
+      try {
+        if (typeof options.triggerWorkflow1 === 'function') {
+          await options.triggerWorkflow1(payload);
+        } else if (options.workflow1WebhookUrl) {
+          if (typeof fetchImpl !== 'function') {
+            throw new Error('No fetch implementation is available to trigger Workflow 1.');
+          }
+          const response = await fetchImpl(options.workflow1WebhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              source: payload.source,
+              triggeredBy: payload.triggeredBy,
+              query: payload.query,
+            }),
+          });
+          if (!response.ok) {
+            const details = typeof response.text === 'function' ? await response.text().catch(() => '') : '';
+            throw new Error(`Workflow 1 webhook returned HTTP ${response.status}${details ? `: ${details}` : ''}`);
+          }
+        } else {
+          return {
+            authorized: true,
+            success: false,
+            command: 'generate',
+            query,
+            replyText:
+              'تعذر تشغيل Workflow 1: لا توجد آلية تشغيل مهيأة حالياً.\n' +
+              'Run the n8n staging workflow at /webhook/generate, or pass a triggerWorkflow1/workflow1WebhookUrl option.',
+            replyMarkup: TELEGRAM_REPLY_KEYBOARD,
+          };
+        }
+
+        const replyText = query
+          ? `Draft generation triggered for Workflow 1 staging run (Topic/Project: "${query}").`
+          : 'Draft generation triggered for Workflow 1 staging run.';
+
+        return {
+          authorized: true,
+          success: true,
+          command: 'generate',
+          query,
+          replyText,
+          replyMarkup: TELEGRAM_REPLY_KEYBOARD,
+        };
+      } catch (error) {
+        return {
+          authorized: true,
+          success: false,
+          command: 'generate',
+          query,
+          replyText:
+            `تعذر تشغيل Workflow 1 لتوليد المنشور.\n` +
+            `السبب: ${error?.message || String(error)}\n\n` +
+            `تأكد أن الـ staging workflow يعمل ثم حاول مرة أخرى.`,
+          replyMarkup: TELEGRAM_REPLY_KEYBOARD,
+        };
+      }
     }
 
     case 'drafts': {

@@ -1,21 +1,211 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
-const CARD_WIDTH = 1080;
-const CARD_HEIGHT = 1350;
+export const CARD_WIDTH = 1080;
+export const CARD_HEIGHT = 1350;
 
-function getAvatarBase64() {
-  const avatarPath = path.resolve(process.cwd(), 'assets', 'author_avatar.jpg');
-  if (fs.existsSync(avatarPath)) {
-    const b64 = fs.readFileSync(avatarPath).toString('base64');
-    return `data:image/jpeg;base64,${b64}`;
+export const DEFAULT_AUTHOR = {
+  name: 'Mahmoud H. Almodalal',
+  title: 'Full-Stack Developer · System Design · Web Architecture',
+  avatarPath: 'assets/author_avatar.jpg',
+};
+
+function getAvatarBase64(customAvatarPath) {
+  const candidatePaths = [
+    customAvatarPath ? path.resolve(process.cwd(), customAvatarPath) : null,
+    path.resolve(process.cwd(), 'assets', 'author_avatar.jpg'),
+    path.resolve(process.cwd(), 'assets', 'author_avatar_nobg.png'),
+    path.resolve('/assets', 'author_avatar.jpg'),
+  ].filter(Boolean);
+
+  for (const p of candidatePaths) {
+    if (fs.existsSync(p)) {
+      try {
+        const ext = path.extname(p).slice(1).toLowerCase();
+        const mime = ext === 'png' ? 'image/png' : 'image/jpeg';
+        const b64 = fs.readFileSync(p).toString('base64');
+        return `data:${mime};base64,${b64}`;
+      } catch {}
+    }
   }
   return null;
 }
 
-export function generateCardHTML() {
-  const avatarDataUrl = getAvatarBase64();
+export const STEP_ICONS = [
+  // 0: Bullseye Target
+  `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="12" r="10"/>
+    <circle cx="12" cy="12" r="6"/>
+    <circle cx="12" cy="12" r="2"/>
+  </svg>`,
+  // 1: Clock / Time / Performance
+  `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="12" r="10"/>
+    <polyline points="12 6 12 12 16 14"/>
+  </svg>`,
+  // 2: Book / Verified Documentation
+  `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+    <polyline points="9 8 13 8"/>
+    <polyline points="9 12 15 12"/>
+  </svg>`,
+  // 3: Terminal / Code / Execution
+  `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="2" y="4" width="20" height="16" rx="3"/>
+    <path d="M7 10L10 12L7 14"/>
+    <line x1="12" y1="15" x2="16" y2="15"/>
+  </svg>`,
+  // 4: Growth / Trend / Optimization
+  `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
+    <polyline points="17 6 23 6 23 12"/>
+  </svg>`,
+  // 5: Shield / Security
+  `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+  </svg>`,
+  // 6: Database / Storage
+  `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <ellipse cx="12" cy="5" rx="9" ry="3"/>
+    <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+    <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+  </svg>`
+];
+
+/**
+ * Extracts card title, highlight part, category pill, and 3-5 steps from post text or challenge data.
+ */
+export function extractCardContent(postText = '', challengeOrTopic = {}) {
+  let title = challengeOrTopic.title || '';
+  let highlight = '';
+  let steps = [];
+  let pill = 'نصائح للمطورين';
+
+  // 1. Resolve title & highlight
+  if (!title && postText) {
+    const firstLine = postText
+      .split('\n')
+      .map((l) => l.trim())
+      .find((l) => l.length > 15 && !l.startsWith('#') && !l.startsWith('http') && !l.startsWith('==='));
+
+    if (firstLine && firstLine.length <= 140) {
+      title = firstLine.replace(/^[💡\s]+/, '').replace(/^معضلة[^:]*:\s*/, '').trim();
+    } else {
+      const qMatch = postText.match(/(?:💡|معضلة|كيف|لماذا)[\s\S]*?[?؟]/);
+      if (qMatch) {
+        title = qMatch[0].replace(/^[💡\s]+/, '').replace(/^معضلة[^:]*:\s*/, '').trim();
+      }
+    }
+  }
+
+  if (!title) {
+    title = 'كيف تتعلم تقنيات جديدة وأنت مشغول بالعمل كمهندس برمجيات؟';
+  }
+
+  // Format title into main headline + highlight
+  if (title.includes('؟')) {
+    const parts = title.split(/(?<=\b(?:جديدة|تطبيقك|الإنتاج|مشاريعك|البيانات|الأنظمة)\b|\n)/);
+    if (parts.length > 1) {
+      title = parts[0].trim();
+      highlight = parts.slice(1).join(' ').trim();
+    }
+  } else if (/(?<!:):(?!:)/.test(title)) {
+    const match = title.match(/^([^:]+):(.*)$/);
+    if (match && match[1].length >= 12 && !match[1].includes('::')) {
+      title = match[1].trim();
+      highlight = match[2].trim();
+    }
+  }
+
+  // 2. Extract Steps (3 to 5 steps)
+  if (postText) {
+    const lines = postText.split('\n').map((l) => l.trim());
+    for (const line of lines) {
+      if (/^[•\-*0-9.)\s]+/.test(line)) {
+        const cleaned = line.replace(/^[•\-*0-9.)\s]+/, '').trim();
+        if (cleaned.length >= 10 && cleaned.length <= 110 && !cleaned.startsWith('#') && !cleaned.startsWith('http')) {
+          steps.push(cleaned);
+        }
+      } else if (line.startsWith('الدرس الهندسي:')) {
+        const cleaned = line.replace(/^الدرس الهندسي:\s*/, '').trim();
+        if (cleaned.length >= 10 && cleaned.length <= 110) {
+          steps.push(cleaned);
+        }
+      }
+      if (steps.length >= 5) break;
+    }
+  }
+
+  if (steps.length < 3 && challengeOrTopic.solution) {
+    const solParts = challengeOrTopic.solution.split(/[,.;]/).map((s) => s.trim()).filter((s) => s.length >= 12);
+    for (const part of solParts) {
+      if (steps.length < 5) steps.push(part);
+    }
+  }
+
+  if (steps.length < 3) {
+    steps = [
+      'حدد هدفك بوضوح وركز على مشكلة إنتاجية واحدة',
+      'خصص وقتاً ثابتاً ومقدساً كل يوم للتطبيق العملي',
+      'تعلم من مصادر موثوقة ووثائق المشاريع الرسمية',
+      'طبق ما تعلمته بمشروع حقيقي قابل للقياس',
+      'راجع وطور مهاراتك الهندسية باستمرار',
+    ];
+  }
+
+  // Ensure maximum of 5 steps
+  steps = steps.slice(0, 5);
+
+  // 3. Category Pill
+  const combined = `${title} ${highlight} ${(challengeOrTopic.keywords || []).join(' ')} ${challengeOrTopic.category || ''}`.toLowerCase();
+  if (combined.includes('postgres') || combined.includes('database') || combined.includes('sql') || combined.includes('gist')) {
+    pill = 'معمارية البيانات';
+  } else if (combined.includes('redis') || combined.includes('lock') || combined.includes('concurrency') || combined.includes('race')) {
+    pill = 'أنظمة موزعة';
+  } else if (combined.includes('rag') || combined.includes('ai') || combined.includes('vector') || combined.includes('llm')) {
+    pill = 'ذكاء اصطناعي';
+  } else if (combined.includes('latency') || combined.includes('p95') || combined.includes('timeout') || combined.includes('performance')) {
+    pill = 'الأداء العالي';
+  } else if (combined.includes('multi-tenancy') || combined.includes('cloud') || combined.includes('security')) {
+    pill = 'هندسة السحاب';
+  } else {
+    pill = 'نصائح للمطورين';
+  }
+
+  return {
+    title,
+    highlight,
+    steps,
+    pill,
+  };
+}
+
+/**
+ * Generates the HTML string matching the exact, pixel-perfect mahmoud_card design.
+ */
+export function generateCardHTML(cardData = {}, author = DEFAULT_AUTHOR) {
+  const avatarDataUrl = getAvatarBase64(author?.avatarPath);
+
+  const title = cardData.title || 'كيف تتعلم تقنيات جديدة';
+  const highlight = cardData.highlight || (cardData.title && !cardData.highlight ? '' : 'وأنت مشغول بالعمل كمهندس برمجيات؟');
+  const pill = cardData.pill || cardData.tag1 || 'نصائح للمطورين';
+  const steps = Array.isArray(cardData.steps) && cardData.steps.length > 0
+    ? cardData.steps
+    : (Array.isArray(cardData.bullets) && cardData.bullets.length > 0
+      ? cardData.bullets
+      : [
+        'حدد هدفك بوضوح',
+        'خصص وقتاً ثابتاً يومياً',
+        'تعلم من مصادر موثوقة',
+        'طبق ما تعلمته بمشروع حقيقي',
+        'راجع وطور مهاراتك باستمرار'
+      ]);
+
+  const authorName = author?.name || DEFAULT_AUTHOR.name;
+  const authorTitle = author?.title || DEFAULT_AUTHOR.title;
 
   return `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -55,7 +245,6 @@ export function generateCardHTML() {
     background-size: 100% 100%, 100% 100%, 100% 100%, 32px 32px, 100% 100%;
   }
 
-  /* Decorative Corner Geometry */
   .corner-decor {
     position: absolute;
     pointer-events: none;
@@ -63,27 +252,11 @@ export function generateCardHTML() {
     opacity: 0.85;
   }
 
-  .corner-tr {
-    top: 48px;
-    right: 48px;
-  }
+  .corner-tr { top: 48px; right: 48px; }
+  .corner-tl { top: 48px; left: 48px; }
+  .corner-br { bottom: 48px; right: 48px; }
+  .corner-bl { bottom: 48px; left: 48px; }
 
-  .corner-tl {
-    top: 48px;
-    left: 48px;
-  }
-
-  .corner-br {
-    bottom: 48px;
-    right: 48px;
-  }
-
-  .corner-bl {
-    bottom: 48px;
-    left: 48px;
-  }
-
-  /* Master Card Enclosure */
   .card-container {
     width: 100%;
     height: 100%;
@@ -185,15 +358,15 @@ export function generateCardHTML() {
     width: 100%;
     direction: rtl;
     text-align: right;
-    margin-top: 22px;
+    margin-top: 20px;
     margin-bottom: 6px;
   }
 
   .main-headline {
     font-family: 'Cairo', sans-serif;
-    font-size: 47px;
+    font-size: ${title.length > 60 ? '38px' : '44px'};
     font-weight: 900;
-    line-height: 1.40;
+    line-height: 1.38;
     color: #ffffff;
     letter-spacing: -0.4px;
     text-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
@@ -211,7 +384,7 @@ export function generateCardHTML() {
     border-radius: 4px;
     background: linear-gradient(90deg, #2dd4bf 0%, rgba(45, 212, 191, 0.12) 100%);
     box-shadow: 0 0 14px rgba(45, 212, 191, 0.6);
-    margin-top: 20px;
+    margin-top: 18px;
   }
 
   /* CONTENT / STEPS SECTION */
@@ -221,11 +394,10 @@ export function generateCardHTML() {
     position: relative;
     display: flex;
     flex-direction: column;
-    gap: 19px;
+    gap: ${steps.length <= 4 ? '22px' : '16px'};
     padding: 10px 0;
   }
 
-  /* Continuous Thin Turquoise Progression Spine */
   .progression-spine {
     position: absolute;
     right: 29px;
@@ -267,7 +439,7 @@ export function generateCardHTML() {
   .step-card {
     flex: 1;
     margin-right: 24px;
-    padding: 18px 28px;
+    padding: ${steps.length <= 4 ? '20px 28px' : '16px 26px'};
     border-radius: 20px;
     background: linear-gradient(135deg, rgba(10, 28, 39, 0.84) 0%, rgba(6, 20, 29, 0.76) 100%);
     border: 1.5px solid rgba(45, 212, 191, 0.24);
@@ -280,11 +452,12 @@ export function generateCardHTML() {
 
   .step-text {
     font-family: 'Cairo', sans-serif;
-    font-size: 28px;
+    font-size: ${steps.some(s => s.length > 50) ? '23px' : '26px'};
     font-weight: 700;
     color: #ffffff;
     letter-spacing: -0.2px;
     text-align: right;
+    line-height: 1.35;
   }
 
   .step-icon-badge {
@@ -299,6 +472,7 @@ export function generateCardHTML() {
     flex-shrink: 0;
     color: #2dd4bf;
     box-shadow: 0 0 14px rgba(45, 212, 191, 0.16);
+    margin-left: 12px;
   }
 
   /* FOOTER */
@@ -396,30 +570,23 @@ export function generateCardHTML() {
     <circle cx="50" cy="20" r="3" fill="#2dd4bf"/>
     <line x1="60" y1="30" x2="60" y2="35" stroke="#2dd4bf" stroke-width="1.5" stroke-dasharray="2 2"/>
   </svg>
-
   <svg class="corner-decor corner-tl" width="70" height="70" viewBox="0 0 70 70" fill="none">
     <path d="M0 20V0H20" stroke="#2dd4bf" stroke-width="2"/>
     <circle cx="20" cy="20" r="3" fill="#2dd4bf"/>
   </svg>
-
   <svg class="corner-decor corner-br" width="70" height="70" viewBox="0 0 70 70" fill="none">
     <path d="M70 50V70H50" stroke="#2dd4bf" stroke-width="2"/>
     <circle cx="50" cy="50" r="3" fill="#2dd4bf"/>
   </svg>
-
   <svg class="corner-decor corner-bl" width="70" height="70" viewBox="0 0 70 70" fill="none">
     <path d="M0 50V70H20" stroke="#2dd4bf" stroke-width="2"/>
     <circle cx="20" cy="50" r="3" fill="#2dd4bf"/>
   </svg>
 
-  <!-- Master Card Enclosure -->
   <div class="card-container">
-
-    <!-- Header Section -->
     <header class="header">
       <div class="brand-group">
         <div class="logo-badge">
-          <!-- Sleek Architect & Code Monogram -->
           <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
             <path d="M6 23V9L16 17L26 9V23" stroke="#2dd4bf" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
             <circle cx="16" cy="17" r="2.2" fill="#ffffff"/>
@@ -427,119 +594,55 @@ export function generateCardHTML() {
           </svg>
         </div>
         <div class="brand-details">
-          <div class="brand-name">Mahmoud H. Almodalal</div>
+          <div class="brand-name">${authorName}</div>
           <div class="brand-title">Full-Stack Developer</div>
         </div>
       </div>
 
       <div class="pill-badge">
-        <span>نصائح للمطورين</span>
+        <span>${pill}</span>
         <div class="pill-dot"></div>
       </div>
     </header>
 
-    <!-- Headline Section -->
     <section class="headline-section">
       <h1 class="main-headline">
-        كيف تتعلم تقنيات جديدة<br>
-        <span class="highlight">وأنت مشغول بالعمل كمهندس برمجيات؟</span>
+        ${title}
+        ${highlight ? `<br><span class="highlight">${highlight}</span>` : ''}
       </h1>
       <div class="headline-bar"></div>
     </section>
 
-    <!-- Content / 5 Steps Section -->
     <main class="steps-container">
       <div class="progression-spine"></div>
 
-      <!-- Step 1: Bullseye Target -->
-      <div class="step-row">
-        <div class="step-node">01</div>
-        <div class="step-card">
-          <div class="step-text">حدد هدفك بوضوح</div>
-          <div class="step-icon-badge">
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="10"/>
-              <circle cx="12" cy="12" r="6"/>
-              <circle cx="12" cy="12" r="2"/>
-            </svg>
+      ${steps.map((stepText, idx) => {
+        const stepNum = String(idx + 1).padStart(2, '0');
+        const iconSvg = STEP_ICONS[idx % STEP_ICONS.length];
+        return `
+        <div class="step-row">
+          <div class="step-node">${stepNum}</div>
+          <div class="step-card">
+            <div class="step-text">${stepText}</div>
+            <div class="step-icon-badge">
+              ${iconSvg}
+            </div>
           </div>
-        </div>
-      </div>
-
-      <!-- Step 2: Time / Schedule -->
-      <div class="step-row">
-        <div class="step-node">02</div>
-        <div class="step-card">
-          <div class="step-text">خصص وقتاً ثابتاً يومياً</div>
-          <div class="step-icon-badge">
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="10"/>
-              <polyline points="12 6 12 12 16 14"/>
-            </svg>
-          </div>
-        </div>
-      </div>
-
-      <!-- Step 3: Verified Source / Book -->
-      <div class="step-row">
-        <div class="step-node">03</div>
-        <div class="step-card">
-          <div class="step-text">تعلم من مصادر موثوقة</div>
-          <div class="step-icon-badge">
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-              <polyline points="9 8 13 8"/>
-              <polyline points="9 12 15 12"/>
-            </svg>
-          </div>
-        </div>
-      </div>
-
-      <!-- Step 4: Real Project / Code Terminal -->
-      <div class="step-row">
-        <div class="step-node">04</div>
-        <div class="step-card">
-          <div class="step-text">طبق ما تعلمته بمشروع حقيقي</div>
-          <div class="step-icon-badge">
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="2" y="4" width="20" height="16" rx="3"/>
-              <path d="M7 10L10 12L7 14"/>
-              <line x1="12" y1="15" x2="16" y2="15"/>
-            </svg>
-          </div>
-        </div>
-      </div>
-
-      <!-- Step 5: Continuous Growth / Trend -->
-      <div class="step-row">
-        <div class="step-node">05</div>
-        <div class="step-card">
-          <div class="step-text">راجع وطور مهاراتك باستمرار</div>
-          <div class="step-icon-badge">
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
-              <polyline points="17 6 23 6 23 12"/>
-            </svg>
-          </div>
-        </div>
-      </div>
+        </div>`;
+      }).join('')}
     </main>
 
-    <!-- Footer Section -->
     <footer class="footer">
-      <!-- Right Side: Real Author Photo & Credentials -->
       <div class="author-unit">
         <div class="portrait-frame">
-          <img class="portrait-img" src="${avatarDataUrl}" alt="Mahmoud H. Almodalal">
+          ${avatarDataUrl ? `<img class="portrait-img" src="${avatarDataUrl}" alt="${authorName}">` : `<div style="color:#2dd4bf;font-weight:bold;text-align:center;line-height:82px;">MA</div>`}
         </div>
         <div class="author-info">
-          <div class="author-name">Mahmoud H. Almodalal</div>
-          <div class="author-title">Full-Stack Developer · System Design · Web Architecture</div>
+          <div class="author-name">${authorName}</div>
+          <div class="author-title">${authorTitle}</div>
         </div>
       </div>
 
-      <!-- Left Side: LinkedIn & GitHub recognizable social badges -->
       <div class="social-group">
         <div class="social-pill">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="#2dd4bf">
@@ -555,46 +658,99 @@ export function generateCardHTML() {
         </div>
       </div>
     </footer>
-
   </div>
-
 </body>
 </html>`;
 }
 
-export function renderCard(outputPath = 'data/generated_images/mahmoud_arabic_developer_card.png') {
-  const htmlContent = generateCardHTML();
-  const tempHtmlPath = path.resolve(process.cwd(), 'data', 'generated_images', 'temp_render.html');
-  const resolvedOutputPath = path.resolve(process.cwd(), outputPath);
+/**
+ * Finds chromium/google-chrome executable across common Linux / container locations.
+ */
+export function findChromeExecutable() {
+  const candidates = [
+    process.env.CHROME_BIN,
+    process.env.PUPPETEER_EXECUTABLE_PATH,
+    'google-chrome',
+    'google-chrome-stable',
+    'chromium',
+    'chromium-browser',
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+  ].filter(Boolean);
 
-  fs.mkdirSync(path.dirname(resolvedOutputPath), { recursive: true });
-  fs.writeFileSync(tempHtmlPath, htmlContent, 'utf8');
-
-  const chromeBin = ['google-chrome', 'google-chrome-stable', 'chromium']
-    .find(bin => {
-      try {
+  for (const bin of candidates) {
+    try {
+      if (bin.startsWith('/')) {
+        if (fs.existsSync(bin)) return bin;
+      } else {
         execSync(`which ${bin}`, { stdio: 'ignore' });
-        return true;
-      } catch {
-        return false;
+        return bin;
       }
-    });
-
-  if (!chromeBin) {
-    throw new Error('Chrome binary not found');
+    } catch {}
   }
-
-  const cmd = `${chromeBin} --headless=new --disable-gpu --no-sandbox --hide-scrollbars --virtual-time-budget=4000 --screenshot="${resolvedOutputPath}" --window-size=${CARD_WIDTH},${CARD_HEIGHT} "${tempHtmlPath}"`;
-  execSync(cmd, { stdio: 'pipe', timeout: 20000 });
-
-  try {
-    fs.unlinkSync(tempHtmlPath);
-  } catch {}
-
-  console.log(`Card successfully generated at: ${resolvedOutputPath}`);
-  return resolvedOutputPath;
+  return null;
 }
 
-if (process.argv[1] && process.argv[1].endsWith('generate_card_asset.js')) {
-  renderCard();
+/**
+ * Renders the dynamic mahmoud_card to a PNG image file using headless Chrome.
+ */
+export async function renderCardImage(cardData = {}, {
+  author = DEFAULT_AUTHOR,
+  outputDir = 'data/generated_images',
+  filename = null,
+} = {}) {
+  const htmlContent = generateCardHTML(cardData, author);
+
+  const resolvedOutputDir = path.resolve(process.cwd(), outputDir);
+  if (!fs.existsSync(resolvedOutputDir)) {
+    fs.mkdirSync(resolvedOutputDir, { recursive: true });
+  }
+
+  const baseName = filename || `mahmoud-card-${Date.now()}.png`;
+  const tempHtmlPath = path.join(resolvedOutputDir, `temp-${Date.now()}.html`);
+  const finalPngPath = path.join(resolvedOutputDir, baseName);
+  const relativePngPath = path.join(outputDir, baseName);
+
+  fs.writeFileSync(tempHtmlPath, htmlContent, 'utf8');
+
+  const chromeBin = findChromeExecutable();
+  if (!chromeBin) {
+    try { if (fs.existsSync(tempHtmlPath)) fs.unlinkSync(tempHtmlPath); } catch {}
+    throw new Error('Chrome/Chromium executable not found on system');
+  }
+
+  try {
+    const cmd = `${chromeBin} --headless=new --disable-gpu --no-sandbox --hide-scrollbars --virtual-time-budget=2000 --screenshot="${finalPngPath}" --window-size=${CARD_WIDTH},${CARD_HEIGHT} "${tempHtmlPath}"`;
+    execSync(cmd, { stdio: 'pipe', timeout: 20000 });
+  } finally {
+    if (fs.existsSync(tempHtmlPath)) {
+      try { fs.unlinkSync(tempHtmlPath); } catch {}
+    }
+  }
+
+  return {
+    success: true,
+    imagePath: relativePngPath,
+    absolutePath: finalPngPath,
+    width: CARD_WIDTH,
+    height: CARD_HEIGHT,
+  };
+}
+
+/**
+ * Legacy wrapper for backward compatibility.
+ */
+export function renderCard(outputPath = 'data/generated_images/mahmoud_arabic_developer_card.png') {
+  const resolvedOutputPath = path.resolve(process.cwd(), outputPath);
+  const dir = path.dirname(resolvedOutputPath);
+  const base = path.basename(resolvedOutputPath);
+  return renderCardImage({}, { outputDir: dir, filename: base });
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
+  renderCard()
+    .then((res) => console.log(`Card successfully generated at: ${res.absolutePath}`))
+    .catch((err) => console.error('Card rendering failed:', err.message));
 }

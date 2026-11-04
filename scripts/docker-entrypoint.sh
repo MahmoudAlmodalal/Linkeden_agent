@@ -10,6 +10,7 @@ for workflow in /workflows/workflow_1_staging.json /workflows/workflow_2_publish
 done
 
 # n8n 2.x registers production webhooks when a workflow is published.
+n8n publish:workflow --id=workflow-1-staging || echo "Staging workflow publish skipped"
 n8n publish:workflow --id=workflow-2-publishing || echo "Telegram workflow publish skipped"
 
 # Explicitly subscribe to callback_query updates as well as normal messages.
@@ -17,4 +18,8 @@ n8n publish:workflow --id=workflow-2-publishing || echo "Telegram workflow publi
 node /scripts/register_telegram_webhook.mjs || echo "Telegram webhook registration skipped or failed"
 
 # Preserve the official image's normal startup arguments and signal handling.
-exec n8n "$@"
+if [ "$#" -gt 0 ]; then
+  exec n8n "$@"
+else
+  exec n8n start
+fi

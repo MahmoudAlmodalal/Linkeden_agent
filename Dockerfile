@@ -1,6 +1,15 @@
-FROM n8nio/n8n:latest
+FROM n8nio/n8n:latest-debian
 
 USER root
+
+# Install Chromium and Arabic/international fonts for headless card rendering
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      chromium \
+      fonts-cairo \
+      fonts-noto-core \
+      fonts-freefont-ttf && \
+    rm -rf /var/lib/apt/lists/*
 
 # Create working directory and install dependencies if package.json exists
 WORKDIR /app
@@ -26,4 +35,6 @@ WORKDIR /home/node
 ENV N8N_BLOCK_ENV_ACCESS_IN_NODE=false
 ENV N8N_RUNNERS_GRANT_TOKEN_TTL=120
 ENV N8N_PORT=5678
+ENV CHROME_BIN=/usr/bin/chromium
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 EXPOSE 5678

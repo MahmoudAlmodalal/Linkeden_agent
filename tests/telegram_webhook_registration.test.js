@@ -19,6 +19,13 @@ test('resolves webhook endpoint from WEBHOOK_URL without duplicating trailing sl
   );
 });
 
+test('resolves webhook endpoint from NGROK_DOMAIN', () => {
+  assert.equal(
+    resolveTelegramWebhookUrl({ NGROK_DOMAIN: 'dominoes-oncoming-purchase.ngrok-free.dev' }),
+    'https://dominoes-oncoming-purchase.ngrok-free.dev/webhook/telegram-webhook',
+  );
+});
+
 test('explicit Telegram webhook URL takes precedence', () => {
   assert.equal(
     resolveTelegramWebhookUrl({

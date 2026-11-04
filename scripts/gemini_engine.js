@@ -11,6 +11,21 @@ export const DEFAULT_TEXT_MODEL = 'gemini-3.8-flash';
 export const DEFAULT_VISUAL_MODEL = 'gemini-nano-banana-2.1';
 export const FALLBACK_VISUAL_MODEL = 'gemini-3-pro-image';
 
+import {
+  STRATEGIC_ANGLES,
+  HOOK_TEMPLATES,
+  TEXT_LENGTH_VARIANTS,
+  getNextStrategicAngleIndex,
+  resolveStrategicAngle,
+  getNextHookTemplateIndex,
+  resolveHookTemplate,
+  getNextTextLengthVariantIndex,
+  resolveTextLengthVariant,
+} from './innovation_layer.js';
+
+// Re-export for backward compatibility
+export * from './innovation_layer.js';
+
 export const DEPRECATED_TEXT_MODELS = [
   'gemini-1.5-flash',
   'gemini-1.5-pro',
@@ -82,10 +97,12 @@ export async function createGeminiClient({ apiKey = process.env.GEMINI_API_KEY }
 
 /**
  * Builds the LinkedIn prompt strictly enforcing the 5-element breakdown for hiring managers.
+ * Includes a text-innovation layer: a rotating strategic angle, hook style, and length variant
+ * so the same project/topic never produces identical text across generations.
  */
-export function buildContentPrompt(topic) {
+export function buildContentPrompt(topic, { innovation } = {}) {
   if (topic?.ragContext) {
-    return buildGroundedRAGPrompt(topic.ragContext);
+    return buildGroundedRAGPrompt({ ...topic.ragContext, innovation });
   }
 
   const isEnglish = topic?.language === 'en';
@@ -104,6 +121,21 @@ Do not insert random English words or any other language. Never output words suc
   const rootCauseExample = isEnglish ? 'state the root cause clearly' : 'اذكر السبب الجذري بوضوح';
   const qualityCheck = isEnglish ? 'the English is coherent' : 'the Arabic is coherent';
 
+  // --- Text-innovation layer ---
+  const angle = innovation?.angle || STRATEGIC_ANGLES[0];
+  const hookTemplate = innovation?.hook || HOOK_TEMPLATES[0];
+  const lengthVariant = innovation?.length || TEXT_LENGTH_VARIANTS[1];
+
+  const innovationSection = `
+=== TEXT-INNOVATION LAYER (MANDATORY — changes every generation) ===
+Strategic Angle: ${angle.labelAr} — ${angle.directiveAr}
+Hook Style: ${angle.hookStyle}
+Suggested opening hook (use as inspiration, adapt to the topic): "${hookTemplate}"
+Post Length & Depth: ${lengthVariant.labelAr} — ${lengthVariant.detailLevel} (approximately ${lengthVariant.paragraphs} paragraphs)
+
+CRITICAL: Do NOT reuse the same narrative lens or hook structure from previous posts about this same project. Apply the strategic angle above to reshape the entire post: the opening, the body, the lesson, and the call-to-action must all reflect this angle. The post must read as if written from a different perspective each time.
+`;
+
   return `You are a Principal Software Architect writing a high-signal technical post for LinkedIn aimed at engineering leaders, CTOs, and hiring managers.
 
 Topic Details:
@@ -111,6 +143,8 @@ Topic Details:
 - Concept: ${topic?.concept || topic?.title || 'System Design Mechanics'}
 - Keywords: ${(topic?.keywords || []).join(', ') || 'System Design, Architecture'}
 - ${languageDirective}
+
+${innovationSection}
 
 Post Requirements:
 You MUST structure your post into a seamless, high-signal LinkedIn engineering narrative with double line-breaks between short paragraphs.
@@ -137,7 +171,7 @@ An engaging technical question directed at fellow software architects and senior
 6. [Hashtags]:
 4 to 6 relevant technical hashtags as plain space-separated text (e.g., #SystemDesign #SoftwareArchitecture #Backend #DistributedSystems). Do NOT use Markdown links.
 
-  Maintain an authoritative, insightful tone. Do not use corporate fluff or clickbait. Use only facts in Topic Details; do not invent metrics or outcomes. Before finalizing, silently check that ${qualityCheck}, the post is complete, and no random foreign-language fragments remain. Deliver maximum engineering signal.`;
+Maintain an authoritative, insightful tone. Do not use corporate fluff or clickbait. Use only facts in Topic Details; do not invent metrics or outcomes. Before finalizing, silently check that ${qualityCheck}, the post is complete, and no random foreign-language fragments remain. Deliver maximum engineering signal.`;
 }
 
 const HASHTAG_ALIASES = new Map([
@@ -436,16 +470,36 @@ export async function generatePostContent(topic, options = {}) {
   try {
     const geminiClient = client || await createGeminiClient();
 
-    const interaction = await withTimeout(
-      geminiClient.interactions.create({
-        model: validModel,
-        input: prompt,
-      }),
-      timeoutMs,
-      'Gemini text generation timed out'
-    );
+    let text = '';
+    if (geminiClient.models?.generateContent) {
+      const response = await withTimeout(
+        geminiClient.models.generateContent({
+          model: validModel,
+          contents: prompt,
+        }),
+        timeoutMs,
+        'Gemini text generation timed out'
+      );
+      text = response?.text ?? '';
+    } else if (geminiClient.interactions?.create) {
+      const interaction = await withTimeout(
+        geminiClient.interactions.create({
+          model: validModel,
+          input: prompt,
+        }),
+        timeoutMs,
+        'Gemini text generation timed out'
+      );
+      text = interaction?.output_text ?? interaction?.text ?? (typeof interaction === 'string' ? interaction : '');
+    } else if (typeof geminiClient.generateContent === 'function') {
+      const response = await withTimeout(
+        geminiClient.generateContent(prompt),
+        timeoutMs,
+        'Gemini text generation timed out'
+      );
+      text = response?.text ?? '';
+    }
 
-    const text = interaction?.output_text ?? interaction?.text ?? (typeof interaction === 'string' ? interaction : '');
     if (!text || typeof text !== 'string' || !text.trim()) {
       throw new Error('Gemini text generation returned empty content');
     }
@@ -646,6 +700,17 @@ export async function synthesizeRAGDraft(options = {}) {
   }
 
   const projectSlug = challenge?.project || matchedProject || '2wash';
+
+  // --- Text-innovation layer: rotating angle/hook/length per generation ---
+  const angleIndex = getNextStrategicAngleIndex();
+  const hookIndex = getNextHookTemplateIndex();
+  const lengthIndex = getNextTextLengthVariantIndex();
+  const innovation = {
+    angle: resolveStrategicAngle(angleIndex),
+    hook: resolveHookTemplate(hookIndex),
+    length: resolveTextLengthVariant(lengthIndex),
+  };
+
   const topicObj = {
     id: challenge?.id || Date.now(),
     slug: projectSlug,
@@ -656,12 +721,14 @@ export async function synthesizeRAGDraft(options = {}) {
     isRAG: true,
     challenge,
     situation,
+    innovation,
     ragContext: {
       query,
       situation,
       challenge,
       retrievedDocs,
       isEnglish: false,
+      innovation,
     },
   };
 

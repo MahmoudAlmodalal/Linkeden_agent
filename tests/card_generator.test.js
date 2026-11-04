@@ -3,61 +3,25 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  COLOR_THEMES,
-  getNextTheme,
-  resolveTheme,
-  getIconSVG,
   generateCardHTML,
   extractCardContent,
   renderCardImage,
   DEFAULT_AUTHOR,
-} from '../scripts/card_generator.js';
+  findChromeExecutable,
+  CARD_WIDTH,
+  CARD_HEIGHT,
+} from '../scripts/generate_card_asset.js';
 
-describe('Card Generator - Color Themes & Brand Identity', () => {
-  it('contains at least 6 vibrant modern developer color themes', () => {
-    assert.ok(COLOR_THEMES.length >= 6);
-    const themeIds = COLOR_THEMES.map((t) => t.id);
-    assert.ok(themeIds.includes('emerald'));
-    assert.ok(themeIds.includes('violet'));
-    assert.ok(themeIds.includes('sapphire'));
-    assert.ok(themeIds.includes('amber'));
-  });
-
-  it('getNextTheme cycles sequentially through themes', () => {
-    const tempStateFile = path.resolve(process.cwd(), 'data', 'temp_theme_test.json');
-    if (fs.existsSync(tempStateFile)) fs.unlinkSync(tempStateFile);
-
-    const theme1 = getNextTheme(tempStateFile);
-    const theme2 = getNextTheme(tempStateFile);
-    const theme3 = getNextTheme(tempStateFile);
-
-    assert.notEqual(theme1.id, theme2.id);
-    assert.notEqual(theme2.id, theme3.id);
-
-    if (fs.existsSync(tempStateFile)) fs.unlinkSync(tempStateFile);
-  });
-
-  it('resolveTheme returns requested theme or next sequential theme', () => {
-    const emerald = resolveTheme('emerald');
-    assert.equal(emerald.id, 'emerald');
-
-    const violet = resolveTheme('violet');
-    assert.equal(violet.id, 'violet');
-
-    const fallback = resolveTheme('non-existent-theme-xyz');
-    assert.ok(fallback && fallback.id);
-  });
-
+describe('Mahmoud Card Generator - Dynamic Card Rendering', () => {
   it('generates HTML containing Mahmoud H. Almodalal, Full-Stack Developer, and avatar image', () => {
     const cardData = {
       title: 'كيف تبني معمارية ويب عالية الكفاءة؟',
-      bullets: ['نصيحة أولى في الأداء', 'نصيحة ثانية في الكاش', 'نصيحة ثالثة في القواعد'],
-      tag1: 'نصائح للمطورين',
-      tag2: 'قائمة تحقق',
-      icon: 'target',
+      highlight: 'وأنت تعمل كمهندس برمجيات',
+      steps: ['نصيحة أولى في الأداء', 'نصيحة ثانية في الكاش', 'نصيحة ثالثة في القواعد'],
+      pill: 'نصائح للمطورين',
     };
 
-    const html = generateCardHTML(cardData, COLOR_THEMES[0], DEFAULT_AUTHOR);
+    const html = generateCardHTML(cardData, DEFAULT_AUTHOR);
 
     assert.ok(html.includes('Mahmoud H. Almodalal'));
     assert.ok(html.includes('Full-Stack Developer'));
@@ -67,7 +31,7 @@ describe('Card Generator - Color Themes & Brand Identity', () => {
     assert.ok(html.includes('1350px'));
   });
 
-  it('extractCardContent extracts question hook and key bullets', () => {
+  it('extractCardContent extracts question hook and key steps', () => {
     const samplePost = `💡 معضلة معمارية: كيف تضمن استجابة بحث جغرافي أقل من 12ms؟
     
 تفاصيل حول الأنظمة وقواعد البيانات...
@@ -85,10 +49,9 @@ describe('Card Generator - Color Themes & Brand Identity', () => {
     });
 
     assert.ok(extracted.title.includes('استجابة بحث جغرافي'));
-    assert.equal(extracted.bullets.length, 3);
-    assert.ok(extracted.bullets[0].includes('PostGIS'));
-    assert.equal(extracted.icon, 'database');
-    assert.ok(extracted.tag2.includes('PostgreSQL'));
+    assert.ok(extracted.steps.length >= 3);
+    assert.ok(extracted.steps[0].includes('PostGIS'));
+    assert.ok(extracted.pill.includes('بيانات') || extracted.pill.includes('مطورين'));
   });
 
   it('extractCardContent extracts hook, numbered steps, and engineering lesson from incident format', () => {
@@ -119,36 +82,34 @@ describe('Card Generator - Color Themes & Brand Identity', () => {
     });
 
     assert.ok(extracted.title.includes('Race Conditions') || extracted.title.includes('DB::transaction'));
-    assert.equal(extracted.bullets.length, 3);
-    assert.ok(extracted.bullets[0].includes('lockForUpdate'));
-    assert.ok(extracted.bullets[1].includes('decrement'));
-    assert.ok(extracted.bullets[2].includes('الواجهة'));
-    assert.equal(extracted.icon, 'database');
+    assert.ok(extracted.steps.length >= 3);
+    assert.ok(extracted.steps[0].includes('lockForUpdate'));
+    assert.ok(extracted.steps[1].includes('decrement'));
+    assert.ok(extracted.steps[2].includes('الواجهة'));
   });
 
   it('renderCardImage generates valid 1080x1350 PNG file via headless Chrome', async () => {
     const cardData = {
       title: 'كيف تتعلم تقنيات جديدة وأنت مشغول بالعمل كمهندس برمجيات؟',
-      bullets: [
+      steps: [
         'خصص وقتاً ثابتاً ومقدساً كل يوم',
         'طبّق ما تتعلمه فوراً بمشروع جانبي صغير',
         'ركز على تقنية واحدة في كل مرة'
       ],
-      tag1: 'نصائح للمطورين',
-      tag2: 'قائمة تحقق',
-      icon: 'target'
+      pill: 'نصائح للمطورين'
     };
 
     const result = await renderCardImage(cardData, {
-      theme: 'emerald',
       outputDir: 'data/test_output',
-      filename: 'unit_test_card.png',
+      filename: 'unit_test_mahmoud_card.png',
     });
 
     assert.equal(result.success, true);
     assert.ok(fs.existsSync(result.absolutePath));
     const stats = fs.statSync(result.absolutePath);
     assert.ok(stats.size > 50000); // Verify it's a substantive PNG image
+    assert.equal(result.width, CARD_WIDTH);
+    assert.equal(result.height, CARD_HEIGHT);
 
     // Clean up test file
     try {
