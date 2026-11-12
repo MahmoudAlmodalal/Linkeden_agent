@@ -25,7 +25,24 @@ try {
   if (wantsProjectImage) {
     args.push('--project-image');
   }
-  const child = spawnSync('node', args, { cwd: '/', encoding: 'utf8', timeout: 90000 });
+  const envKeys = [
+    'PATH', 'HOME', 'TZ', 'NODE_PATH', 'NODE_ENV',
+    'CHROME_BIN', 'PUPPETEER_EXECUTABLE_PATH',
+    'GEMINI_API_KEY',
+    'CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN',
+    'CLOUDFLARE_TEXT_MODEL', 'CLOUDFLARE_IMAGE_MODEL',
+    'TELEGRAM_BOT_TOKEN', 'TELEGRAM_ALLOWED_USER_ID',
+  ];
+  const childEnv = {
+    PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+    HOME: '/home/node',
+  };
+  for (const key of envKeys) {
+    if ($env[key] !== undefined && $env[key] !== null && $env[key] !== '') {
+      childEnv[key] = String($env[key]);
+    }
+  }
+  const child = spawnSync('node', args, { cwd: '/', env: childEnv, encoding: 'utf8', timeout: 90000 });
   if (child.error) throw child.error;
   if (child.status !== 0) {
     const errOut = (child.stderr || child.stdout || '').trim();

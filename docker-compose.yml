@@ -43,6 +43,7 @@ services:
       - ./assets:/assets
       - ./scripts:/scripts
       - ./node_modules:/scripts/node_modules:ro
+      - ./.env:/.env:ro
 
   ngrok:
     image: ngrok/ngrok:latest
