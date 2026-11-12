@@ -1,8 +1,8 @@
 {
-  "angleIndex": 6,
-  "hookIndex": 3,
-  "lengthIndex": 2,
-  "lastIndex": 6,
-  "lastHookIndex": 3,
-  "angleId": "anti-pattern"
+  "angleIndex": 5,
+  "hookIndex": 1,
+  "lengthIndex": 0,
+  "lastIndex": 5,
+  "lastHookIndex": 1,
+  "angleId": "metric-driven"
 }
