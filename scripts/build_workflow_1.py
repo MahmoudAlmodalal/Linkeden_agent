@@ -1,7 +1,7 @@
 import json
 import os
 
-js_code = r"""const { spawnSync } = require('child_process');
+js_code = r"""const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
@@ -42,8 +42,32 @@ try {
       childEnv[key] = String($env[key]);
     }
   }
-  const child = spawnSync('node', args, { cwd: '/', env: childEnv, encoding: 'utf8', timeout: 90000 });
-  if (child.error) throw child.error;
+  const child = await new Promise((resolve, reject) => {
+    const proc = spawn('node', args, { cwd: '/', env: childEnv, stdio: ['ignore', 'pipe', 'pipe'] });
+    let stdout = '';
+    let stderr = '';
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      proc.kill('SIGKILL');
+      reject(new Error('RAG process timed out after 90000ms'));
+    }, 90000);
+    proc.stdout.on('data', (chunk) => { stdout += chunk; });
+    proc.stderr.on('data', (chunk) => { stderr += chunk; });
+    proc.on('error', (err) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      reject(err);
+    });
+    proc.on('close', (status) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve({ status, stdout, stderr });
+    });
+  });
   if (child.status !== 0) {
     const errOut = (child.stderr || child.stdout || '').trim();
     throw new Error(errOut || `RAG process exited with ${child.status}`);

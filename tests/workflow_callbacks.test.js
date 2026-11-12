@@ -182,7 +182,8 @@ test('workflow 1 Gemini Generation & Visual Stager code compiles without syntax 
   const stagingPath = path.join(repoRoot, 'workflows', 'workflow_1_staging.json');
   const staging = JSON.parse(fs.readFileSync(stagingPath, 'utf8'));
   const code = staging.nodes.find((node) => node.name === 'Gemini Generation & Visual Stager')?.parameters?.jsCode || '';
-  assert.doesNotThrow(() => new Function('$input', '$env', 'require', code));
+  const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+  assert.doesNotThrow(() => new AsyncFunction('$input', '$env', 'require', code));
   assert.ok(staging.nodes.some((node) => node.name === 'Has Generated Photo?'));
 });
 

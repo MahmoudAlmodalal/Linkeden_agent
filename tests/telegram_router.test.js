@@ -759,7 +759,7 @@ describe('Workflow 1 Staging Specification Validation', () => {
 
     assert.equal(data.id, 'workflow-1-staging');
     assert.match(stager.parameters?.jsCode || '', /\$env\.TELEGRAM_ALLOWED_USER_ID/);
-    assert.ok(stager.parameters?.jsCode.includes("spawnSync('node'"));
+    assert.ok(stager.parameters?.jsCode.includes("spawn('node'"));
     assert.match(stager.parameters?.jsCode || '', /cwd: '\/'/);
     assert.match(stager.parameters?.jsCode || '', /binary:\s*\{\s*photo:/);
 
