@@ -12,6 +12,15 @@ import { buildTopicPostPrompt } from './topic_mode.js';
 export const DEFAULT_TEXT_MODEL = 'gemini-3.8-flash';
 export const DEFAULT_VISUAL_MODEL = 'gemini-nano-banana-2.1';
 export const FALLBACK_VISUAL_MODEL = 'gemini-3-pro-image';
+export const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
+export const DEFAULT_OPENROUTER_FREE_MODELS = [
+  'openrouter/free',
+  'baidu/ernie-5.5-flash-preview:free',
+  'nvidia/nemotron-3.5-lightning:free',
+  'google/gemma-4-31b-it:free',
+  'google/gemma-4-26b-a4b-it:free',
+  'nvidia/nemotron-3-ultra-550b-a55b:free',
+];
 
 import {
   STRATEGIC_ANGLES,
@@ -291,6 +300,84 @@ export function resolveVisualAsset(topicSlug, { assetsDir = 'assets' } = {}) {
 }
 
 /**
+ * Checks whether OpenRouter credentials are available in options or environment.
+ */
+export function hasOpenRouterCredentials(options = {}) {
+  return Boolean(options.openRouterApiKey || process.env.OPENROUTER_API_KEY);
+}
+
+/**
+ * Generates text via OpenRouter using free models with automatic model-level fallback.
+ */
+export async function generateRawTextOpenRouter(prompt, options = {}) {
+  const apiKey = options.openRouterApiKey || process.env.OPENROUTER_API_KEY;
+  if (!apiKey) {
+    throw new Error('OPENROUTER_API_KEY is required');
+  }
+
+  const fetchClient = options.fetchClient || globalThis.fetch;
+  if (!fetchClient || typeof fetchClient !== 'function') {
+    throw new Error('fetchClient function is required to call OpenRouter');
+  }
+
+  const explicitModel = options.openRouterModel || process.env.OPENROUTER_TEXT_MODEL;
+  const models = [...new Set([explicitModel, ...DEFAULT_OPENROUTER_FREE_MODELS].filter(Boolean))];
+  const maxTokens = options.max_tokens ?? 2048;
+  const temperature = options.temperature ?? 0.8;
+  const timeoutMs = Number(options.openRouterTimeoutMs || process.env.OPENROUTER_TIMEOUT_MS) || 15000;
+  const systemPrompt = options.systemPrompt || 'You are a Principal Software Architect writing a high-signal technical post for LinkedIn aimed at engineering leaders.';
+
+  const errors = [];
+  for (const model of models) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetchClient(OPENROUTER_API_URL, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: prompt },
+          ],
+          max_tokens: maxTokens,
+          temperature,
+        }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errText}`);
+      }
+
+      const data = await response.json();
+      const text = data?.choices?.[0]?.message?.content;
+      if (!text || typeof text !== 'string' || !text.trim()) {
+        throw new Error('OpenRouter returned empty content');
+      }
+
+      return {
+        text: text.trim(),
+        model: data.model || model,
+        provider: 'openrouter',
+      };
+    } catch (err) {
+      errors.push(`${model}: ${err.message}`);
+      console.warn(`[Fallback] OpenRouter model ${model} failed (${err.message}). Trying next free model.`);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  throw new Error(`All OpenRouter free models failed (${errors.join(' | ')})`);
+}
+
+/**
  * Calls Cloudflare Workers AI REST API using native fetch.
  */
 export async function callCloudflareWorkersAI({
@@ -503,6 +590,14 @@ export async function generateRawText(prompt, options = {}) {
   } = options;
 
   const validModel = normalizeTextModel(model);
+
+  if (!client && hasOpenRouterCredentials(options)) {
+    try {
+      return await generateRawTextOpenRouter(prompt, options);
+    } catch (orError) {
+      console.warn(`[Fallback] OpenRouter text generation failed (${orError.message}). Falling back to Gemini.`);
+    }
+  }
 
   try {
     const geminiClient = client || await createGeminiClient();

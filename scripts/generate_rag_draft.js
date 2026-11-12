@@ -215,7 +215,7 @@ if (process.argv[1] && process.argv[1].endsWith('generate_rag_draft.js')) {
   const noCard = args.includes('--no-card');
   const projectImage = args.includes('--project-image') || args.includes('--use-project-image');
 
-  const clientPromise = process.env.GEMINI_API_KEY
+  const clientPromise = (!process.env.OPENROUTER_API_KEY && process.env.GEMINI_API_KEY)
     ? createGeminiClient()
     : Promise.resolve(null);
 
