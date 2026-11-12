@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { resolveDataPath, resolveAssetPath } from './path_resolver.js';
 
 export const CARD_WIDTH = 1080;
 export const CARD_HEIGHT = 1350;
@@ -14,10 +15,10 @@ export const DEFAULT_AUTHOR = {
 
 function getAvatarBase64(customAvatarPath) {
   const candidatePaths = [
-    customAvatarPath ? path.resolve(process.cwd(), customAvatarPath) : null,
-    path.resolve(process.cwd(), 'assets', 'author_avatar.jpg'),
-    path.resolve(process.cwd(), 'assets', 'author_avatar_nobg.png'),
-    path.resolve('/assets', 'author_avatar.jpg'),
+    customAvatarPath ? resolveAssetPath(customAvatarPath) : null,
+    resolveAssetPath('author_avatar.jpg'),
+    resolveAssetPath('author_avatar_nobg.png'),
+    resolveAssetPath('mahmoud_card.png'),
   ].filter(Boolean);
 
   for (const p of candidatePaths) {
@@ -79,26 +80,53 @@ export const STEP_ICONS = [
  * Extracts card title, highlight part, category pill, and 3-5 steps from post text or challenge data.
  */
 export function extractCardContent(postText = '', challengeOrTopic = {}) {
-  let title = challengeOrTopic.title || '';
+  let title = '';
   let highlight = '';
   let steps = [];
   let pill = 'نصائح للمطورين';
 
-  // 1. Resolve title & highlight
-  if (!title && postText) {
-    const firstLine = postText
+  // 1. Resolve title & highlight from postText FIRST
+  if (postText) {
+    const lines = postText
       .split('\n')
       .map((l) => l.trim())
-      .find((l) => l.length > 15 && !l.startsWith('#') && !l.startsWith('http') && !l.startsWith('==='));
+      .filter((l) => l.length > 0);
 
-    if (firstLine && firstLine.length <= 140) {
-      title = firstLine.replace(/^[💡\s]+/, '').replace(/^معضلة[^:]*:\s*/, '').trim();
+    const firstLine = lines.find((l) =>
+      l.length > 15 &&
+      !l.startsWith('#') &&
+      !l.startsWith('http') &&
+      !l.startsWith('===') &&
+      !l.startsWith('---')
+    );
+
+    if (firstLine) {
+      let cleaned = firstLine
+        .replace(/^[💡📌🚨⚡💬🎯🛠️\s]+/, '')
+        .replace(/^(?:معضلة معمارية|سؤال للمهندسين|نصيحة تقنية|حادثة إنتاج|درس مستفاد|الدرس الهندسي)[^:]*:\s*/, '')
+        .trim();
+
+      if (cleaned.length <= 140) {
+        title = cleaned;
+      } else {
+        const sentenceMatch = cleaned.match(/^([^.?؟!\n]+[?؟])/);
+        if (sentenceMatch) {
+          title = sentenceMatch[1].trim();
+        } else {
+          title = cleaned.slice(0, 100).trim();
+        }
+      }
     } else {
       const qMatch = postText.match(/(?:💡|معضلة|كيف|لماذا)[\s\S]*?[?؟]/);
       if (qMatch) {
         title = qMatch[0].replace(/^[💡\s]+/, '').replace(/^معضلة[^:]*:\s*/, '').trim();
       }
     }
+  }
+
+  // Fallback to challengeOrTopic.title only if postText did not provide a title
+  if (!title && challengeOrTopic.title) {
+    title = challengeOrTopic.title.trim();
   }
 
   if (!title) {
@@ -118,11 +146,17 @@ export function extractCardContent(postText = '', challengeOrTopic = {}) {
       title = match[1].trim();
       highlight = match[2].trim();
     }
+  } else if (title.length > 60) {
+    const splitMatch = title.match(/^(.{25,55}?)(?:\s+(?:إذا|عندما|مع|بدلاً من|دون|بينما|لكن|و)\s+)(.*)$/);
+    if (splitMatch) {
+      title = splitMatch[1].trim();
+      highlight = splitMatch[2].trim();
+    }
   }
 
-  // 2. Extract Steps (3 to 5 steps)
+  // 2. Extract Steps (3 to 5 steps) from postText
   if (postText) {
-    const lines = postText.split('\n').map((l) => l.trim());
+    const lines = postText.split('\n').map((l) => l.trim()).filter(Boolean);
     for (const line of lines) {
       if (/^[•\-*0-9.)\s]+/.test(line)) {
         const cleaned = line.replace(/^[•\-*0-9.)\s]+/, '').trim();
@@ -139,10 +173,37 @@ export function extractCardContent(postText = '', challengeOrTopic = {}) {
     }
   }
 
+  // If still fewer than 3 steps, extract key sentences from paragraphs in postText
+  if (steps.length < 3 && postText) {
+    const paragraphs = postText
+      .split('\n\n')
+      .map((p) => p.trim())
+      .filter((p) =>
+        p.length >= 20 &&
+        !p.startsWith('#') &&
+        !p.startsWith('http') &&
+        !p.startsWith('===') &&
+        !p.includes('اكتبوا لنا في التعليقات') &&
+        !p.includes('كيف تتعامل')
+      );
+
+    for (const para of paragraphs) {
+      if (steps.length >= 5) break;
+      const sentences = para.split(/[.!\n]/).map((s) => s.trim()).filter((s) => s.length >= 15 && s.length <= 100);
+      for (const s of sentences) {
+        if (!steps.includes(s) && !s.includes(title)) {
+          steps.push(s);
+          if (steps.length >= 5) break;
+        }
+      }
+    }
+  }
+
+  // Fallback to challenge solution
   if (steps.length < 3 && challengeOrTopic.solution) {
     const solParts = challengeOrTopic.solution.split(/[,.;]/).map((s) => s.trim()).filter((s) => s.length >= 12);
     for (const part of solParts) {
-      if (steps.length < 5) steps.push(part);
+      if (steps.length < 5 && !steps.includes(part)) steps.push(part);
     }
   }
 
@@ -160,7 +221,7 @@ export function extractCardContent(postText = '', challengeOrTopic = {}) {
   steps = steps.slice(0, 5);
 
   // 3. Category Pill
-  const combined = `${title} ${highlight} ${(challengeOrTopic.keywords || []).join(' ')} ${challengeOrTopic.category || ''}`.toLowerCase();
+  const combined = `${title} ${highlight} ${(challengeOrTopic.keywords || []).join(' ')} ${challengeOrTopic.category || ''} ${postText.slice(0, 300)}`.toLowerCase();
   if (combined.includes('postgres') || combined.includes('database') || combined.includes('sql') || combined.includes('gist')) {
     pill = 'معمارية البيانات';
   } else if (combined.includes('redis') || combined.includes('lock') || combined.includes('concurrency') || combined.includes('race')) {
@@ -667,29 +728,31 @@ export function generateCardHTML(cardData = {}, author = DEFAULT_AUTHOR) {
  * Finds chromium/google-chrome executable across common Linux / container locations.
  */
 export function findChromeExecutable() {
-  const candidates = [
+  const directCandidates = [
     process.env.CHROME_BIN,
     process.env.PUPPETEER_EXECUTABLE_PATH,
-    'google-chrome',
-    'google-chrome-stable',
-    'chromium',
-    'chromium-browser',
-    '/usr/bin/google-chrome',
-    '/usr/bin/google-chrome-stable',
     '/usr/bin/chromium',
     '/usr/bin/chromium-browser',
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/local/bin/chromium',
+    '/usr/local/bin/chrome',
   ].filter(Boolean);
 
-  for (const bin of candidates) {
+  for (const bin of directCandidates) {
     try {
-      if (bin.startsWith('/')) {
-        if (fs.existsSync(bin)) return bin;
-      } else {
-        execSync(`which ${bin}`, { stdio: 'ignore' });
-        return bin;
-      }
+      if (fs.existsSync(bin)) return bin;
     } catch {}
   }
+
+  const binaryNames = ['chromium', 'chromium-browser', 'google-chrome', 'google-chrome-stable'];
+  for (const name of binaryNames) {
+    try {
+      const found = execSync(`command -v ${name} || which ${name}`, { stdio: 'pipe', encoding: 'utf8' }).trim();
+      if (found && fs.existsSync(found)) return found;
+    } catch {}
+  }
+
   return null;
 }
 
@@ -703,7 +766,7 @@ export async function renderCardImage(cardData = {}, {
 } = {}) {
   const htmlContent = generateCardHTML(cardData, author);
 
-  const resolvedOutputDir = path.resolve(process.cwd(), outputDir);
+  const resolvedOutputDir = resolveDataPath(outputDir);
   if (!fs.existsSync(resolvedOutputDir)) {
     fs.mkdirSync(resolvedOutputDir, { recursive: true });
   }
@@ -711,7 +774,7 @@ export async function renderCardImage(cardData = {}, {
   const baseName = filename || `mahmoud-card-${Date.now()}.png`;
   const tempHtmlPath = path.join(resolvedOutputDir, `temp-${Date.now()}.html`);
   const finalPngPath = path.join(resolvedOutputDir, baseName);
-  const relativePngPath = path.join(outputDir, baseName);
+  const relativePngPath = path.isAbsolute(outputDir) ? finalPngPath : path.join(outputDir, baseName);
 
   fs.writeFileSync(tempHtmlPath, htmlContent, 'utf8');
 
@@ -732,7 +795,7 @@ export async function renderCardImage(cardData = {}, {
 
   return {
     success: true,
-    imagePath: relativePngPath,
+    imagePath: fs.existsSync('/data') ? finalPngPath : relativePngPath,
     absolutePath: finalPngPath,
     width: CARD_WIDTH,
     height: CARD_HEIGHT,

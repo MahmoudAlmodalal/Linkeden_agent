@@ -1,37 +1,5 @@
 [
   {
-    "id": 4,
-    "project": "portfolio",
-    "topic": "منشور هندسة عربي: حالة Race Condition في معالجة المدفوعات",
-    "situation": null,
-    "text": "استخدام DB::transaction وحده لا يحمي تطبيقك من الـ Race Conditions إذا لم تقفل السجلات أثناء القراءة.\n\nفي أحد مشاريع معالجة المدفوعات والاشتراكات، ظهرت مشكلة دقيقة: رصيد العميل ينزل إلى قيمة سالبة عند إرسال طلبين في نفس الجزء من الثانية، أو يتم شحن نفس كود التفعيل مرتين.\n\nالافتراض الأول كان وجود خطأ في الـ Frontend يسمح بالضغط المزدوج على زر التأكيد، أو خلل في الـ Queue Worker الذي يعالج العملية.\n\nقمت بكتابة اختبار آلي يحاكي طلبين متزامنين على نفس الحساب للتأكد من المشكلة. المفاجأة كانت أن كل شيء يعمل داخل DB::transaction بشكل سليم نظريا، لكن السجلات كانت تقرأ نفس الرصيد القديم قبل انتهاء المعاملة الأولى.\n\nالسبب الجذري: الـ Transaction تضمن الذرية (Atomicity) فقط، لكنها لا تمنع العمليات الأخرى من قراءة القيمة الحالية إذا لم تستخدم Lock صريحا.\n\nالحل كان في خطوتين مباشرتين:\n1. استخدام Pessimistic Locking عبر استدعاء lockForUpdate عند جلب سجل الرصيد داخل المعاملة، لمنع أي عملية أخرى من قراءته أو تعديله حتى اكتمال التحديث.\n2. الاعتماد على العمليات الذرية المباشرة في قاعدة البيانات مثل decrement بدلا من قراءة القيمة وتعديلها في الذاكرة ثم حفظها.\n\nبعد تعديل الكود، أعدت تشغيل الاختبار وأثبت فشل أي محاولة خصم مزدوج مع حماية تامة للبيانات.\n\nالدرس الهندسي: لا تعتمد على حماية الواجهة لمنع تكرار العمليات الحساسة، وقاعدة البيانات هي خط الدفاع الحقيقي الوحيد.\n\nكيف تتعامل مع معالجة الرصيد والعمليات المالية المتزامنة في مشاريعك؟\nاكتبوا لنا في التعليقات 👇\n\n#Laravel #PHP #WebDevelopment #DatabaseDesign #SoftwareEngineering",
-    "post_text": "استخدام DB::transaction وحده لا يحمي تطبيقك من الـ Race Conditions إذا لم تقفل السجلات أثناء القراءة.\n\nفي أحد مشاريع معالجة المدفوعات والاشتراكات، ظهرت مشكلة دقيقة: رصيد العميل ينزل إلى قيمة سالبة عند إرسال طلبين في نفس الجزء من الثانية، أو يتم شحن نفس كود التفعيل مرتين.\n\nالافتراض الأول كان وجود خطأ في الـ Frontend يسمح بالضغط المزدوج على زر التأكيد، أو خلل في الـ Queue Worker الذي يعالج العملية.\n\nقمت بكتابة اختبار آلي يحاكي طلبين متزامنين على نفس الحساب للتأكد من المشكلة. المفاجأة كانت أن كل شيء يعمل داخل DB::transaction بشكل سليم نظريا، لكن السجلات كانت تقرأ نفس الرصيد القديم قبل انتهاء المعاملة الأولى.\n\nالسبب الجذري: الـ Transaction تضمن الذرية (Atomicity) فقط، لكنها لا تمنع العمليات الأخرى من قراءة القيمة الحالية إذا لم تستخدم Lock صريحا.\n\nالحل كان في خطوتين مباشرتين:\n1. استخدام Pessimistic Locking عبر استدعاء lockForUpdate عند جلب سجل الرصيد داخل المعاملة، لمنع أي عملية أخرى من قراءته أو تعديله حتى اكتمال التحديث.\n2. الاعتماد على العمليات الذرية المباشرة في قاعدة البيانات مثل decrement بدلا من قراءة القيمة وتعديلها في الذاكرة ثم حفظها.\n\nبعد تعديل الكود، أعدت تشغيل الاختبار وأثبت فشل أي محاولة خصم مزدوج مع حماية تامة للبيانات.\n\nالدرس الهندسي: لا تعتمد على حماية الواجهة لمنع تكرار العمليات الحساسة، وقاعدة البيانات هي خط الدفاع الحقيقي الوحيد.\n\nكيف تتعامل مع معالجة الرصيد والعمليات المالية المتزامنة في مشاريعك؟\nاكتبوا لنا في التعليقات 👇\n\n#Laravel #PHP #WebDevelopment #DatabaseDesign #SoftwareEngineering",
-    "image_path": "/assets/2wash.webp",
-    "visual_source": "local_fallback",
-    "provider_used": {
-      "text": "fallback",
-      "visual": "local"
-    },
-    "status": "pending",
-    "created_at": "2026-11-04T12:00:16.227Z"
-  },
-  {
-    "id": 5,
-    "project": "portfolio",
-    "topic": "منشور هندسة عربي: حالة Race Condition في معالجة المدفوعات",
-    "situation": null,
-    "text": "استخدام DB::transaction وحده لا يحمي تطبيقك من الـ Race Conditions إذا لم تقفل السجلات أثناء القراءة.\n\nفي أحد مشاريع معالجة المدفوعات والاشتراكات، ظهرت مشكلة دقيقة: رصيد العميل ينزل إلى قيمة سالبة عند إرسال طلبين في نفس الجزء من الثانية، أو يتم شحن نفس كود التفعيل مرتين.\n\nالافتراض الأول كان وجود خطأ في الـ Frontend يسمح بالضغط المزدوج على زر التأكيد، أو خلل في الـ Queue Worker الذي يعالج العملية.\n\nقمت بكتابة اختبار آلي يحاكي طلبين متزامنين على نفس الحساب للتأكد من المشكلة. المفاجأة كانت أن كل شيء يعمل داخل DB::transaction بشكل سليم نظريا، لكن السجلات كانت تقرأ نفس الرصيد القديم قبل انتهاء المعاملة الأولى.\n\nالسبب الجذري: الـ Transaction تضمن الذرية (Atomicity) فقط، لكنها لا تمنع العمليات الأخرى من قراءة القيمة الحالية إذا لم تستخدم Lock صريحا.\n\nالحل كان في خطوتين مباشرتين:\n1. استخدام Pessimistic Locking عبر استدعاء lockForUpdate عند جلب سجل الرصيد داخل المعاملة، لمنع أي عملية أخرى من قراءته أو تعديله حتى اكتمال التحديث.\n2. الاعتماد على العمليات الذرية المباشرة في قاعدة البيانات مثل decrement بدلا من قراءة القيمة وتعديلها في الذاكرة ثم حفظها.\n\nبعد تعديل الكود، أعدت تشغيل الاختبار وأثبت فشل أي محاولة خصم مزدوج مع حماية تامة للبيانات.\n\nالدرس الهندسي: لا تعتمد على حماية الواجهة لمنع تكرار العمليات الحساسة، وقاعدة البيانات هي خط الدفاع الحقيقي الوحيد.\n\nكيف تتعامل مع معالجة الرصيد والعمليات المالية المتزامنة في مشاريعك؟\nاكتبوا لنا في التعليقات 👇\n\n#Laravel #PHP #WebDevelopment #DatabaseDesign #SoftwareEngineering",
-    "post_text": "استخدام DB::transaction وحده لا يحمي تطبيقك من الـ Race Conditions إذا لم تقفل السجلات أثناء القراءة.\n\nفي أحد مشاريع معالجة المدفوعات والاشتراكات، ظهرت مشكلة دقيقة: رصيد العميل ينزل إلى قيمة سالبة عند إرسال طلبين في نفس الجزء من الثانية، أو يتم شحن نفس كود التفعيل مرتين.\n\nالافتراض الأول كان وجود خطأ في الـ Frontend يسمح بالضغط المزدوج على زر التأكيد، أو خلل في الـ Queue Worker الذي يعالج العملية.\n\nقمت بكتابة اختبار آلي يحاكي طلبين متزامنين على نفس الحساب للتأكد من المشكلة. المفاجأة كانت أن كل شيء يعمل داخل DB::transaction بشكل سليم نظريا، لكن السجلات كانت تقرأ نفس الرصيد القديم قبل انتهاء المعاملة الأولى.\n\nالسبب الجذري: الـ Transaction تضمن الذرية (Atomicity) فقط، لكنها لا تمنع العمليات الأخرى من قراءة القيمة الحالية إذا لم تستخدم Lock صريحا.\n\nالحل كان في خطوتين مباشرتين:\n1. استخدام Pessimistic Locking عبر استدعاء lockForUpdate عند جلب سجل الرصيد داخل المعاملة، لمنع أي عملية أخرى من قراءته أو تعديله حتى اكتمال التحديث.\n2. الاعتماد على العمليات الذرية المباشرة في قاعدة البيانات مثل decrement بدلا من قراءة القيمة وتعديلها في الذاكرة ثم حفظها.\n\nبعد تعديل الكود، أعدت تشغيل الاختبار وأثبت فشل أي محاولة خصم مزدوج مع حماية تامة للبيانات.\n\nالدرس الهندسي: لا تعتمد على حماية الواجهة لمنع تكرار العمليات الحساسة، وقاعدة البيانات هي خط الدفاع الحقيقي الوحيد.\n\nكيف تتعامل مع معالجة الرصيد والعمليات المالية المتزامنة في مشاريعك؟\nاكتبوا لنا في التعليقات 👇\n\n#Laravel #PHP #WebDevelopment #DatabaseDesign #SoftwareEngineering",
-    "image_path": "/assets/2wash.webp",
-    "visual_source": "local_fallback",
-    "provider_used": {
-      "text": "fallback",
-      "visual": "local"
-    },
-    "status": "pending",
-    "created_at": "2026-11-04T13:04:53.669Z"
-  },
-  {
     "id": 999,
     "project": "EduTracker",
     "topic": "Row-Level Multi-Tenancy vs Database-per-Tenant Sprawl Across 40+ Schools",
@@ -111,52 +79,13 @@
     "created_at": "2026-11-04T13:12:25.228Z"
   },
   {
-    "id": 777,
-    "project": "EduTracker",
-    "topic": "Asynchronous Batch PDF Report Card Compilation vs HTTP Gateway Timeouts",
-    "situation": null,
-    "text": "غالباً ما نفترض أن استخدام Celery لتشغيل المهام في الخلفية يضمن تجنب مشكلات الـ Gateway Timeouts، ولكن الواقع التقني يقول العكس. في أحد مشاريعنا، EduTracker، واجهنا مشكلة في توليد تقارير الدرجات الأكاديمية لآلاف الطلاب في نهاية الفصل الدراسي، مما تسبب في حدوث 504 Gateway Timeouts وتعطيل خيوط الخادم الويب.\n\nكانت الفكرة الأولية هي أن مشكلة التعطيل ت归ز إلى قلة الموارد على الخادم، ولكن بعد إجراء الاختبارات الآلية ومراقبة السلوك في بيئة الإنتاج، اكتشفنا أن المشكلة ت归ز إلى طريقة معالجة الطلبات في الخلفية. كانت الطريقة السابقة تعتمد على معالجة الطلبات بشكل同步، مما تسبب في تعطيل الخادم وحدوث 504 Gateway Timeouts.\n\nلذا، قمت بكتابة اختبار آلي لتحاكي الطلبات المتزامنة وتقديم تقارير الدرجات الأكاديم\n\n#Redis #Celery #SoftwareEngineering #SystemDesign #Backend #Technology",
-    "post_text": "غالباً ما نفترض أن استخدام Celery لتشغيل المهام في الخلفية يضمن تجنب مشكلات الـ Gateway Timeouts، ولكن الواقع التقني يقول العكس. في أحد مشاريعنا، EduTracker، واجهنا مشكلة في توليد تقارير الدرجات الأكاديمية لآلاف الطلاب في نهاية الفصل الدراسي، مما تسبب في حدوث 504 Gateway Timeouts وتعطيل خيوط الخادم الويب.\n\nكانت الفكرة الأولية هي أن مشكلة التعطيل ت归ز إلى قلة الموارد على الخادم، ولكن بعد إجراء الاختبارات الآلية ومراقبة السلوك في بيئة الإنتاج، اكتشفنا أن المشكلة ت归ز إلى طريقة معالجة الطلبات في الخلفية. كانت الطريقة السابقة تعتمد على معالجة الطلبات بشكل同步، مما تسبب في تعطيل الخادم وحدوث 504 Gateway Timeouts.\n\nلذا، قمت بكتابة اختبار آلي لتحاكي الطلبات المتزامنة وتقديم تقارير الدرجات الأكاديم\n\n#Redis #Celery #SoftwareEngineering #SystemDesign #Backend #Technology",
-    "image_path": "assets/edutracker.webp",
-    "visual_source": "local",
-    "model_used": {
-      "text": "@cf/meta/llama-3.1-70b-instruct",
-      "visual": null
-    },
-    "provider_used": {
-      "text": "cloudflare",
-      "visual": "local"
-    },
-    "challenge": {
-      "id": 6,
-      "project": "edutracker",
-      "project_name": "EduTracker",
-      "title": "Asynchronous Batch PDF Report Card Compilation vs HTTP Gateway Timeouts",
-      "category": "asynchronous-processing",
-      "dilemma": "Compiling hundreds of district-wide student gradebook PDFs at semester end causing 504 Gateway Timeouts and starving web server threads.",
-      "solution": "Dedicated Celery worker pools with Redis queue segregation, compiling WeasyPrint PDFs in background tasks with exponential backoff retries and WebSocket readiness notifications.",
-      "keywords": [
-        "celery",
-        "redis",
-        "background-jobs",
-        "weasyprint",
-        "gateway-timeout",
-        "batch-processing"
-      ],
-      "metrics": "Zero HTTP gateway timeouts during mass generation",
-      "tradeoff": "Celery Async Workers + Redis Broker vs Synchronous HTTP request processing"
-    },
-    "status": "pending",
-    "created_at": "2026-11-04T13:13:26.181Z"
-  },
-  {
-    "id": 555,
-    "project": "clientMORE",
-    "topic": "Pure-Python Hybrid Search (BM25 + ChromaDB Dense RRF) Eliminating Elasticsearch",
-    "situation": null,
-    "text": "غالباً ما نفترض أن استخدام خوارزمية البحث الدenser Vector Search وحدها تكفي لتحقيق أداء البحث الأمثل، ولكن الواقع التقني يقول العكس. في أحد مشاريعنا، وهو منصة دعم العملاء clientMORE، واجهنا تحدياً في تحقيق التوازن بين دقة البحث وسرعته.\n\nكانت مشكلتنا الأساسية هي أن البحث الدensi Vector Search وحده لم يكن كافياً لتحقيق نتائج بحث دقيقة، خاصة عند البحث عن عناصر محددة مثل أرقام الطلبات أو أسماء العملاء. لذلك، قمت بكتابة اختبار آلي لتحديد تأثير استخدام خوارزمية البحث الدensi Vector Search مع خوارزمية البحث Lexical BM25 على أداء البحث.\n\nاكتشفت أن استخدام خوارزمية البحث الدensi Vector Search مع BM25 ي 提供 نتائج بحث دقيقة أكثر مقارنة باستخدام خوارزمية البحث الدensi Vector Search وحدها. ومع ذلك، كانت هناك تحديات معينة في تنفيذ هذا الحل، مثل زيادة استهلاك الذاكرة وزيادة تعقيد\n\n#SoftwareEngineering #SystemDesign #Backend #Technology",
-    "post_text": "غالباً ما نفترض أن استخدام خوارزمية البحث الدenser Vector Search وحدها تكفي لتحقيق أداء البحث الأمثل، ولكن الواقع التقني يقول العكس. في أحد مشاريعنا، وهو منصة دعم العملاء clientMORE، واجهنا تحدياً في تحقيق التوازن بين دقة البحث وسرعته.\n\nكانت مشكلتنا الأساسية هي أن البحث الدensi Vector Search وحده لم يكن كافياً لتحقيق نتائج بحث دقيقة، خاصة عند البحث عن عناصر محددة مثل أرقام الطلبات أو أسماء العملاء. لذلك، قمت بكتابة اختبار آلي لتحديد تأثير استخدام خوارزمية البحث الدensi Vector Search مع خوارزمية البحث Lexical BM25 على أداء البحث.\n\nاكتشفت أن استخدام خوارزمية البحث الدensi Vector Search مع BM25 ي 提供 نتائج بحث دقيقة أكثر مقارنة باستخدام خوارزمية البحث الدensi Vector Search وحدها. ومع ذلك، كانت هناك تحديات معينة في تنفيذ هذا الحل، مثل زيادة استهلاك الذاكرة وزيادة تعقيد\n\n#SoftwareEngineering #SystemDesign #Backend #Technology",
-    "image_path": "data/generated_images/card-draft-555.png",
+    "id": 1000,
+    "project": "portfolio",
+    "topic": "Production Incident Post-Mortem",
+    "situation": "اختبار حقيقي داخل n8n-custom",
+    "text": "الأنظمة الموزعة تُظهر أسوأ مخاوفها تحت الضغط، ليس في المختبر. في أحد مشاريعنا، قمت بكتابة اختبار آلي لتحديد سبب حدوث race condition في نظامنا، واكتشفت أن استخدام GiST spatial index وحده لا يكفي لحماية البيانات من التأثيرات الجانبية.\n\nكانت المشكلة أن نظامنا يتعامل مع عمليات تحديث متكررة على قاعدة البيانات، مما أدى إلى حدوث race conditions وتعرض البيانات للخطر. قمت بكتابة اختبار آلي لتحديد السبب الجذري لهذه المشكلة، واكتشفت أن استخدام Select For Update وحده لا يكفي لحماية البيانات.\n\nبعد تحليل深入، اكتشفت أن السبب الجذري يكمن في عدم استخدام lockForUpdate بشكل صحيح، مما سمح للعمليات المتزامنة بالوصول إلى البيانات في نفس الوقت. قمت بتحديث النظام لاستخدام lockForUpdate بشكل صحيح، وتمت إضافة عمليات تحديثات مباشرة إلى قاعدة البيانات.\n\nتم إعادة تشغيل الاختبار الآلي، وتم التأكد من عدم حدوث race conditions. بعد التحقق، قمت بمقارنة الحل الذي قمت باختياره مع حل بديل، وهو استخدام Optimistic Concurrency Control. اكتشفت أن الحل الذي قمت باختياره يوفّر حماية أفضل للبيانات، ولكن مع زيادة في التعقيد.\n\nالدرس الهندسي: لا تعتمد على حماية الواجهة لمنع تكرار العمليات الحساسة، وقاعدة البيانات هي خط الدفاع الحقيقي الوحيد. ما هي استراتيجية你们 لمنع race conditions في أنظمةكم الموزعة؟ اكتبوا لنا في التعليقات 👇\n\n#SoftwareEngineering #DatabaseDesign #ConcurrencyControl #GiSTindex #lockForUpdate #SelectForUpdate",
+    "post_text": "الأنظمة الموزعة تُظهر أسوأ مخاوفها تحت الضغط، ليس في المختبر. في أحد مشاريعنا، قمت بكتابة اختبار آلي لتحديد سبب حدوث race condition في نظامنا، واكتشفت أن استخدام GiST spatial index وحده لا يكفي لحماية البيانات من التأثيرات الجانبية.\n\nكانت المشكلة أن نظامنا يتعامل مع عمليات تحديث متكررة على قاعدة البيانات، مما أدى إلى حدوث race conditions وتعرض البيانات للخطر. قمت بكتابة اختبار آلي لتحديد السبب الجذري لهذه المشكلة، واكتشفت أن استخدام Select For Update وحده لا يكفي لحماية البيانات.\n\nبعد تحليل深入، اكتشفت أن السبب الجذري يكمن في عدم استخدام lockForUpdate بشكل صحيح، مما سمح للعمليات المتزامنة بالوصول إلى البيانات في نفس الوقت. قمت بتحديث النظام لاستخدام lockForUpdate بشكل صحيح، وتمت إضافة عمليات تحديثات مباشرة إلى قاعدة البيانات.\n\nتم إعادة تشغيل الاختبار الآلي، وتم التأكد من عدم حدوث race conditions. بعد التحقق، قمت بمقارنة الحل الذي قمت باختياره مع حل بديل، وهو استخدام Optimistic Concurrency Control. اكتشفت أن الحل الذي قمت باختياره يوفّر حماية أفضل للبيانات، ولكن مع زيادة في التعقيد.\n\nالدرس الهندسي: لا تعتمد على حماية الواجهة لمنع تكرار العمليات الحساسة، وقاعدة البيانات هي خط الدفاع الحقيقي الوحيد. ما هي استراتيجية你们 لمنع race conditions في أنظمةكم الموزعة؟ اكتبوا لنا في التعليقات 👇\n\n#SoftwareEngineering #DatabaseDesign #ConcurrencyControl #GiSTindex #lockForUpdate #SelectForUpdate",
+    "image_path": "/data/generated_images/card-draft-1000.png",
     "visual_source": "branded_card",
     "model_used": {
       "text": "@cf/meta/llama-3.1-70b-instruct",
@@ -164,43 +93,23 @@
     },
     "provider_used": {
       "text": "cloudflare",
-      "visual": "local"
+      "visual": "none"
     },
-    "challenge": {
-      "id": 7,
-      "project": "clientmore",
-      "project_name": "clientMORE",
-      "title": "Pure-Python Hybrid Search (BM25 + ChromaDB Dense RRF) Eliminating Elasticsearch",
-      "category": "applied-rag",
-      "dilemma": "Dense vector search alone missed exact SKU and order ID lookups, but spinning up Elasticsearch/Meilisearch clusters introduced immense RAM consumption and operational complexity.",
-      "solution": "In-process pure-Python hybrid search combining ChromaDB dense vector queries with an in-memory BM25 lexical index, fused using Reciprocal Rank Fusion (k=60) and MMR diversity filtering.",
-      "keywords": [
-        "hybrid-search",
-        "bm25",
-        "chromadb",
-        "reciprocal-rank-fusion",
-        "rrf",
-        "rag",
-        "vector-search",
-        "python"
-      ],
-      "metrics": "Hybrid retrieval P95 < 92.4ms",
-      "tradeoff": "ChromaDB Dense + Pure-Python BM25 / RRF vs Dense-only vector search or heavy external Elasticsearch clusters"
-    },
+    "challenge": null,
     "status": "pending",
-    "created_at": "2026-11-04T13:39:01.214Z"
+    "created_at": "2026-11-05T09:22:10.020Z"
   },
   {
-    "id": 556,
-    "project": "2Wash",
-    "topic": "PostGIS Spatial Indexing vs In-Memory Haversine: Sub-12ms Radius Lookups",
+    "id": 1001,
+    "project": "clientMORE",
+    "topic": "Arabic Text Normalization & Orthographic Folding in Vector Pipelines",
     "situation": null,
-    "text": "غالباً ما نفترض أن استخدام GiST spatial index وحده كافٍ لحل مشكلات الـ spatial queries في قواعد البيانات، ولكن الواقع التقني يقول العكس. في أحد مشاريعنا، 2Wash، واجهنا مشكلة في تحسين أداء استعلامات البحث عن مركز خدمة قريب في مدينة الرياض وجدة.\n\nفي البداية، كنا نستخدم طريقة البحث عن أقرب مركز خدمة باستخدام دالة Haversine في الذاكرة، ولكن هذه الطريقة كانت تتسبب في بطء كبير في الاستجابة، حيث كان متوسط زمن الاستجابة يصل إلى 340 مللي ثانية. هذا الوضع كان يسبب مشاكل كبيرة في استخدام التطبيق، حيث كان المستخدمون ينتظرون لفترات طويلة لتحميل النتائج.\n\nلذا، قمت بكتابة اختبار آلي لتحديد السبب الجذري لهذا البطء. هذا الاختبار أظهر أن السبب الجذري هو عدم استخدام GiST spatial index بشكل صحيح. لذلك، قمت بتحسين الاستعلامات باستخدام GiST spatial index و ST_D\n\n#PostGIS #PostgreSQL #GiST #SpatialIndexing #Geospatial #Django",
-    "post_text": "غالباً ما نفترض أن استخدام GiST spatial index وحده كافٍ لحل مشكلات الـ spatial queries في قواعد البيانات، ولكن الواقع التقني يقول العكس. في أحد مشاريعنا، 2Wash، واجهنا مشكلة في تحسين أداء استعلامات البحث عن مركز خدمة قريب في مدينة الرياض وجدة.\n\nفي البداية، كنا نستخدم طريقة البحث عن أقرب مركز خدمة باستخدام دالة Haversine في الذاكرة، ولكن هذه الطريقة كانت تتسبب في بطء كبير في الاستجابة، حيث كان متوسط زمن الاستجابة يصل إلى 340 مللي ثانية. هذا الوضع كان يسبب مشاكل كبيرة في استخدام التطبيق، حيث كان المستخدمون ينتظرون لفترات طويلة لتحميل النتائج.\n\nلذا، قمت بكتابة اختبار آلي لتحديد السبب الجذري لهذا البطء. هذا الاختبار أظهر أن السبب الجذري هو عدم استخدام GiST spatial index بشكل صحيح. لذلك، قمت بتحسين الاستعلامات باستخدام GiST spatial index و ST_D\n\n#PostGIS #PostgreSQL #GiST #SpatialIndexing #Geospatial #Django",
-    "image_path": "assets/2wash.webp",
-    "visual_source": "local",
+    "text": "استخدام DB::transaction وحده لا يحمي تطبيقك من الـ Race Conditions إذا لم تقفل السجلات أثناء القراءة. تعلمت ذلك من مشروع clientMORE.\n\nفي أحد مشاريعنا، كان لدينا نظام إدارة للعلاقات مع العملاء، حيث يُستخدم لتحليل وتحليل بيانات العملاء. أردنا تحسين سرعة الوصول إلى البيانات من خلال استخدام DB::transaction، لكن ذلك لم يكن كافياً لمنع تكرار العمليات الحساسة التي قد تؤدي إلى نتائج خاطئة. كان الخلل هو في السجلات التي لم يتم فكлавها أثناء القراءة، مما أدى إلى ظهور Race Conditions.\n\nقمت بكتابة اختبار آلي لمشكلة التكرار، حيث قمت بتحليل طلبات التحديث المتتالية على نفس السجل، وتأكدت من أن DB::transaction وحده لا يحمي التطبيق من هذه المشكلة. كان الهدف من اختبار آلي هو تقديم دليلاً على عدم كفاية استخدام DB::transaction وحده في منع تكرار العمليات الحساسة.\n\nكان السبب الجذري هو عدم فكلاس السجلات أثناء القراءة، مما أدى إلى ظهور تكرار العمليات الحساسة. كانت الحلول المقترحة هي استخدام Pessimistic Locking مع lockForUpdate / SELECT FOR UPDATE، وتحديد عدد المتسابقين في عملية القراءة. كانت الحلول البديلة هي استخدام optimistic locking مع optimistic locking، ولكن ذلك يتطلب تحديد حد معين للمدخلات التي يمكن أن تكون متغيرة.\n\nبالنهاية، قمت بتحسين اختبار آلي الذي ساعد في إصلاح المشكلة، وتأكدت من عدم ظهور أي Race Conditions. كانت القياسات والتجارب التي أجريت بمثابة دليل على كفاية الحل المضمن. كان الدرس الهندسي الذي اكتسبته من هذه التجربة هو أنه لا يكفي استخدام DB::transaction وحده لمنع تكرار العمليات الحساسة، ويتطلب استخدام Pessimistic Locking مع lockForUpdate / SELECT FOR UPDATE أو optimistic locking مع تحديد حد معين للمدخلات التي يمكن أن تكون متغيرة.\n\nاكتبوا لنا في التعليقات 👇\n\n#DBtransaction #PessimisticLocking #optimisticlocking #RaceConditions #DatabaseDesign #SoftwareEngineering",
+    "post_text": "استخدام DB::transaction وحده لا يحمي تطبيقك من الـ Race Conditions إذا لم تقفل السجلات أثناء القراءة. تعلمت ذلك من مشروع clientMORE.\n\nفي أحد مشاريعنا، كان لدينا نظام إدارة للعلاقات مع العملاء، حيث يُستخدم لتحليل وتحليل بيانات العملاء. أردنا تحسين سرعة الوصول إلى البيانات من خلال استخدام DB::transaction، لكن ذلك لم يكن كافياً لمنع تكرار العمليات الحساسة التي قد تؤدي إلى نتائج خاطئة. كان الخلل هو في السجلات التي لم يتم فكлавها أثناء القراءة، مما أدى إلى ظهور Race Conditions.\n\nقمت بكتابة اختبار آلي لمشكلة التكرار، حيث قمت بتحليل طلبات التحديث المتتالية على نفس السجل، وتأكدت من أن DB::transaction وحده لا يحمي التطبيق من هذه المشكلة. كان الهدف من اختبار آلي هو تقديم دليلاً على عدم كفاية استخدام DB::transaction وحده في منع تكرار العمليات الحساسة.\n\nكان السبب الجذري هو عدم فكلاس السجلات أثناء القراءة، مما أدى إلى ظهور تكرار العمليات الحساسة. كانت الحلول المقترحة هي استخدام Pessimistic Locking مع lockForUpdate / SELECT FOR UPDATE، وتحديد عدد المتسابقين في عملية القراءة. كانت الحلول البديلة هي استخدام optimistic locking مع optimistic locking، ولكن ذلك يتطلب تحديد حد معين للمدخلات التي يمكن أن تكون متغيرة.\n\nبالنهاية، قمت بتحسين اختبار آلي الذي ساعد في إصلاح المشكلة، وتأكدت من عدم ظهور أي Race Conditions. كانت القياسات والتجارب التي أجريت بمثابة دليل على كفاية الحل المضمن. كان الدرس الهندسي الذي اكتسبته من هذه التجربة هو أنه لا يكفي استخدام DB::transaction وحده لمنع تكرار العمليات الحساسة، ويتطلب استخدام Pessimistic Locking مع lockForUpdate / SELECT FOR UPDATE أو optimistic locking مع تحديد حد معين للمدخلات التي يمكن أن تكون متغيرة.\n\nاكتبوا لنا في التعليقات 👇\n\n#DBtransaction #PessimisticLocking #optimisticlocking #RaceConditions #DatabaseDesign #SoftwareEngineering",
+    "image_path": "/data/generated_images/card-draft-1001.png",
+    "visual_source": "branded_card",
     "model_used": {
-      "text": "@cf/meta/llama-3.1-70b-instruct",
+      "text": "@cf/meta/llama-3.1-8b-instruct",
       "visual": null
     },
     "provider_used": {
@@ -208,26 +117,25 @@
       "visual": "local"
     },
     "challenge": {
-      "id": 1,
-      "project": "2wash",
-      "project_name": "2Wash",
-      "title": "PostGIS Spatial Indexing vs In-Memory Haversine: Sub-12ms Radius Lookups",
-      "category": "geospatial-database",
-      "dilemma": "How to query partner service center polygons across Riyadh & Jeddah under high concurrency without CPU throttling or slow table scans.",
-      "solution": "PostgreSQL PostGIS with GiST spatial indexing and ST_DWithin queries, dropping lookup P95 from 340ms to 11.4ms.",
+      "id": 8,
+      "project": "clientmore",
+      "project_name": "clientMORE",
+      "title": "Arabic Text Normalization & Orthographic Folding in Vector Pipelines",
+      "category": "nlp-search",
+      "dilemma": "Arabic queries and corporate documents have huge spelling variations (hamza/alef forms, taa-marbuta, Eastern numerals) resulting in poor semantic and lexical recall.",
+      "solution": "Lightweight deterministic regex pipeline stripping diacritics, folding alef/yaa variants, and mapping Eastern numerals (٥->5) applied symmetrically to documents and queries.",
       "keywords": [
-        "postgis",
-        "spatial-indexing",
-        "gist",
-        "postgresql",
-        "geospatial",
-        "django-rest",
-        "lat-long"
+        "arabic-nlp",
+        "text-normalization",
+        "diacritics",
+        "semantic-search",
+        "embeddings",
+        "rag"
       ],
-      "metrics": "P95 < 12ms",
-      "tradeoff": "PostGIS ST_DWithin + GIST Index vs In-memory Haversine filtering on unindexed rows"
+      "metrics": "Zero false-negative misses due to diacritics or numeral formats",
+      "tradeoff": "In-line deterministic normalization vs Relying purely on raw LLM tokenizer embeddings"
     },
     "status": "pending",
-    "created_at": "2026-11-04T13:39:51.026Z"
+    "created_at": "2026-11-05T09:23:43.058Z"
   }
 ]

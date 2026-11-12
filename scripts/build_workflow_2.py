@@ -31,8 +31,78 @@ if (!fromId || !allowedId || fromId !== allowedId) {
   }];
 }
 
+let fs = null;
+let path = null;
+try {
+  if (typeof require === 'function') {
+    fs = require('fs');
+    path = require('path');
+  }
+} catch {}
+
+const botStatePath = fs && fs.existsSync && fs.existsSync('/data')
+  ? '/data/bot_state.json'
+  : (path ? path.resolve(process.cwd(), 'data', 'bot_state.json') : 'data/bot_state.json');
+
+function loadBotState() {
+  try {
+    if (fs && fs.existsSync && fs.existsSync(botStatePath)) {
+      return JSON.parse(fs.readFileSync(botStatePath, 'utf8')) || {};
+    }
+  } catch {}
+  return {};
+}
+
+function saveBotState(state) {
+  try {
+    if (fs && fs.writeFileSync) {
+      if (path && fs.mkdirSync) {
+        const dir = path.dirname(botStatePath);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      }
+      fs.writeFileSync(botStatePath, JSON.stringify(state, null, 2), 'utf8');
+    }
+  } catch {}
+}
+
+const botState = loadBotState();
+const userState = botState[fromId];
+
+// Check if user is in awaiting_situation state
+if (userState && userState.state === 'awaiting_situation') {
+  if (text === '/cancel' || text === 'cancel' || text === 'إلغاء') {
+    delete botState[fromId];
+    saveBotState(botState);
+    return [{
+      json: {
+        authorized: true,
+        command: 'help',
+        chatId,
+        replyText: 'تم إلغاء كتابة الموقف.',
+        rawText: text
+      }
+    }];
+  }
+
+  // Consume the message as situation prompt
+  delete botState[fromId];
+  saveBotState(botState);
+  return [{
+    json: {
+      authorized: true,
+      command: 'generate',
+      situation: text,
+      chatId,
+      rawText: text
+    }
+  }];
+}
+
 let command = 'unknown';
 let draftId = null;
+let situation = '';
+let query = '';
+let replyText = '';
 
 const inlineCallback = text.match(/^(show|approve|reject)_(\d+)$/u);
 
@@ -49,7 +119,13 @@ if (inlineCallback) {
     const numMatch = text.match(/#?(\d+)/);
     if (numMatch) draftId = numMatch[1];
   }
-} else if (text.startsWith('reject:') || /^(?:\/reject(?:@\w+)?)(?:\s|$)/u.test(text) || text.startsWith('🗑️ رفض') || text.startsWith('❌ رفض')) {
+} else if (
+  text.startsWith('reject:') ||
+  /^(?:\/reject|\/delete)(?:@\w+)?(?:\s|$)/u.test(text) ||
+  text.startsWith('🗑️') ||
+  text.startsWith('❌ رفض') ||
+  /^حذف(?:\s|$|#)/u.test(text)
+) {
   command = 'reject';
   if (text.startsWith('reject:')) {
     draftId = text.split(':')[1];
@@ -108,23 +184,56 @@ if (inlineCallback) {
   text.includes('المنشورات')
 ) {
   command = 'drafts';
+} else if (
+  text.startsWith('/situation') ||
+  text.startsWith('/incident') ||
+  text.startsWith('/scenario') ||
+  text.startsWith('💡 كتابة موقف') ||
+  text === 'situation'
+) {
+  const situationArg = text
+    .replace(/^(?:\/situation|\/incident|\/scenario|💡\s*كتابة\s*موقف)(?:@\w+)?\s*/iu, '')
+    .trim();
+
+  if (situationArg) {
+    command = 'generate';
+    situation = situationArg;
+  } else {
+    botState[fromId] = { state: 'awaiting_situation', updated_at: new Date().toISOString() };
+    saveBotState(botState);
+    command = 'help';
+    replyText = '💡 *كتابة برمبت موقف هندسي*\n\nأرسل الآن نص الموقف أو المعضلة البرمجية في رسالة، وسيقوم النظام فوراً بدمجها في الـ System Prompt وتوليد بوست معماري عالي القيمة مع بطاقة مرئية مخصصة لهويتك.\n\n_(أو أرسل /cancel للإلغاء)_';
+  }
+} else if (text === '/cancel' || text === 'cancel' || text === 'إلغاء') {
+  delete botState[fromId];
+  saveBotState(botState);
+  command = 'help';
+  replyText = 'لا توجد عملية جارية لإلغائها.';
 } else if (text.startsWith('/generate') || text === 'generate' || text.includes('/generate') || text.startsWith('⚡ توليد')) {
   command = 'generate';
+  const genArg = text.replace(/^(?:\/generate|⚡\s*توليد)(?:@\w+)?\s*/iu, '').trim();
+  if (genArg) query = genArg;
 } else if (text.startsWith('/help') || text === 'help' || text === '/start' || text.includes('/help') || text.startsWith('ℹ️ المساعدة')) {
   command = 'help';
+} else if (text.length >= 40 || text.includes('\n')) {
+  command = 'generate';
+  situation = text;
 } else {
   command = 'help';
 }
 
-return [{
-  json: {
-    authorized: true,
-    command,
-    draftId,
-    chatId,
-    rawText: text
-  }
-}];"""
+const out = {
+  authorized: true,
+  command,
+  draftId,
+  chatId,
+  rawText: text
+};
+if (situation) out.situation = situation;
+if (query) out.query = query;
+if (replyText) out.replyText = replyText;
+
+return [{ json: out }];"""
 
 js_drafts = r"""const fs = require('fs');
 const prev = $('Security & Command Parser').first().json;
@@ -231,15 +340,19 @@ return [item];"""
 js_help = r"""const prev = $('Security & Command Parser').first().json;
 const chatId = prev.chatId;
 
-const helpMsg = `🤖 *دليل أوامر بوت النشر على LinkedIn:*
+const defaultHelpMsg = `🤖 *دليل أوامر بوت النشر على LinkedIn:*
 
-1️⃣ */show* أو *عرض مشروع* : عرض المنشور الحالي مع الصورة المعمارية بالكامل.
-2️⃣ */drafts* أو *المسودات* : عرض قائمة بجميع المسودات المحفوظة مع أزرار لمعاينة أي منها.
-3️⃣ */generate* أو *توليد* : توليد منشور هندسي جديد وصورة معمارية فوراً.
-4️⃣ */approve [id]* : اعتماد المسودة ونشرها مباشرة على LinkedIn.
-5️⃣ */reject [id]* : حذف المسودة من قائمة الانتظار.
+1️⃣ */situation [نص الموقف]* : كتابة برمبت موقف هندسي وتوليد بوست وصورة فوراً.
+2️⃣ */show* أو *عرض مشروع* : عرض المنشور الحالي مع الصورة المعمارية بالكامل.
+3️⃣ */drafts* أو *المسودات* : عرض قائمة بجميع المسودات المحفوظة مع أزرار لمعاينة أي منها.
+4️⃣ */generate* أو *توليد* : توليد منشور هندسي جديد وصورة معمارية فوراً.
+5️⃣ */approve [id]* : اعتماد المسودة ونشرها مباشرة على LinkedIn.
+6️⃣ */reject [id]* : حذف المسودة من قائمة الانتظار.
+7️⃣ */cancel* : إلغاء أي عملية إدخال معلقة.
 
 ✨ _استخدم زر القائمة [/] بجانب حقل الرسالة أو اكتب اسم مشروعك لعرضه بسهولة!_`;
+
+const helpMsg = prev.replyText || defaultHelpMsg;
 
 return [{
   json: {
@@ -250,6 +363,8 @@ return [{
 
 js_generate = r"""const prev = $('Security & Command Parser').first().json;
 const chatId = prev.chatId;
+const situation = prev.situation || '';
+const query = prev.query || '';
 
 async function triggerGenerateWorkflow() {
   const http = require('http');
@@ -259,7 +374,10 @@ async function triggerGenerateWorkflow() {
     '5678',
     10,
   );
-  const payload = JSON.stringify({ source: 'telegram_command', triggeredBy: chatId });
+  const payloadObj = { source: 'telegram_command', triggeredBy: chatId };
+  if (situation) payloadObj.situation = situation;
+  if (query) payloadObj.query = query;
+  const payload = JSON.stringify(payloadObj);
 
   const result = await new Promise((resolve, reject) => {
     const request = http.request(
@@ -298,10 +416,14 @@ async function triggerGenerateWorkflow() {
     throw new Error(`Generate webhook returned HTTP ${result.status}: ${result.body}`);
   }
 
+  const successMsg = situation
+    ? '⚡ *تم تشغيل توليد منشور هندسي مخصص للموقف المحدد...*\n\nستصلك المسودة هنا بعد ثوانٍ قليلة!'
+    : '⚡ *تم تشغيل توليد منشور جديد بالذكاء الاصطناعي...*\n\nستصلك المسودة هنا بعد ثوانٍ قليلة!';
+
   return [{
     json: {
       chatId,
-      replyText: '⚡ *تم تشغيل توليد منشور جديد بالذكاء الاصطناعي...*\n\nستصلك المسودة هنا بعد ثوانٍ قليلة!',
+      replyText: successMsg,
     },
   }];
 }
@@ -316,6 +438,45 @@ try {
     },
   }];
 }"""
+
+js_reject = r"""const fs = require('fs');
+const filePath = '/data/pending_drafts.json';
+const prev = $('Security & Command Parser').first().json;
+const rawDraftId = prev.draftId;
+const cleanId = String(rawDraftId ?? '').replace(/^#/, '').trim();
+const chatId = prev.chatId;
+let replyText = '';
+
+if (!cleanId) {
+  replyText = '⚠️ يرجى تحديد رقم المسودة المراد حذفها (مثال: /reject 100).';
+  return [{ json: { chatId, replyText } }];
+}
+
+try {
+  if (!fs.existsSync(filePath)) {
+    replyText = '⚠️ لا توجد مسودات لحذفها.';
+  } else {
+    const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    const drafts = Array.isArray(parsed) ? parsed : (Array.isArray(parsed?.drafts) ? parsed.drafts : []);
+    const remaining = drafts.filter((d) => String(d.id) !== cleanId);
+    const removedCount = drafts.length - remaining.length;
+
+    if (removedCount === 0) {
+      replyText = `⚠️ لم أجد المسودة #${cleanId} في قائمة الانتظار.`;
+    } else {
+      fs.writeFileSync(filePath, JSON.stringify(remaining, null, 2), 'utf8');
+      const cardPath = `/data/generated_images/card-draft-${cleanId}.png`;
+      try {
+        if (fs.existsSync(cardPath)) fs.unlinkSync(cardPath);
+      } catch {}
+      replyText = `🗑️ تم حذف المسودة #${cleanId} من النظام.`;
+    }
+  }
+} catch (e) {
+  replyText = `❌ خطأ في الحذف: ${e.message}`;
+}
+
+return [{ json: { chatId, replyText } }];"""
 
 wf2 = {
   "id": "workflow-2-publishing",
@@ -484,7 +645,7 @@ wf2 = {
     },
     {
       "parameters": {
-        "jsCode": "const fs = require('fs');\nconst filePath = '/data/pending_drafts.json';\nconst prev = $('Security & Command Parser').first().json;\nconst draftId = prev.draftId;\nconst chatId = prev.chatId;\nlet replyText = '';\ntry {\n  if (fs.existsSync(filePath)) {\n    const drafts = JSON.parse(fs.readFileSync(filePath, 'utf8'));\n    const remaining = drafts.filter(d => String(d.id) !== String(draftId));\n    fs.writeFileSync(filePath, JSON.stringify(remaining, null, 2), 'utf8');\n    replyText = `🗑️ *تم حذف المسودة #${draftId || 'المحددة'} من النظام.*`;\n  } else { replyText = '⚠️ لا توجد مسودات لحذفها.'; }\n} catch (e) { replyText = `❌ خطأ في الحذف: ${e.message}`; }\nreturn [{ json: { chatId, replyText } }];"
+        "jsCode": js_reject
       },
       "id": "handle-reject-node",
       "name": "Handle Rejection Node",

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolveDataPath, resolveAssetPath } from './path_resolver.js';
 
 // Load .env if present
 const envCandidates = [
@@ -35,7 +36,7 @@ export const TELEGRAM_REPLY_KEYBOARD = TELEGRAM_REMOVE_KEYBOARD;
  */
 export function loadScenarios(filePath = 'data/scenarios.json') {
   try {
-    const resolved = path.resolve(process.cwd(), filePath);
+    const resolved = resolveDataPath(filePath);
     if (!fs.existsSync(resolved)) return [];
     const raw = fs.readFileSync(resolved, 'utf8');
     const data = JSON.parse(raw);
@@ -52,7 +53,7 @@ export function loadScenarios(filePath = 'data/scenarios.json') {
  * @param {string} [filePath='data/scenarios.json']
  */
 export function saveScenarios(scenarios, filePath = 'data/scenarios.json') {
-  const resolved = path.resolve(process.cwd(), filePath);
+  const resolved = resolveDataPath(filePath);
   const dir = path.dirname(resolved);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(resolved, JSON.stringify(scenarios, null, 2), 'utf8');
@@ -85,7 +86,7 @@ export function addScenario(scenario, filePath = 'data/scenarios.json') {
  */
 export function loadBotState(filePath = 'data/bot_state.json') {
   try {
-    const resolved = path.resolve(process.cwd(), filePath);
+    const resolved = resolveDataPath(filePath);
     if (!fs.existsSync(resolved)) return {};
     const raw = fs.readFileSync(resolved, 'utf8');
     return JSON.parse(raw) || {};
@@ -101,7 +102,7 @@ export function loadBotState(filePath = 'data/bot_state.json') {
  * @param {string} [filePath='data/bot_state.json']
  */
 export function saveBotState(state, filePath = 'data/bot_state.json') {
-  const resolved = path.resolve(process.cwd(), filePath);
+  const resolved = resolveDataPath(filePath);
   const dir = path.dirname(resolved);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(resolved, JSON.stringify(state, null, 2), 'utf8');
@@ -164,20 +165,19 @@ export function resolveImagePath(photo, project = null) {
   if (photo && typeof photo === 'string') {
     candidates.push(
       photo,
-      path.resolve(process.cwd(), photo),
-      photo.startsWith('/') ? photo.slice(1) : '/' + photo,
-      path.join('/assets', path.basename(photo)),
-      path.join('/data/generated_images', path.basename(photo)),
-      path.resolve(process.cwd(), 'assets', path.basename(photo)),
-      path.resolve(process.cwd(), 'data/generated_images', path.basename(photo))
+      resolveDataPath(photo),
+      resolveAssetPath(photo),
+      resolveDataPath('generated_images', path.basename(photo)),
+      resolveAssetPath(path.basename(photo)),
+      path.resolve(process.cwd(), photo)
     );
   }
 
   if (project && typeof project === 'string') {
     const slug = project.toLowerCase().replace(/[^a-z0-9_-]/g, '');
     candidates.push(
-      path.join('/assets', `${slug}.webp`),
-      path.join('/assets', `${slug}.png`),
+      resolveAssetPath(`${slug}.webp`),
+      resolveAssetPath(`${slug}.png`),
       path.resolve(process.cwd(), 'assets', `${slug}.webp`),
       path.resolve(process.cwd(), 'assets', `${slug}.png`)
     );
@@ -470,10 +470,11 @@ export function formatPreviewCaption(draft) {
  */
 export function loadPendingDrafts(filePath = 'data/pending_drafts.json') {
   try {
-    if (!fs.existsSync(filePath)) {
+    const resolved = resolveDataPath(filePath);
+    if (!fs.existsSync(resolved)) {
       return [];
     }
-    const raw = fs.readFileSync(filePath, 'utf-8');
+    const raw = fs.readFileSync(resolved, 'utf-8');
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
       return parsed;
@@ -494,11 +495,12 @@ export function loadPendingDrafts(filePath = 'data/pending_drafts.json') {
  * @param {string} [filePath='data/pending_drafts.json']
  */
 export function savePendingDrafts(drafts, filePath = 'data/pending_drafts.json') {
-  const dir = path.dirname(filePath);
+  const resolved = resolveDataPath(filePath);
+  const dir = path.dirname(resolved);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
-  fs.writeFileSync(filePath, JSON.stringify(drafts, null, 2), 'utf-8');
+  fs.writeFileSync(resolved, JSON.stringify(drafts, null, 2), 'utf-8');
 }
 
 /**

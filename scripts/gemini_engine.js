@@ -6,6 +6,7 @@ import {
   retrieveProjectContext,
   getNextChallenge,
 } from './rag_engine.js';
+import { resolveDataPath, resolveAssetPath } from './path_resolver.js';
 
 export const DEFAULT_TEXT_MODEL = 'gemini-3.8-flash';
 export const DEFAULT_VISUAL_MODEL = 'gemini-nano-banana-2.1';
@@ -15,6 +16,7 @@ import {
   STRATEGIC_ANGLES,
   HOOK_TEMPLATES,
   TEXT_LENGTH_VARIANTS,
+  getNextInnovation,
   getNextStrategicAngleIndex,
   resolveStrategicAngle,
   getNextHookTemplateIndex,
@@ -101,8 +103,9 @@ export async function createGeminiClient({ apiKey = process.env.GEMINI_API_KEY }
  * so the same project/topic never produces identical text across generations.
  */
 export function buildContentPrompt(topic, { innovation } = {}) {
+  const resolvedInnovation = innovation ?? topic?.innovation ?? topic?.ragContext?.innovation;
   if (topic?.ragContext) {
-    return buildGroundedRAGPrompt({ ...topic.ragContext, innovation });
+    return buildGroundedRAGPrompt({ ...topic.ragContext, innovation: resolvedInnovation });
   }
 
   const isEnglish = topic?.language === 'en';
@@ -122,9 +125,9 @@ Do not insert random English words or any other language. Never output words suc
   const qualityCheck = isEnglish ? 'the English is coherent' : 'the Arabic is coherent';
 
   // --- Text-innovation layer ---
-  const angle = innovation?.angle || STRATEGIC_ANGLES[0];
-  const hookTemplate = innovation?.hook || HOOK_TEMPLATES[0];
-  const lengthVariant = innovation?.length || TEXT_LENGTH_VARIANTS[1];
+  const angle = resolvedInnovation?.angle || STRATEGIC_ANGLES[0];
+  const hookTemplate = resolvedInnovation?.hook || HOOK_TEMPLATES[0];
+  const lengthVariant = resolvedInnovation?.length || TEXT_LENGTH_VARIANTS[1];
 
   const innovationSection = `
 === TEXT-INNOVATION LAYER (MANDATORY — changes every generation) ===
@@ -255,7 +258,7 @@ export function buildVisualPrompt(topic) {
 export function resolveVisualAsset(topicSlug, { assetsDir = 'assets' } = {}) {
   if (!topicSlug) return null;
 
-  const resolvedDir = path.resolve(process.cwd(), assetsDir);
+  const resolvedDir = resolveAssetPath(assetsDir);
   if (!fs.existsSync(resolvedDir)) {
     return null;
   }
@@ -277,7 +280,7 @@ export function resolveVisualAsset(topicSlug, { assetsDir = 'assets' } = {}) {
   });
 
   if (match) {
-    return path.join(assetsDir, match);
+    return path.join(resolvedDir, match);
   }
 
   return null;
@@ -292,6 +295,7 @@ export async function callCloudflareWorkersAI({
   accountId = process.env.CLOUDFLARE_ACCOUNT_ID,
   apiToken = process.env.CLOUDFLARE_API_TOKEN,
   fetchClient = globalThis.fetch,
+  timeoutMs = 35000,
 } = {}) {
   if (!accountId || !apiToken) {
     throw new Error('CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN are required');
@@ -301,14 +305,23 @@ export async function callCloudflareWorkersAI({
   }
 
   const url = `${CF_API_BASE}/${accountId}/ai/run/${model}`;
-  const response = await fetchClient(url, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  let response;
+  try {
+    response = await fetchClient(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
 
   if (!response.ok) {
     const errorText = await response.text();
@@ -325,7 +338,7 @@ export async function callCloudflareWorkersAI({
 }
 
 /**
- * Generates post text strictly adhering to 5 elements via Cloudflare Workers AI (Llama 3.1 70B).
+ * Generates post text strictly adhering to 5 elements via Cloudflare Workers AI (Llama 3.1 70B / 8B).
  */
 export async function generatePostContentCloudflare(topic, options = {}) {
   const explicitModel =
@@ -338,9 +351,12 @@ export async function generatePostContentCloudflare(topic, options = {}) {
     accountId = options.cfAccountId || process.env.CLOUDFLARE_ACCOUNT_ID,
     apiToken = options.cfApiToken || process.env.CLOUDFLARE_API_TOKEN,
     fetchClient = options.fetchClient || globalThis.fetch,
+    innovation = topic?.innovation ?? topic?.ragContext?.innovation,
+    maxTokens = options.max_tokens ?? 2048,
+    temperature = options.temperature ?? 0.8,
   } = options;
 
-  const prompt = buildContentPrompt(topic);
+  const prompt = buildContentPrompt(topic, { innovation });
   const body = {
     messages: [
       {
@@ -352,31 +368,46 @@ export async function generatePostContentCloudflare(topic, options = {}) {
         content: prompt,
       },
     ],
+    max_tokens: maxTokens,
+    temperature,
   };
 
-  const data = await callCloudflareWorkersAI({
-    model,
-    body,
-    accountId,
-    apiToken,
-    fetchClient,
-  });
+  try {
+    const data = await callCloudflareWorkersAI({
+      model,
+      body,
+      accountId,
+      apiToken,
+      fetchClient,
+      timeoutMs: options.timeoutMs || 35000,
+    });
 
-  const text =
-    data?.result?.response ??
-    data?.result?.choices?.[0]?.message?.content ??
-    data?.result?.choices?.[0]?.text ??
-    (typeof data?.result === 'string' ? data.result : null);
+    const text =
+      data?.result?.response ??
+      data?.result?.choices?.[0]?.message?.content ??
+      data?.result?.choices?.[0]?.text ??
+      (typeof data?.result === 'string' ? data.result : null);
 
-  if (!text || typeof text !== 'string' || !text.trim()) {
-    throw new Error('Cloudflare text generation returned empty content');
+    if (!text || typeof text !== 'string' || !text.trim()) {
+      throw new Error('Cloudflare text generation returned empty content');
+    }
+
+    return {
+      text: ensureHashtags(text, topic),
+      model,
+      provider: 'cloudflare',
+    };
+  } catch (err) {
+    if (model !== '@cf/meta/llama-3.1-8b-instruct') {
+      console.warn(`[Fallback] Cloudflare model ${model} failed (${err.message}). Retrying with @cf/meta/llama-3.1-8b-instruct.`);
+      return await generatePostContentCloudflare(topic, {
+        ...options,
+        cfTextModel: '@cf/meta/llama-3.1-8b-instruct',
+        model: '@cf/meta/llama-3.1-8b-instruct',
+      });
+    }
+    throw err;
   }
-
-  return {
-    text: ensureHashtags(text, topic),
-    model,
-    provider: 'cloudflare',
-  };
 }
 
 /**
@@ -420,7 +451,7 @@ export async function generateVisualAssetCloudflare(topic, options = {}) {
     throw new Error('Cloudflare visual generation did not return valid image data');
   }
 
-  const resolvedOutputDir = path.resolve(process.cwd(), outputDir);
+  const resolvedOutputDir = resolveDataPath(outputDir);
   if (!fs.existsSync(resolvedOutputDir)) {
     fs.mkdirSync(resolvedOutputDir, { recursive: true });
   }
@@ -461,11 +492,12 @@ export async function generatePostContent(topic, options = {}) {
     client = null,
     model = DEFAULT_TEXT_MODEL,
     fetchClient = globalThis.fetch,
-    timeoutMs = Number(process.env.GEMINI_TIMEOUT_MS) || 5000,
+    timeoutMs = Number(process.env.GEMINI_TIMEOUT_MS) || 45000,
+    innovation = options.innovation ?? topic?.innovation ?? topic?.ragContext?.innovation,
   } = options;
 
   const validModel = normalizeTextModel(model);
-  const prompt = buildContentPrompt(topic);
+  const prompt = buildContentPrompt(topic, { innovation });
 
   try {
     const geminiClient = client || await createGeminiClient();
@@ -513,7 +545,11 @@ export async function generatePostContent(topic, options = {}) {
     if (hasCloudflareCredentials(options)) {
       console.warn(`[Fallback] Gemini text generation failed (${geminiError.message}). Falling back to Cloudflare Workers AI.`);
       const { model: _ignored, ...restOptions } = options;
-      return await generatePostContentCloudflare(topic, { ...restOptions, fetchClient });
+      try {
+        return await generatePostContentCloudflare(topic, { ...restOptions, innovation, fetchClient });
+      } catch (cfError) {
+        throw new Error(`Gemini: ${geminiError.message} | Cloudflare: ${cfError.message}`);
+      }
     }
     throw geminiError;
   }
@@ -529,7 +565,7 @@ export async function generateVisualAsset(topic, options = {}) {
     model = DEFAULT_VISUAL_MODEL,
     outputDir = 'data/generated_images',
     fetchClient = globalThis.fetch,
-    timeoutMs = Number(process.env.GEMINI_TIMEOUT_MS) || 5000,
+    timeoutMs = Number(process.env.GEMINI_TIMEOUT_MS) || 45000,
   } = options;
 
   const validModel = normalizeVisualModel(model);
@@ -566,7 +602,7 @@ export async function generateVisualAsset(topic, options = {}) {
       ? imageData
       : Buffer.from(imageData, 'base64');
 
-    const resolvedOutputDir = path.resolve(process.cwd(), outputDir);
+    const resolvedOutputDir = resolveDataPath(outputDir);
     if (!fs.existsSync(resolvedOutputDir)) {
       fs.mkdirSync(resolvedOutputDir, { recursive: true });
     }
@@ -588,7 +624,11 @@ export async function generateVisualAsset(topic, options = {}) {
     if (hasCloudflareCredentials(options)) {
       console.warn(`[Fallback] Gemini visual generation failed (${geminiError.message}). Falling back to Cloudflare Workers AI.`);
       const { model: _ignored, ...restOptions } = options;
-      return await generateVisualAssetCloudflare(topic, { ...restOptions, outputDir, fetchClient });
+      try {
+        return await generateVisualAssetCloudflare(topic, { ...restOptions, outputDir, fetchClient });
+      } catch (cfError) {
+        throw new Error(`Gemini: ${geminiError.message} | Cloudflare: ${cfError.message}`);
+      }
     }
     throw geminiError;
   }
@@ -602,8 +642,8 @@ export async function generateVisualAsset(topic, options = {}) {
 export async function synthesizeDraft(topic, options = {}) {
   const {
     client = null,
-    assetsDir = 'assets',
-    outputDir = 'data/generated_images',
+    assetsDir = resolveAssetPath('assets'),
+    outputDir = resolveDataPath('generated_images'),
     textModel = DEFAULT_TEXT_MODEL,
     visualModel = DEFAULT_VISUAL_MODEL,
     fetchClient = globalThis.fetch,
@@ -666,8 +706,8 @@ export async function synthesizeRAGDraft(options = {}) {
     situation = '',
     challenge: providedChallenge = null,
     client = null,
-    assetsDir = 'assets',
-    outputDir = 'data/generated_images',
+    assetsDir = resolveAssetPath('assets'),
+    outputDir = resolveDataPath('generated_images'),
     textModel = DEFAULT_TEXT_MODEL,
     visualModel = DEFAULT_VISUAL_MODEL,
     fetchClient = globalThis.fetch,
@@ -702,14 +742,7 @@ export async function synthesizeRAGDraft(options = {}) {
   const projectSlug = challenge?.project || matchedProject || '2wash';
 
   // --- Text-innovation layer: rotating angle/hook/length per generation ---
-  const angleIndex = getNextStrategicAngleIndex();
-  const hookIndex = getNextHookTemplateIndex();
-  const lengthIndex = getNextTextLengthVariantIndex();
-  const innovation = {
-    angle: resolveStrategicAngle(angleIndex),
-    hook: resolveHookTemplate(hookIndex),
-    length: resolveTextLengthVariant(lengthIndex),
-  };
+  const innovation = getNextInnovation();
 
   const topicObj = {
     id: challenge?.id || Date.now(),
@@ -748,13 +781,20 @@ export async function synthesizeRAGDraft(options = {}) {
       model: null,
       provider: 'local',
     })
-    : generateVisualAsset(topicObj, {
-      ...options,
-      client,
-      model: visualModel,
-      outputDir,
-      fetchClient,
-    });
+    : (options.skipRemoteVisual
+      ? Promise.resolve({
+        visualPath: null,
+        visualSource: 'none',
+        model: null,
+        provider: 'none',
+      })
+      : generateVisualAsset(topicObj, {
+        ...options,
+        client,
+        model: visualModel,
+        outputDir,
+        fetchClient,
+      }));
   const textPromise = generatePostContent(topicObj, {
     ...options,
     client,

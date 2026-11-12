@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -40,13 +41,13 @@ test('generate callback uses an awaited Workflow 1 trigger and reports failures'
   assert.match(code, /❌ \*تعذر تشغيل Workflow 1/);
 });
 
-test('workflow 1 fallback persists a pending draft before sending the preview', () => {
+test('workflow 1 returns error item and does not persist silent fallback draft on failure', () => {
   const workflowPath = path.join(repoRoot, 'workflows', 'workflow_1_staging.json');
   const staging = JSON.parse(fs.readFileSync(workflowPath, 'utf8'));
   const code = staging.nodes.find((node) => node.name === 'Gemini Generation & Visual Stager')?.parameters?.jsCode || '';
-  assert.match(code, /pending_drafts\.json/);
-  assert.match(code, /visual_source: 'local_fallback'/);
-  assert.match(code, /Could not persist fallback draft/);
+  assert.doesNotMatch(code, /استخدام DB::transaction وحده/);
+  assert.doesNotMatch(code, /visual_source: 'local_fallback'/);
+  assert.match(code, /فشل توليد المسودة/);
 });
 
 test('draft list buttons use explicit callback_data action IDs', () => {
@@ -145,4 +146,106 @@ test('show callback returns image binary and sends it through Telegram multipart
   assert.equal(result.binary.photo.fileName, 'post.png');
   assert.equal(result.binary.photo.mimeType, 'image/png');
   assert.equal(Buffer.from(result.binary.photo.data, 'base64').toString(), 'fake-image-bytes');
+});
+
+test('workflow 2 parser parses /situation with argument directly as generate with situation', () => {
+  const parserCode = nodes.get('Security & Command Parser')?.parameters?.jsCode;
+  const execute = new Function('$input', 'require', parserCode);
+  const result = execute({
+    item: {
+      json: {
+        body: {
+          message: {
+            from: { id: 445566 },
+            chat: { id: 445566 },
+            text: '/situation Race condition in payment balance deduction',
+          },
+        },
+        allowedTelegramUserId: '445566',
+      },
+    },
+  }, (mod) => (mod === 'fs' ? fs : (mod === 'path' ? path : null)))[0].json;
+
+  assert.equal(result.authorized, true);
+  assert.equal(result.command, 'generate');
+  assert.equal(result.situation, 'Race condition in payment balance deduction');
+});
+
+test('workflow 2 generate node forwards situation and query in payload to /webhook/generate', () => {
+  const code = nodes.get('Handle Generate Node')?.parameters?.jsCode || '';
+  assert.match(code, /payloadObj\.situation\s*=\s*situation/);
+  assert.match(code, /payloadObj\.query\s*=\s*query/);
+  assert.match(code, /path:\s*'\/webhook\/generate'/);
+});
+
+test('workflow 1 Gemini Generation & Visual Stager code compiles without syntax errors', () => {
+  const stagingPath = path.join(repoRoot, 'workflows', 'workflow_1_staging.json');
+  const staging = JSON.parse(fs.readFileSync(stagingPath, 'utf8'));
+  const code = staging.nodes.find((node) => node.name === 'Gemini Generation & Visual Stager')?.parameters?.jsCode || '';
+  assert.doesNotThrow(() => new Function('$input', '$env', 'require', code));
+  assert.ok(staging.nodes.some((node) => node.name === 'Has Generated Photo?'));
+});
+
+test('workflow 2 parser parses /reject, /delete, and Arabic حذف commands', () => {
+  const parserCode = nodes.get('Security & Command Parser')?.parameters?.jsCode;
+  const execute = new Function('$input', 'require', parserCode);
+  const parseMsg = (text) => execute({
+    item: {
+      json: {
+        body: {
+          message: {
+            from: { id: 445566 },
+            chat: { id: 445566 },
+            text,
+          },
+        },
+        allowedTelegramUserId: '445566',
+      },
+    },
+  }, (mod) => (mod === 'fs' ? fs : (mod === 'path' ? path : null)))[0].json;
+
+  assert.equal(parseMsg('/reject 123').command, 'reject');
+  assert.equal(parseMsg('/reject 123').draftId, '123');
+  assert.equal(parseMsg('/delete #45').command, 'reject');
+  assert.equal(parseMsg('/delete #45').draftId, '45');
+  assert.equal(parseMsg('حذف #77').command, 'reject');
+  assert.equal(parseMsg('حذف #77').draftId, '77');
+});
+
+test('workflow 2 Handle Rejection Node validates draftId and verifies deletion', () => {
+  const rejectCode = nodes.get('Handle Rejection Node')?.parameters?.jsCode || '';
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wf2-reject-'));
+  const draftsFile = path.join(tmpDir, 'pending_drafts.json');
+  fs.writeFileSync(draftsFile, JSON.stringify([{ id: 10, text: 'hello' }, { id: 20, text: 'world' }]));
+
+  const runReject = (draftId) => {
+    const fakeFs = {
+      ...fs,
+      existsSync: (p) => (p === '/data/pending_drafts.json' ? fs.existsSync(draftsFile) : false),
+      readFileSync: (p, enc) => (p === '/data/pending_drafts.json' ? fs.readFileSync(draftsFile, enc) : ''),
+      writeFileSync: (p, data, enc) => (p === '/data/pending_drafts.json' ? fs.writeFileSync(draftsFile, data, enc) : undefined),
+    };
+    const execute = new Function('$', 'require', rejectCode);
+    return execute(
+      () => ({ first: () => ({ json: { chatId: 445566, draftId } }) }),
+      (mod) => (mod === 'fs' ? fakeFs : null),
+    )[0].json;
+  };
+
+  try {
+    const missingId = runReject(null);
+    assert.match(missingId.replyText, /يرجى تحديد رقم المسودة/);
+    assert.equal(JSON.parse(fs.readFileSync(draftsFile, 'utf8')).length, 2);
+
+    const notFound = runReject('999');
+    assert.match(notFound.replyText, /لم أجد المسودة #999/);
+    assert.equal(JSON.parse(fs.readFileSync(draftsFile, 'utf8')).length, 2);
+
+    const deleted = runReject('10');
+    assert.match(deleted.replyText, /تم حذف المسودة #10/);
+    const remaining = JSON.parse(fs.readFileSync(draftsFile, 'utf8'));
+    assert.deepEqual(remaining.map((d) => d.id), [20]);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 });

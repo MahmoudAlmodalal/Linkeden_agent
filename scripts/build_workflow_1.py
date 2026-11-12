@@ -13,6 +13,8 @@ const situation = input.situation || '';
 let postText = '';
 let imagePath = null;
 let project = 'portfolio';
+let executionError = null;
+let imageError = null;
 
 try {
   const args = ['/scripts/generate_rag_draft.js', '--id', String(draftId)];
@@ -23,79 +25,80 @@ try {
   if (wantsProjectImage) {
     args.push('--project-image');
   }
-  const child = spawnSync(process.execPath, args, { cwd: '/', encoding: 'utf8', timeout: 60000 });
+  const child = spawnSync(process.execPath, args, { cwd: '/', encoding: 'utf8', timeout: 90000 });
   if (child.error) throw child.error;
-  if (child.status !== 0) throw new Error(child.stderr || `RAG process exited with ${child.status}`);
+  if (child.status !== 0) {
+    const errOut = (child.stderr || child.stdout || '').trim();
+    throw new Error(errOut || `RAG process exited with ${child.status}`);
+  }
   const result = JSON.parse(child.stdout);
   if (result.success && result.draft) {
     postText = result.draft.text;
     imagePath = result.draft.image_path;
     project = result.draft.project;
+    imageError = result.imageError || null;
+  } else {
+    throw new Error(result.error || 'RAG draft generation returned unsuccessful status');
   }
 } catch (err) {
+  executionError = err.message;
   console.error('RAG draft execution error:', err.message);
 }
-
-// Fallback if RAG script execution had an issue
-if (!postText) {
-  postText = `استخدام DB::transaction وحده لا يحمي تطبيقك من الـ Race Conditions إذا لم تقفل السجلات أثناء القراءة.\n\n` +
-    `في أحد مشاريع معالجة المدفوعات والاشتراكات، ظهرت مشكلة دقيقة: رصيد العميل ينزل إلى قيمة سالبة عند إرسال طلبين في نفس الجزء من الثانية، أو يتم شحن نفس كود التفعيل مرتين.\n\n` +
-    `الافتراض الأول كان وجود خطأ في الـ Frontend يسمح بالضغط المزدوج على زر التأكيد، أو خلل في الـ Queue Worker الذي يعالج العملية.\n\n` +
-    `قمت بكتابة اختبار آلي يحاكي طلبين متزامنين على نفس الحساب للتأكد من المشكلة. المفاجأة كانت أن كل شيء يعمل داخل DB::transaction بشكل سليم نظريا، لكن السجلات كانت تقرأ نفس الرصيد القديم قبل انتهاء المعاملة الأولى.\n\n` +
-    `السبب الجذري: الـ Transaction تضمن الذرية (Atomicity) فقط، لكنها لا تمنع العمليات الأخرى من قراءة القيمة الحالية إذا لم تستخدم Lock صريحا.\n\n` +
-    `الحل كان في خطوتين مباشرتين:\n` +
-    `1. استخدام Pessimistic Locking عبر استدعاء lockForUpdate عند جلب سجل الرصيد داخل المعاملة، لمنع أي عملية أخرى من قراءته أو تعديله حتى اكتمال التحديث.\n` +
-    `2. الاعتماد على العمليات الذرية المباشرة في قاعدة البيانات مثل decrement بدلا من قراءة القيمة وتعديلها في الذاكرة ثم حفظها.\n\n` +
-    `بعد تعديل الكود، أعدت تشغيل الاختبار وأثبت فشل أي محاولة خصم مزدوج مع حماية تامة للبيانات.\n\n` +
-    `الدرس الهندسي: لا تعتمد على حماية الواجهة لمنع تكرار العمليات الحساسة، وقاعدة البيانات هي خط الدفاع الحقيقي الوحيد.\n\n` +
-    `كيف تتعامل مع معالجة الرصيد والعمليات المالية المتزامنة في مشاريعك؟\n` +
-    `اكتبوا لنا في التعليقات 👇\n\n` +
-    `#Laravel #PHP #WebDevelopment #DatabaseDesign #SoftwareEngineering`;
-
-  try {
-    const draftsPath = input.draftsPath || '/data/pending_drafts.json';
-    const fallbackId = Number(draftId) || 1;
-    let drafts = [];
-    if (fs.existsSync(draftsPath)) {
-      try {
-        const parsed = JSON.parse(fs.readFileSync(draftsPath, 'utf8'));
-        drafts = Array.isArray(parsed) ? parsed : (Array.isArray(parsed.drafts) ? parsed.drafts : []);
-      } catch {
-        drafts = [];
-      }
-    }
-    if (!drafts.some((d) => Number(d.id) === fallbackId)) {
-      drafts.push({
-        id: fallbackId,
-        project,
-        topic: 'منشور هندسة عربي: حالة Race Condition في معالجة المدفوعات',
-        situation: situation || null,
-        text: postText,
-        post_text: postText,
-        image_path: fs.existsSync('/assets/mahmoud_card.png') ? '/assets/mahmoud_card.png' : '/assets/2wash.webp',
-        visual_source: 'local_fallback',
-        provider_used: { text: 'fallback', visual: 'local' },
-        status: 'pending',
-        created_at: new Date().toISOString(),
-      });
-      fs.writeFileSync(draftsPath, JSON.stringify(drafts, null, 2), 'utf8');
-    }
-  } catch (fallbackErr) {
-    console.error('Could not persist fallback draft:', fallbackErr.message);
-  }
-}
-
-if (!imagePath) {
-  imagePath = fs.existsSync('/assets/mahmoud_card.png') ? '/assets/mahmoud_card.png' : '/assets/2wash.webp';
-}
-
-const previewCaption = `[Draft ID: #${draftId}]\n\n` +
-  `تم توليد مسودة كاملة عن ${project}. ستصل الرسالة الكاملة بعد الصورة.`;
 
 const chatId = $env.TELEGRAM_ALLOWED_USER_ID;
 if (!chatId) throw new Error('TELEGRAM_ALLOWED_USER_ID is required to dispatch a draft');
 
-const resolvedImagePath = path.isAbsolute(imagePath) ? imagePath : path.resolve('/', imagePath);
+if (executionError || !postText) {
+  const rawReason = String(executionError || 'لم يتم توليد نص للمنشور من النموذج').trim();
+  const reason = rawReason.length > 1500 ? `${rawReason.slice(0, 1500)}...` : rawReason;
+  return [{
+    json: {
+      id: draftId,
+      project,
+      error: true,
+      hasImage: false,
+      text: `❌ فشل توليد المسودة #${draftId}\n\nالسبب:\n${reason}\n\nتحقق من مفاتيح الربط (Gemini/Cloudflare) وسجلات الخادم.`,
+      caption: `❌ فشل توليد المسودة #${draftId}: ${reason}`,
+    }
+  }];
+}
+
+if (!imagePath) {
+  const projectAsset = `/assets/${String(project).toLowerCase()}.webp`;
+  imagePath = fs.existsSync(projectAsset)
+    ? projectAsset
+    : (fs.existsSync('/assets/2wash.webp') ? '/assets/2wash.webp' : null);
+}
+
+let resolvedImagePath = null;
+if (imagePath) {
+  const candidate = path.isAbsolute(imagePath) ? imagePath : path.resolve('/', imagePath);
+  if (fs.existsSync(candidate)) {
+    resolvedImagePath = candidate;
+  }
+}
+
+const imageWarning = imageError
+  ? `\n\n⚠️ تعذر توليد الصورة المخصصة (السبب: ${String(imageError).slice(0, 500)})`
+  : '';
+
+const previewCaption = `[Draft ID: #${draftId}]\n\n` +
+  `تم توليد مسودة كاملة عن ${project}. ستصل الرسالة الكاملة بعد الصورة.`;
+
+if (!resolvedImagePath) {
+  return [{
+    json: {
+      id: draftId,
+      project: project,
+      error: false,
+      hasImage: false,
+      text: `${postText}${imageWarning || '\n\n⚠️ لم يتم إرفاق صورة لهذه المسودة.'}`,
+      image_path: null,
+      caption: previewCaption
+    }
+  }];
+}
+
 const extension = path.extname(resolvedImagePath).toLowerCase();
 const mimeType = extension === '.png' ? 'image/png' : (extension === '.webp' ? 'image/webp' : 'image/jpeg');
 
@@ -103,7 +106,9 @@ return [{
   json: {
     id: draftId,
     project: project,
-    text: postText,
+    error: false,
+    hasImage: true,
+    text: `${postText}${imageWarning}`,
     image_path: imagePath,
     caption: previewCaption
   },
@@ -172,6 +177,34 @@ wf = {
     },
     {
       "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": True,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ Boolean($json.hasImage) && !$json.error }}",
+              "rightValue": True,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": True
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "7b8d4c9a-4555-4444-8888-000000000008",
+      "name": "Has Generated Photo?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [830, 340]
+    },
+    {
+      "parameters": {
         "method": "POST",
         "url": "={{ 'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendPhoto' }}",
         "sendBody": True,
@@ -234,7 +267,13 @@ wf = {
       "main": [[{"node": "Gemini Generation & Visual Stager", "type": "main", "index": 0}]]
     },
     "Gemini Generation & Visual Stager": {
-      "main": [[{"node": "Telegram Send Photo", "type": "main", "index": 0}]]
+      "main": [[{"node": "Has Generated Photo?", "type": "main", "index": 0}]]
+    },
+    "Has Generated Photo?": {
+      "main": [
+        [{"node": "Telegram Send Photo", "type": "main", "index": 0}],
+        [{"node": "Telegram Send Full Post", "type": "main", "index": 0}]
+      ]
     },
     "Telegram Send Photo": {
       "main": [[{"node": "Restore Draft Text After Photo", "type": "main", "index": 0}]]

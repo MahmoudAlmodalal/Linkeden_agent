@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { resolveDataPath } from './path_resolver.js';
 
 /**
  * Strategic angles that change the narrative lens of every generated post,
@@ -61,28 +62,91 @@ export const HOOK_TEMPLATES = [
   'كلฐาน بيانات يُباع على أنه موحد يسلك سلوكاً مختلفاً تحت التزامن.',
 ];
 
-const TEXT_INNOVATION_STATE_FILE = path.resolve(process.cwd(), 'data', 'text_innovation_state.json');
+const TEXT_INNOVATION_STATE_FILE = resolveDataPath('text_innovation_state.json');
 
-export function getNextStrategicAngleIndex(stateFile = TEXT_INNOVATION_STATE_FILE) {
-  let currentIndex = 0;
+function readInnovationState(stateFile) {
   try {
-    if (fs.existsSync(stateFile)) {
-      const state = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
-      if (typeof state?.lastIndex === 'number') {
-        currentIndex = (state.lastIndex + 1) % STRATEGIC_ANGLES.length;
-      }
+    const resolved = resolveDataPath(stateFile);
+    if (fs.existsSync(resolved)) {
+      const state = JSON.parse(fs.readFileSync(resolved, 'utf8'));
+      if (state && typeof state === 'object') return state;
     }
-  } catch {
-    currentIndex = 0;
-  }
+  } catch {}
+  return {};
+}
 
+function writeInnovationState(stateFile, state) {
   try {
-    const dir = path.dirname(stateFile);
+    const resolved = resolveDataPath(stateFile);
+    const dir = path.dirname(resolved);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(stateFile, JSON.stringify({ lastIndex: currentIndex, angleId: STRATEGIC_ANGLES[currentIndex].id }, null, 2));
+    fs.writeFileSync(resolved, JSON.stringify(state, null, 2), 'utf8');
   } catch {
     // Ignore state write errors
   }
+}
+
+/**
+ * Single atomic call to get the next innovation tuple (angle, hook, length)
+ * while keeping all indices safely persisted without overwriting each other.
+ */
+export function getNextInnovation(stateFile = TEXT_INNOVATION_STATE_FILE) {
+  const state = readInnovationState(stateFile);
+
+  let angleIndex = 0;
+  if (typeof state.angleIndex === 'number') {
+    angleIndex = (state.angleIndex + 1) % STRATEGIC_ANGLES.length;
+  } else if (typeof state.lastIndex === 'number') {
+    angleIndex = (state.lastIndex + 1) % STRATEGIC_ANGLES.length;
+  }
+
+  let hookIndex = 0;
+  if (typeof state.hookIndex === 'number') {
+    hookIndex = (state.hookIndex + 1) % HOOK_TEMPLATES.length;
+  } else if (typeof state.lastHookIndex === 'number') {
+    hookIndex = (state.lastHookIndex + 1) % HOOK_TEMPLATES.length;
+  }
+
+  let lengthIndex = 0;
+  if (typeof state.lengthIndex === 'number') {
+    lengthIndex = (state.lengthIndex + 1) % TEXT_LENGTH_VARIANTS.length;
+  }
+
+  const newState = {
+    ...state,
+    angleIndex,
+    hookIndex,
+    lengthIndex,
+    angleId: STRATEGIC_ANGLES[angleIndex].id,
+    lastIndex: angleIndex,
+    lastHookIndex: hookIndex,
+  };
+
+  writeInnovationState(stateFile, newState);
+
+  return {
+    angle: STRATEGIC_ANGLES[angleIndex],
+    hook: HOOK_TEMPLATES[hookIndex],
+    length: TEXT_LENGTH_VARIANTS[lengthIndex],
+    angleIndex,
+    hookIndex,
+    lengthIndex,
+  };
+}
+
+export function getNextStrategicAngleIndex(stateFile = TEXT_INNOVATION_STATE_FILE) {
+  const state = readInnovationState(stateFile);
+  let currentIndex = 0;
+  if (typeof state.angleIndex === 'number') {
+    currentIndex = (state.angleIndex + 1) % STRATEGIC_ANGLES.length;
+  } else if (typeof state.lastIndex === 'number') {
+    currentIndex = (state.lastIndex + 1) % STRATEGIC_ANGLES.length;
+  }
+
+  state.angleIndex = currentIndex;
+  state.lastIndex = currentIndex;
+  state.angleId = STRATEGIC_ANGLES[currentIndex].id;
+  writeInnovationState(stateFile, state);
 
   return currentIndex;
 }
@@ -95,25 +159,17 @@ export function resolveStrategicAngle(index) {
 }
 
 export function getNextHookTemplateIndex(stateFile = TEXT_INNOVATION_STATE_FILE) {
+  const state = readInnovationState(stateFile);
   let currentIndex = 0;
-  try {
-    if (fs.existsSync(stateFile)) {
-      const state = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
-      if (typeof state?.lastHookIndex === 'number') {
-        currentIndex = (state.lastHookIndex + 1) % HOOK_TEMPLATES.length;
-      }
-    }
-  } catch {
-    currentIndex = 0;
+  if (typeof state.hookIndex === 'number') {
+    currentIndex = (state.hookIndex + 1) % HOOK_TEMPLATES.length;
+  } else if (typeof state.lastHookIndex === 'number') {
+    currentIndex = (state.lastHookIndex + 1) % HOOK_TEMPLATES.length;
   }
 
-  try {
-    const dir = path.dirname(stateFile);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(stateFile, JSON.stringify({ lastHookIndex: currentIndex }, null, 2));
-  } catch {
-    // Ignore state write errors
-  }
+  state.hookIndex = currentIndex;
+  state.lastHookIndex = currentIndex;
+  writeInnovationState(stateFile, state);
 
   return currentIndex;
 }
@@ -131,28 +187,20 @@ export const TEXT_LENGTH_VARIANTS = [
   { id: 'deep-dive', labelAr: 'غوص عميق', paragraphs: 8, detailLevel: 'تفصيل تقني كامل مع ذكر القياسات والاختبارات' },
 ];
 
-const TEXT_LENGTH_STATE_FILE = path.resolve(process.cwd(), 'data', 'text_length_state.json');
+const TEXT_LENGTH_STATE_FILE = resolveDataPath('text_length_state.json');
 
 export function getNextTextLengthVariantIndex(stateFile = TEXT_LENGTH_STATE_FILE) {
+  const state = readInnovationState(stateFile);
   let currentIndex = 0;
-  try {
-    if (fs.existsSync(stateFile)) {
-      const state = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
-      if (typeof state?.lastIndex === 'number') {
-        currentIndex = (state.lastIndex + 1) % TEXT_LENGTH_VARIANTS.length;
-      }
-    }
-  } catch {
-    currentIndex = 0;
+  if (typeof state.lengthIndex === 'number') {
+    currentIndex = (state.lengthIndex + 1) % TEXT_LENGTH_VARIANTS.length;
+  } else if (typeof state.lastIndex === 'number') {
+    currentIndex = (state.lastIndex + 1) % TEXT_LENGTH_VARIANTS.length;
   }
 
-  try {
-    const dir = path.dirname(stateFile);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(stateFile, JSON.stringify({ lastIndex: currentIndex }, null, 2));
-  } catch {
-    // Ignore state write errors
-  }
+  state.lengthIndex = currentIndex;
+  state.lastIndex = currentIndex;
+  writeInnovationState(stateFile, state);
 
   return currentIndex;
 }

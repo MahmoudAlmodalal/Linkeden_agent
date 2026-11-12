@@ -3,12 +3,13 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { STRATEGIC_ANGLES, HOOK_TEMPLATES, TEXT_LENGTH_VARIANTS } from './innovation_layer.js';
+import { resolveDataPath } from './path_resolver.js';
 
-export const DEFAULT_KB_DIR = path.resolve(process.cwd(), 'data', 'rag', 'knowledge_base');
-export const DEFAULT_CHALLENGES_PATH = path.resolve(process.cwd(), 'data', 'rag', 'challenges_matrix.json');
-export const DEFAULT_STYLE_GUIDE_PATH = path.resolve(process.cwd(), 'data', 'rag', 'author_style_guide.md');
-export const DEFAULT_RAG_STATE_PATH = path.resolve(process.cwd(), 'data', 'rag', 'rag_state.json');
-export const DEFAULT_EMBEDDING_CACHE_PATH = path.resolve(process.cwd(), 'data', 'rag', 'embedding_cache.json');
+export const DEFAULT_KB_DIR = resolveDataPath('rag', 'knowledge_base');
+export const DEFAULT_CHALLENGES_PATH = resolveDataPath('rag', 'challenges_matrix.json');
+export const DEFAULT_STYLE_GUIDE_PATH = resolveDataPath('rag', 'author_style_guide.md');
+export const DEFAULT_RAG_STATE_PATH = resolveDataPath('rag', 'rag_state.json');
+export const DEFAULT_EMBEDDING_CACHE_PATH = resolveDataPath('rag', 'embedding_cache.json');
 export const DEFAULT_EMBEDDING_MODEL = 'text-embedding-004';
 
 const QUERY_EMBEDDING_CACHE = new Map();
@@ -165,9 +166,10 @@ export function loadProjectChunks(kbDir = DEFAULT_KB_DIR) {
  * Loads the structured challenges matrix.
  */
 export function loadChallengesMatrix(filePath = DEFAULT_CHALLENGES_PATH) {
-  if (!fs.existsSync(filePath)) return [];
+  const resolved = resolveDataPath(filePath);
+  if (!fs.existsSync(resolved)) return [];
   try {
-    const raw = fs.readFileSync(filePath, 'utf8');
+    const raw = fs.readFileSync(resolved, 'utf8');
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
   } catch (err) {
@@ -180,19 +182,21 @@ export function loadChallengesMatrix(filePath = DEFAULT_CHALLENGES_PATH) {
  * Loads the author style guide.
  */
 export function loadAuthorStyleGuide(filePath = DEFAULT_STYLE_GUIDE_PATH) {
-  if (!fs.existsSync(filePath)) return '';
-  return fs.readFileSync(filePath, 'utf8');
+  const resolved = resolveDataPath(filePath);
+  if (!fs.existsSync(resolved)) return '';
+  return fs.readFileSync(resolved, 'utf8');
 }
 
 /**
  * Loads or initializes RAG state tracker (tracks challenge cycling index).
  */
 export function loadRAGState(filePath = DEFAULT_RAG_STATE_PATH) {
-  if (!fs.existsSync(filePath)) {
+  const resolved = resolveDataPath(filePath);
+  if (!fs.existsSync(resolved)) {
     return { lastChallengeId: 0, cycleCount: 1, lastGeneratedAt: null };
   }
   try {
-    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    return JSON.parse(fs.readFileSync(resolved, 'utf8'));
   } catch {
     return { lastChallengeId: 0, cycleCount: 1, lastGeneratedAt: null };
   }
@@ -202,9 +206,10 @@ export function loadRAGState(filePath = DEFAULT_RAG_STATE_PATH) {
  * Saves RAG state tracker.
  */
 export function saveRAGState(state, filePath = DEFAULT_RAG_STATE_PATH) {
-  const dir = path.dirname(filePath);
+  const resolved = resolveDataPath(filePath);
+  const dir = path.dirname(resolved);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(filePath, JSON.stringify(state, null, 2) + '\n', 'utf8');
+  fs.writeFileSync(resolved, JSON.stringify(state, null, 2) + '\n', 'utf8');
 }
 
 /**

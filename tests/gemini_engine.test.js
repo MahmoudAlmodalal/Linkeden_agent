@@ -786,4 +786,46 @@ describe('Gemini Engine - RAG Generation Efficiency', () => {
       fs.rmSync(outputDir, { recursive: true, force: true });
     }
   });
+
+  it('preserves both Gemini and Cloudflare failure reasons when both APIs fail', async () => {
+    const topic = {
+      id: 1,
+      slug: 'failure-test',
+      title: 'API Failure Test',
+      concept: 'Testing combined API error reporting',
+      keywords: ['Backend'],
+    };
+    const failingClient = {
+      interactions: {
+        create: async () => {
+          throw new Error('Gemini 429 quota exceeded');
+        },
+      },
+    };
+    const failingFetch = async () => ({
+      ok: false,
+      status: 401,
+      text: async () => 'Invalid Cloudflare API token',
+    });
+
+    await assert.rejects(
+      () => generatePostContent(topic, {
+        client: failingClient,
+        cfAccountId: 'acct',
+        cfApiToken: 'tok',
+        fetchClient: failingFetch,
+      }),
+      /Gemini: Gemini 429 quota exceeded \| Cloudflare: Cloudflare Workers AI HTTP 401: Invalid Cloudflare API token/
+    );
+
+    await assert.rejects(
+      () => generateVisualAsset(topic, {
+        client: failingClient,
+        cfAccountId: 'acct',
+        cfApiToken: 'tok',
+        fetchClient: failingFetch,
+      }),
+      /Gemini: Gemini 429 quota exceeded \| Cloudflare: Cloudflare Workers AI HTTP 401: Invalid Cloudflare API token/
+    );
+  });
 });

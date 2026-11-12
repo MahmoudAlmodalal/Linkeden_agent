@@ -1,0 +1,23 @@
+[
+  {
+    "id": 1,
+    "draftId": 1000,
+    "situation": "مشكلة استنزاف الاتصالات في قاعدة البيانات عند ارتفاع عدد المدارس",
+    "topic": "Production Incident Post-Mortem",
+    "created_at": "2026-11-05T08:52:04.177Z"
+  },
+  {
+    "id": 2,
+    "draftId": 1001,
+    "situation": "تأخير في الـ P95 latency بسبب استعلامات N+1 في لوحة التحكم",
+    "topic": "Pure-Python Hybrid Search (BM25 + ChromaDB Dense RRF) Eliminating Elasticsearch",
+    "created_at": "2026-11-05T08:52:30.692Z"
+  },
+  {
+    "id": 3,
+    "draftId": 1000,
+    "situation": "اختبار حقيقي داخل n8n-custom",
+    "topic": "Production Incident Post-Mortem",
+    "created_at": "2026-11-05T09:22:10.022Z"
+  }
+]

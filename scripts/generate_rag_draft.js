@@ -3,16 +3,17 @@ import path from 'node:path';
 import { createGeminiClient, synthesizeRAGDraft, resolveVisualAsset } from './gemini_engine.js';
 import { addPendingDraft, loadPendingDrafts, addScenario } from './telegram_router.js';
 import { renderCardImage, extractCardContent } from './generate_card_asset.js';
+import { resolveDataPath, resolveAssetPath } from './path_resolver.js';
 
 export async function runRAGStaging({
   query = '',
   situation = '',
   draftId = null,
   client = null,
-  draftsPath = 'data/pending_drafts.json',
-  scenariosPath = 'data/scenarios.json',
-  assetsDir = 'assets',
-  outputDir = 'data/generated_images',
+  draftsPath = resolveDataPath('pending_drafts.json'),
+  scenariosPath = resolveDataPath('scenarios.json'),
+  assetsDir = resolveAssetPath('assets'),
+  outputDir = resolveDataPath('generated_images'),
   useBrandedCard = true,
   useProjectImage = false,
   cfAccountId,
@@ -35,10 +36,12 @@ export async function runRAGStaging({
     cfAccountId,
     cfApiToken,
     fetchClient,
+    skipRemoteVisual: useBrandedCard,
   });
 
   let finalImagePath = draft.visualPath;
   let finalVisualSource = draft.visualSource;
+  let imageError = null;
 
   // Resolve local project asset for branded card background or explicit project image
   const projectSlug = draft.project || draft.topic?.slug || 'portfolio';
@@ -69,6 +72,7 @@ export async function runRAGStaging({
         finalVisualSource = 'branded_card';
       }
     } catch (cardErr) {
+      imageError = cardErr.message;
       console.warn(`[CardGenerator] Could not render branded card: ${cardErr.message}. Using default visual asset.`);
     }
   }
@@ -108,11 +112,15 @@ export async function runRAGStaging({
     success: true,
     draftId: calculatedDraftId,
     draft: newDraft,
+    ...(imageError ? { imageError } : {}),
   };
 }
 
 // CLI runner
 if (process.argv[1] && process.argv[1].endsWith('generate_rag_draft.js')) {
+  if (typeof process.loadEnvFile === 'function') {
+    try { process.loadEnvFile(); } catch {}
+  }
   const args = process.argv.slice(2);
   const queryIdx = args.indexOf('--query');
   const query = queryIdx !== -1 && args[queryIdx + 1] ? args[queryIdx + 1] : '';
