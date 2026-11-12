@@ -25,7 +25,7 @@ try {
   if (wantsProjectImage) {
     args.push('--project-image');
   }
-  const child = spawnSync(process.execPath, args, { cwd: '/', encoding: 'utf8', timeout: 90000 });
+  const child = spawnSync('node', args, { cwd: '/', encoding: 'utf8', timeout: 90000 });
   if (child.error) throw child.error;
   if (child.status !== 0) {
     const errOut = (child.stderr || child.stdout || '').trim();
