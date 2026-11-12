@@ -45,8 +45,8 @@ try {
   console.error('RAG draft execution error:', err.message);
 }
 
-const chatId = $env.TELEGRAM_ALLOWED_USER_ID;
-if (!chatId) throw new Error('TELEGRAM_ALLOWED_USER_ID is required to dispatch a draft');
+const allowedChatId = $env.TELEGRAM_ALLOWED_USER_ID;
+if (!allowedChatId) throw new Error('TELEGRAM_ALLOWED_USER_ID is required to dispatch a draft');
 
 if (executionError || !postText) {
   const rawReason = String(executionError || 'لم يتم توليد نص للمنشور من النموذج').trim();

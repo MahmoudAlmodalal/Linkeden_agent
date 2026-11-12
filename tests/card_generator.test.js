@@ -11,6 +11,11 @@ import {
   CARD_WIDTH,
   CARD_HEIGHT,
 } from '../scripts/generate_card_asset.js';
+import {
+  escapeHtml,
+  validateCardContent,
+  generateCardContent,
+} from '../scripts/card_content.js';
 
 describe('Mahmoud Card Generator - Dynamic Card Rendering', () => {
   it('generates HTML containing Mahmoud H. Almodalal, Full-Stack Developer, and avatar image', () => {
@@ -116,5 +121,128 @@ describe('Mahmoud Card Generator - Dynamic Card Rendering', () => {
       fs.unlinkSync(result.absolutePath);
       fs.rmdirSync(path.dirname(result.absolutePath));
     } catch {}
+  });
+
+  it('escapes HTML special characters in card fields', () => {
+    const html = generateCardHTML({
+      title: 'A < B & C > D',
+      highlight: '"quoted"',
+      pill: 'DB & Cache',
+      steps: ['Step 1: x < y & z > 0', 'Step 2: a < b', 'Step 3: c & d'],
+      language: 'en',
+    }, DEFAULT_AUTHOR);
+
+    assert.ok(html.includes('A &lt; B &amp; C &gt; D'));
+    assert.ok(html.includes('&quot;quoted&quot;'));
+    assert.ok(html.includes('DB &amp; Cache'));
+    assert.ok(html.includes('Step 1: x &lt; y &amp; z &gt; 0'));
+    assert.ok(!html.includes('A < B & C > D'));
+    assert.equal(escapeHtml(`'test' & <tag>`), '&#39;test&#39; &amp; &lt;tag&gt;');
+  });
+
+  it('renders English cards with LTR direction and Plus Jakarta Sans font', () => {
+    const html = generateCardHTML({
+      title: 'Why Idempotency Keys Matter in Payments',
+      pill: 'Distributed Systems',
+      steps: [
+        'Store idempotency key with request hash in Redis',
+        'Return cached response on duplicate retries',
+        'Set TTL longer than client retry window',
+      ],
+      language: 'en',
+    }, DEFAULT_AUTHOR);
+
+    assert.ok(html.includes('<html lang="en" dir="ltr">'));
+    assert.ok(html.includes('.progression-spine{right:auto;left:29px}'));
+    assert.ok(html.includes("font-family:'Plus Jakarta Sans',sans-serif"));
+  });
+});
+
+describe('Card Content Generation & Validation (card_content.js)', () => {
+  const samplePost = `عند بناء بوابة دفع، تكرار الطلبات بسبب انقطاع الشبكة قد يسبب خصماً مضاعفاً.
+الحل يعتمد على Idempotency Key لكل عملية دفع مع حفظ النتيجة في Redis.
+تأكد من مقارنة hash الطلب لمنع إعادة استخدام نفس المفتاح ببيانات مختلفة.
+اضبط TTL للمفتاح ليغطي نافذة إعادة المحاولة.`;
+
+  it('validateCardContent rejects generic filler, foreign scripts, and ungrounded steps', () => {
+    const bad = {
+      title: 'موضوع عام',
+      highlight: '',
+      pill: 'عام',
+      steps: [
+        'حدد هدفك بوضوح',
+        'نصيحة مخترعة لا علاقة لها بالمنشور بتاتاً',
+        'Redis يحفظ النتيجة في الذاكرة',
+      ],
+    };
+    const res = validateCardContent(bad, { postText: samplePost, language: 'ar' });
+    assert.equal(res.ok, false);
+    assert.ok(res.issues.includes('generic filler phrase'));
+    assert.ok(res.issues.some((i) => i.includes('not grounded in the post')));
+
+    const foreign = {
+      title: 'Title with 中文',
+      highlight: '',
+      pill: 'Backend',
+      steps: ['Redis stores keys', 'Idempotency prevents duplicates', 'TTL expires keys'],
+    };
+    const foreignRes = validateCardContent(foreign, {
+      postText: 'Redis stores keys and Idempotency prevents duplicates with TTL',
+      language: 'en',
+    });
+    assert.equal(foreignRes.ok, false);
+    assert.ok(foreignRes.issues.includes('foreign script in card text'));
+  });
+
+  it('generateCardContent retries with validation feedback and returns grounded card', async () => {
+    let calls = 0;
+    const result = await generateCardContent({
+      postText: samplePost,
+      topic: { title: 'Idempotency Keys in Payment Gateways', keywords: ['Redis', 'Idempotency'] },
+      language: 'ar',
+      generateText: async (prompt) => {
+        calls++;
+        if (calls === 1) {
+          return JSON.stringify({
+            title: 'نصائح عامة',
+            highlight: '',
+            pill: 'عام',
+            steps: ['حدد هدفك', 'خصص وقتاً', 'تعلم من مصادر موثوقة'],
+          });
+        }
+        assert.ok(prompt.includes('Your previous answer had these problems, fix them:'));
+        return JSON.stringify({
+          title: 'كيف تمنع الخصم المضاعف في بوابات الدفع؟',
+          highlight: '',
+          pill: 'أنظمة موزعة',
+          steps: [
+            'استخدم Idempotency Key لكل عملية دفع',
+            'احفظ نتيجة العملية في Redis',
+            'قارن hash الطلب واضبط TTL مناسب',
+          ],
+        });
+      },
+    });
+
+    assert.equal(calls, 2);
+    assert.equal(result.language, 'ar');
+    assert.equal(result.steps.length, 3);
+    assert.equal(result.pill, 'أنظمة موزعة');
+  });
+
+  it('generateCardContent falls back to post sentences without generic filler when LLM fails', async () => {
+    const result = await generateCardContent({
+      postText: samplePost,
+      topic: { title: 'Idempotency Keys', keywords: ['Redis'] },
+      language: 'ar',
+      generateText: async () => {
+        throw new Error('LLM unavailable');
+      },
+    });
+
+    assert.equal(result.title, 'Idempotency Keys');
+    assert.equal(result.language, 'ar');
+    assert.ok(result.steps.length >= 1);
+    assert.ok(!result.steps.some((s) => s.includes('حدد هدفك')));
   });
 });

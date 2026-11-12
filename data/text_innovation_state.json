@@ -1,8 +1,8 @@
 {
-  "angleIndex": 1,
-  "hookIndex": 0,
+  "angleIndex": 6,
+  "hookIndex": 3,
   "lengthIndex": 2,
-  "lastIndex": 1,
-  "lastHookIndex": 0,
-  "angleId": "production-incident"
+  "lastIndex": 6,
+  "lastHookIndex": 3,
+  "angleId": "anti-pattern"
 }

@@ -7,6 +7,7 @@ import {
   getNextChallenge,
 } from './rag_engine.js';
 import { resolveDataPath, resolveAssetPath } from './path_resolver.js';
+import { buildTopicPostPrompt } from './topic_mode.js';
 
 export const DEFAULT_TEXT_MODEL = 'gemini-3.8-flash';
 export const DEFAULT_VISUAL_MODEL = 'gemini-nano-banana-2.1';
@@ -104,6 +105,9 @@ export async function createGeminiClient({ apiKey = process.env.GEMINI_API_KEY }
  */
 export function buildContentPrompt(topic, { innovation } = {}) {
   const resolvedInnovation = innovation ?? topic?.innovation ?? topic?.ragContext?.innovation;
+  if (topic?.isGeneral) {
+    return buildTopicPostPrompt(topic, { innovation: resolvedInnovation });
+  }
   if (topic?.ragContext) {
     return buildGroundedRAGPrompt({ ...topic.ragContext, innovation: resolvedInnovation });
   }
@@ -340,7 +344,7 @@ export async function callCloudflareWorkersAI({
 /**
  * Generates post text strictly adhering to 5 elements via Cloudflare Workers AI (Llama 3.1 70B / 8B).
  */
-export async function generatePostContentCloudflare(topic, options = {}) {
+export async function generateRawTextCloudflare(prompt, options = {}) {
   const explicitModel =
     options.cfTextModel ||
     options.cfModel ||
@@ -351,22 +355,15 @@ export async function generatePostContentCloudflare(topic, options = {}) {
     accountId = options.cfAccountId || process.env.CLOUDFLARE_ACCOUNT_ID,
     apiToken = options.cfApiToken || process.env.CLOUDFLARE_API_TOKEN,
     fetchClient = options.fetchClient || globalThis.fetch,
-    innovation = topic?.innovation ?? topic?.ragContext?.innovation,
     maxTokens = options.max_tokens ?? 2048,
     temperature = options.temperature ?? 0.8,
+    systemPrompt = options.systemPrompt || 'You are a Principal Software Architect writing a high-signal technical post for LinkedIn aimed at engineering leaders.',
   } = options;
 
-  const prompt = buildContentPrompt(topic, { innovation });
   const body = {
     messages: [
-      {
-        role: 'system',
-        content: 'You are a Principal Software Architect writing a high-signal technical post for LinkedIn aimed at engineering leaders.',
-      },
-      {
-        role: 'user',
-        content: prompt,
-      },
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: prompt },
     ],
     max_tokens: maxTokens,
     temperature,
@@ -393,14 +390,14 @@ export async function generatePostContentCloudflare(topic, options = {}) {
     }
 
     return {
-      text: ensureHashtags(text, topic),
+      text,
       model,
       provider: 'cloudflare',
     };
   } catch (err) {
     if (model !== '@cf/meta/llama-3.1-8b-instruct') {
       console.warn(`[Fallback] Cloudflare model ${model} failed (${err.message}). Retrying with @cf/meta/llama-3.1-8b-instruct.`);
-      return await generatePostContentCloudflare(topic, {
+      return await generateRawTextCloudflare(prompt, {
         ...options,
         cfTextModel: '@cf/meta/llama-3.1-8b-instruct',
         model: '@cf/meta/llama-3.1-8b-instruct',
@@ -408,6 +405,16 @@ export async function generatePostContentCloudflare(topic, options = {}) {
     }
     throw err;
   }
+}
+
+export async function generatePostContentCloudflare(topic, options = {}) {
+  const innovation = options.innovation ?? topic?.innovation ?? topic?.ragContext?.innovation;
+  const prompt = buildContentPrompt(topic, { innovation });
+  const result = await generateRawTextCloudflare(prompt, options);
+  return {
+    ...result,
+    text: ensureHashtags(result.text, topic),
+  };
 }
 
 /**
@@ -484,20 +491,18 @@ export async function withTimeout(promise, ms = 8000, errorMsg = 'Operation time
 }
 
 /**
- * Generates post text adhering to the 5-element breakdown using gemini-3.8-flash,
+ * Generates raw text from a prompt using gemini-3.8-flash,
  * with automatic fallback to Cloudflare Workers AI if Gemini fails or is unavailable.
  */
-export async function generatePostContent(topic, options = {}) {
+export async function generateRawText(prompt, options = {}) {
   const {
     client = null,
     model = DEFAULT_TEXT_MODEL,
     fetchClient = globalThis.fetch,
     timeoutMs = Number(process.env.GEMINI_TIMEOUT_MS) || 45000,
-    innovation = options.innovation ?? topic?.innovation ?? topic?.ragContext?.innovation,
   } = options;
 
   const validModel = normalizeTextModel(model);
-  const prompt = buildContentPrompt(topic, { innovation });
 
   try {
     const geminiClient = client || await createGeminiClient();
@@ -537,7 +542,7 @@ export async function generatePostContent(topic, options = {}) {
     }
 
     return {
-      text: ensureHashtags(text, topic),
+      text,
       model: validModel,
       provider: 'gemini',
     };
@@ -546,13 +551,27 @@ export async function generatePostContent(topic, options = {}) {
       console.warn(`[Fallback] Gemini text generation failed (${geminiError.message}). Falling back to Cloudflare Workers AI.`);
       const { model: _ignored, ...restOptions } = options;
       try {
-        return await generatePostContentCloudflare(topic, { ...restOptions, innovation, fetchClient });
+        return await generateRawTextCloudflare(prompt, { ...restOptions, fetchClient });
       } catch (cfError) {
         throw new Error(`Gemini: ${geminiError.message} | Cloudflare: ${cfError.message}`);
       }
     }
     throw geminiError;
   }
+}
+
+/**
+ * Generates post text adhering to the 5-element breakdown using gemini-3.8-flash,
+ * with automatic fallback to Cloudflare Workers AI if Gemini fails or is unavailable.
+ */
+export async function generatePostContent(topic, options = {}) {
+  const innovation = options.innovation ?? topic?.innovation ?? topic?.ragContext?.innovation;
+  const prompt = buildContentPrompt(topic, { innovation });
+  const result = await generateRawText(prompt, options);
+  return {
+    ...result,
+    text: ensureHashtags(result.text, topic),
+  };
 }
 
 /**

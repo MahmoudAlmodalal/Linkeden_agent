@@ -3,6 +3,7 @@ import path from 'node:path';
 import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { resolveDataPath, resolveAssetPath } from './path_resolver.js';
+import { escapeHtml } from './card_content.js';
 
 export const CARD_WIDTH = 1080;
 export const CARD_HEIGHT = 1350;
@@ -249,11 +250,12 @@ export function extractCardContent(postText = '', challengeOrTopic = {}) {
  */
 export function generateCardHTML(cardData = {}, author = DEFAULT_AUTHOR) {
   const avatarDataUrl = getAvatarBase64(author?.avatarPath);
+  const isEn = cardData.language === 'en';
 
-  const title = cardData.title || 'كيف تتعلم تقنيات جديدة';
-  const highlight = cardData.highlight || (cardData.title && !cardData.highlight ? '' : 'وأنت مشغول بالعمل كمهندس برمجيات؟');
-  const pill = cardData.pill || cardData.tag1 || 'نصائح للمطورين';
-  const steps = Array.isArray(cardData.steps) && cardData.steps.length > 0
+  const rawTitle = cardData.title || 'كيف تتعلم تقنيات جديدة';
+  const rawHighlight = cardData.highlight || (cardData.title && !cardData.highlight ? '' : 'وأنت مشغول بالعمل كمهندس برمجيات؟');
+  const rawPill = cardData.pill || cardData.tag1 || 'نصائح للمطورين';
+  const rawSteps = Array.isArray(cardData.steps) && cardData.steps.length > 0
     ? cardData.steps
     : (Array.isArray(cardData.bullets) && cardData.bullets.length > 0
       ? cardData.bullets
@@ -265,11 +267,16 @@ export function generateCardHTML(cardData = {}, author = DEFAULT_AUTHOR) {
         'راجع وطور مهاراتك باستمرار'
       ]);
 
-  const authorName = author?.name || DEFAULT_AUTHOR.name;
-  const authorTitle = author?.title || DEFAULT_AUTHOR.title;
+  const title = escapeHtml(rawTitle);
+  const highlight = escapeHtml(rawHighlight);
+  const pill = escapeHtml(rawPill);
+  const steps = rawSteps.map(escapeHtml);
+
+  const authorName = escapeHtml(author?.name || DEFAULT_AUTHOR.name);
+  const authorTitle = escapeHtml(author?.title || DEFAULT_AUTHOR.title);
 
   return `<!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="${isEn ? 'en' : 'ar'}" dir="${isEn ? 'ltr' : 'rtl'}">
 <head>
 <meta charset="UTF-8">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -425,7 +432,7 @@ export function generateCardHTML(cardData = {}, author = DEFAULT_AUTHOR) {
 
   .main-headline {
     font-family: 'Cairo', sans-serif;
-    font-size: ${title.length > 60 ? '38px' : '44px'};
+    font-size: ${rawTitle.length > 60 ? '38px' : '44px'};
     font-weight: 900;
     line-height: 1.38;
     color: #ffffff;
@@ -620,7 +627,13 @@ export function generateCardHTML(cardData = {}, author = DEFAULT_AUTHOR) {
 
   .social-pill svg {
     color: #2dd4bf;
-  }
+  }${isEn ? `
+  .header,.headline-section,.steps-container,.footer{direction:ltr}
+  .brand-details,.author-info,.step-text,.headline-section{text-align:left}
+  .progression-spine{right:auto;left:29px}
+  .step-row{flex-direction:row}
+  .step-card{margin-right:0;margin-left:24px;flex-direction:row-reverse}
+  .main-headline,.step-text{font-family:'Plus Jakarta Sans',sans-serif}` : ''}
 </style>
 </head>
 <body>

@@ -1,8 +1,17 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { createGeminiClient, synthesizeRAGDraft, resolveVisualAsset } from './gemini_engine.js';
+import {
+  createGeminiClient,
+  synthesizeRAGDraft,
+  resolveVisualAsset,
+  generateRawText,
+  generatePostContent,
+  getNextInnovation,
+} from './gemini_engine.js';
+import { proposeTopic, saveTopicToHistory } from './topic_mode.js';
 import { addPendingDraft, loadPendingDrafts, addScenario } from './telegram_router.js';
-import { renderCardImage, extractCardContent } from './generate_card_asset.js';
+import { renderCardImage } from './generate_card_asset.js';
+import { generateCardContent } from './card_content.js';
 import { resolveDataPath, resolveAssetPath } from './path_resolver.js';
 
 export async function runRAGStaging({
@@ -12,6 +21,7 @@ export async function runRAGStaging({
   client = null,
   draftsPath = resolveDataPath('pending_drafts.json'),
   scenariosPath = resolveDataPath('scenarios.json'),
+  topicHistoryPath = resolveDataPath('topic_history.json'),
   assetsDir = resolveAssetPath('assets'),
   outputDir = resolveDataPath('generated_images'),
   useBrandedCard = true,
@@ -27,17 +37,72 @@ export async function runRAGStaging({
       : 1
   );
 
-  const draft = await synthesizeRAGDraft({
-    query,
-    situation,
-    client,
-    assetsDir,
-    outputDir,
-    cfAccountId,
-    cfApiToken,
-    fetchClient,
-    skipRemoteVisual: useBrandedCard,
-  });
+  const isGeneralMode = !String(query || '').trim() && !String(situation || '').trim();
+
+  let draft;
+  if (isGeneralMode) {
+    const topic = await proposeTopic({
+      generateText: async (prompt) => {
+        const res = await generateRawText(prompt, {
+          client,
+          cfAccountId,
+          cfApiToken,
+          fetchClient,
+        });
+        return res.text;
+      },
+      historyPath: topicHistoryPath,
+    });
+
+    const innovation = getNextInnovation();
+    const textResult = await generatePostContent(topic, {
+      client,
+      innovation,
+      cfAccountId,
+      cfApiToken,
+      fetchClient,
+    });
+
+    saveTopicToHistory(
+      {
+        title: topic.title,
+        slug: topic.slug,
+        area: topic.area,
+        language: topic.language,
+      },
+      topicHistoryPath
+    );
+
+    draft = {
+      project: null,
+      challenge: null,
+      situation: '',
+      topic,
+      text: textResult.text,
+      visualPath: null,
+      visualSource: 'none',
+      modelUsed: {
+        text: textResult.model,
+        visual: null,
+      },
+      providerUsed: {
+        text: textResult.provider || 'gemini',
+        visual: 'none',
+      },
+    };
+  } else {
+    draft = await synthesizeRAGDraft({
+      query,
+      situation,
+      client,
+      assetsDir,
+      outputDir,
+      cfAccountId,
+      cfApiToken,
+      fetchClient,
+      skipRemoteVisual: useBrandedCard,
+    });
+  }
 
   let finalImagePath = draft.visualPath;
   let finalVisualSource = draft.visualSource;
@@ -61,7 +126,23 @@ export async function runRAGStaging({
   } else if (useBrandedCard) {
     // Default: Always use mahmoud_card and write post content on it
     try {
-      const cardContent = extractCardContent(draft.text, draft.challenge || draft.topic);
+      const topic = draft.challenge || draft.topic;
+      const language = topic?.language || draft.topic?.language || 'ar';
+      const generateText = async (prompt) => {
+        const res = await generateRawText(prompt, {
+          client,
+          cfAccountId,
+          cfApiToken,
+          fetchClient,
+        });
+        return res.text;
+      };
+      const cardContent = await generateCardContent({
+        generateText,
+        postText: draft.text,
+        topic,
+        language,
+      });
 
       const cardResult = await renderCardImage(cardContent, {
         outputDir,
