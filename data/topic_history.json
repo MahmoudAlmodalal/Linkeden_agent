@@ -1,0 +1,16 @@
+[
+  {
+    "title": "Clock Skew Isn't a Minor Bug — It's a Hidden Performance Tax in Distributed Systems",
+    "slug": "clock-skew-linearizability-cost",
+    "area": "Distributed systems and consistency",
+    "language": "ar",
+    "at": "2026-11-12T10:17:45.810Z"
+  },
+  {
+    "title": "Why Wrapping an Indexed Column in a Function Silently Kills Your Index",
+    "slug": "why-wrapping-an-indexed-column-in-a-function-kills-your-index",
+    "area": "Database internals and query performance",
+    "language": "en",
+    "at": "2026-11-12T10:22:53.371Z"
+  }
+]

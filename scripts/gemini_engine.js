@@ -10,12 +10,13 @@ import { resolveDataPath, resolveAssetPath } from './path_resolver.js';
 import { buildTopicPostPrompt } from './topic_mode.js';
 
 export const DEFAULT_TEXT_MODEL = 'gemini-3.8-flash';
+export const FALLBACK_TEXT_MODEL = 'gemini-2.5-flash'; // Fast retry when primary times out
 export const DEFAULT_VISUAL_MODEL = 'gemini-nano-banana-2.1';
 export const FALLBACK_VISUAL_MODEL = 'gemini-3-pro-image';
 export const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 export const DEFAULT_OPENROUTER_FREE_MODELS = [
-  'openrouter/free',
   'baidu/ernie-5.5-flash-preview:free',
+  'openrouter/free',
   'nvidia/nemotron-3.5-lightning:free',
   'google/gemma-4-31b-it:free',
   'google/gemma-4-26b-a4b-it:free',
@@ -322,9 +323,9 @@ export async function generateRawTextOpenRouter(prompt, options = {}) {
 
   const explicitModel = options.openRouterModel || process.env.OPENROUTER_TEXT_MODEL;
   const models = [...new Set([explicitModel, ...DEFAULT_OPENROUTER_FREE_MODELS].filter(Boolean))];
-  const maxTokens = options.max_tokens ?? 2048;
+  const maxTokens = options.max_tokens ?? 2500;
   const temperature = options.temperature ?? 0.8;
-  const timeoutMs = Number(options.openRouterTimeoutMs || process.env.OPENROUTER_TIMEOUT_MS) || 15000;
+  const timeoutMs = Number(options.openRouterTimeoutMs || process.env.OPENROUTER_TIMEOUT_MS) || 25000;
   const systemPrompt = options.systemPrompt || 'You are a Principal Software Architect writing a high-signal technical post for LinkedIn aimed at engineering leaders.';
 
   const errors = [];
@@ -356,7 +357,12 @@ export async function generateRawTextOpenRouter(prompt, options = {}) {
       }
 
       const data = await response.json();
-      const text = data?.choices?.[0]?.message?.content;
+      const message = data?.choices?.[0]?.message;
+      let text = message?.content;
+      // Some thinking/reasoning models place final output or reasoning separately
+      if ((!text || typeof text !== 'string' || !text.trim()) && message?.reasoning) {
+        text = message.reasoning;
+      }
       if (!text || typeof text !== 'string' || !text.trim()) {
         throw new Error('OpenRouter returned empty content');
       }
@@ -586,7 +592,7 @@ export async function generateRawText(prompt, options = {}) {
     client = null,
     model = DEFAULT_TEXT_MODEL,
     fetchClient = globalThis.fetch,
-    timeoutMs = Number(process.env.GEMINI_TIMEOUT_MS) || 45000,
+    timeoutMs = Number(process.env.GEMINI_TIMEOUT_MS) || 70000,
   } = options;
 
   const validModel = normalizeTextModel(model);
@@ -599,48 +605,76 @@ export async function generateRawText(prompt, options = {}) {
     }
   }
 
+  // Try Gemini with an internal model fallback: if the primary times out,
+  // retry once with FALLBACK_TEXT_MODEL before falling through to Cloudflare.
+  const geminiModelsToTry = validModel !== FALLBACK_TEXT_MODEL
+    ? [validModel, FALLBACK_TEXT_MODEL]
+    : [validModel];
+
   try {
     const geminiClient = client || await createGeminiClient();
+    let lastGeminiError;
 
-    let text = '';
-    if (geminiClient.models?.generateContent) {
-      const response = await withTimeout(
-        geminiClient.models.generateContent({
-          model: validModel,
-          contents: prompt,
-        }),
-        timeoutMs,
-        'Gemini text generation timed out'
-      );
-      text = response?.text ?? '';
-    } else if (geminiClient.interactions?.create) {
-      const interaction = await withTimeout(
-        geminiClient.interactions.create({
-          model: validModel,
-          input: prompt,
-        }),
-        timeoutMs,
-        'Gemini text generation timed out'
-      );
-      text = interaction?.output_text ?? interaction?.text ?? (typeof interaction === 'string' ? interaction : '');
-    } else if (typeof geminiClient.generateContent === 'function') {
-      const response = await withTimeout(
-        geminiClient.generateContent(prompt),
-        timeoutMs,
-        'Gemini text generation timed out'
-      );
-      text = response?.text ?? '';
+    for (const attemptModel of geminiModelsToTry) {
+      // Give the fallback model a shorter budget — it's faster by design.
+      const perAttemptTimeout = attemptModel === validModel
+        ? timeoutMs
+        : Math.min(timeoutMs, 45000);
+
+      try {
+        let text = '';
+        if (geminiClient.models?.generateContent) {
+          const response = await withTimeout(
+            geminiClient.models.generateContent({
+              model: attemptModel,
+              contents: prompt,
+            }),
+            perAttemptTimeout,
+            `Gemini text generation timed out (${attemptModel})`
+          );
+          text = response?.text ?? '';
+        } else if (geminiClient.interactions?.create) {
+          const interaction = await withTimeout(
+            geminiClient.interactions.create({
+              model: attemptModel,
+              input: prompt,
+            }),
+            perAttemptTimeout,
+            `Gemini text generation timed out (${attemptModel})`
+          );
+          text = interaction?.output_text ?? interaction?.text ?? (typeof interaction === 'string' ? interaction : '');
+        } else if (typeof geminiClient.generateContent === 'function') {
+          const response = await withTimeout(
+            geminiClient.generateContent(prompt),
+            perAttemptTimeout,
+            `Gemini text generation timed out (${attemptModel})`
+          );
+          text = response?.text ?? '';
+        }
+
+        if (!text || typeof text !== 'string' || !text.trim()) {
+          throw new Error(`Gemini text generation returned empty content (${attemptModel})`);
+        }
+
+        if (attemptModel !== validModel) {
+          console.warn(`[Gemini Fallback] Used ${attemptModel} instead of ${validModel} due to timeout.`);
+        }
+        return { text, model: attemptModel, provider: 'gemini' };
+
+      } catch (err) {
+        lastGeminiError = err;
+        const isLast = attemptModel === geminiModelsToTry.at(-1);
+        if (!isLast && err.message?.includes('timed out')) {
+          const nextModel = geminiModelsToTry[geminiModelsToTry.indexOf(attemptModel) + 1];
+          console.warn(`[Gemini Retry] ${attemptModel} timed out → retrying with ${nextModel}...`);
+          continue;
+        }
+        // Non-timeout errors or last model: propagate immediately
+        throw err;
+      }
     }
 
-    if (!text || typeof text !== 'string' || !text.trim()) {
-      throw new Error('Gemini text generation returned empty content');
-    }
-
-    return {
-      text,
-      model: validModel,
-      provider: 'gemini',
-    };
+    throw lastGeminiError;
   } catch (geminiError) {
     if (hasCloudflareCredentials(options)) {
       console.warn(`[Fallback] Gemini text generation failed (${geminiError.message}). Falling back to Cloudflare Workers AI.`);

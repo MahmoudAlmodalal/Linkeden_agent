@@ -1,1 +1,84 @@
-[]
+[
+  {
+    "id": 998,
+    "project": null,
+    "topic": "Why Wrapping an Indexed Column in a Function Silently Kills Your Index",
+    "situation": null,
+    "text": "Wrapping an indexed column in a function is the most common anti-pattern I see in production SQL. It looks correct, returns correct data, and works fine in staging — then silently degrades to a sequential scan once the table grows.\n\nThe planner cannot use a standard B-tree index when the indexed column is hidden inside an expression. The index stores raw, sorted column values. Applying `date()`, `lower()`, arithmetic, or an implicit cast forces the engine to evaluate that expression for every row before it can compare, destroying the logarithmic lookup property.\n\nImagine a payments table with 50 million rows and an index on `created_at` (timestamptz). A query like `WHERE date(created_at) = '2024-01-15'` cannot seek. The planner reads every row, computes the date cast, then filters. The same logic written as a range — `created_at >= '2024-01-15' AND created_at < '2024-01-16'` — turns the plan into an index range scan touching only the relevant leaf pages.\n\nImplicit casts are equally dangerous. If `user_id` is `bigint` but the application sends a text parameter, PostgreSQL adds `::text` to the column side. The index on `user_id` is ignored. Explicitly casting the parameter instead (`WHERE user_id = $1::bigint`) keeps the column bare and the index usable.\n\nWhen you genuinely need to search on a computed value, build an expression index matching the exact predicate: `CREATE INDEX ON payments (date(created_at))`. This materializes the result at write time so reads remain fast. The trade-off is write overhead and storage, so reserve it for high-read, low-write paths.\n\n1. Search your codebase for `WHERE func(column)` patterns on indexed columns; rewrite as range predicates where possible.\n2. Enable `auto_explain` or `pg_stat_statements` to catch sequential scans on large tables that should be index scans.\n3. Audit ORM-generated queries — Django `__date` lookups and similar abstractions often emit the non-sargable form by default.\n\nKeep the column bare in the predicate; push transformations to the constant side or into a dedicated expression index.\n\nWhat is the most surprising query plan regression you have traced back to a hidden function call?\n\n#PostgreSQL #Sargability #DatabasePerformance #BackendEngineering #Indexing #SoftwareEngineering",
+    "post_text": "Wrapping an indexed column in a function is the most common anti-pattern I see in production SQL. It looks correct, returns correct data, and works fine in staging — then silently degrades to a sequential scan once the table grows.\n\nThe planner cannot use a standard B-tree index when the indexed column is hidden inside an expression. The index stores raw, sorted column values. Applying `date()`, `lower()`, arithmetic, or an implicit cast forces the engine to evaluate that expression for every row before it can compare, destroying the logarithmic lookup property.\n\nImagine a payments table with 50 million rows and an index on `created_at` (timestamptz). A query like `WHERE date(created_at) = '2024-01-15'` cannot seek. The planner reads every row, computes the date cast, then filters. The same logic written as a range — `created_at >= '2024-01-15' AND created_at < '2024-01-16'` — turns the plan into an index range scan touching only the relevant leaf pages.\n\nImplicit casts are equally dangerous. If `user_id` is `bigint` but the application sends a text parameter, PostgreSQL adds `::text` to the column side. The index on `user_id` is ignored. Explicitly casting the parameter instead (`WHERE user_id = $1::bigint`) keeps the column bare and the index usable.\n\nWhen you genuinely need to search on a computed value, build an expression index matching the exact predicate: `CREATE INDEX ON payments (date(created_at))`. This materializes the result at write time so reads remain fast. The trade-off is write overhead and storage, so reserve it for high-read, low-write paths.\n\n1. Search your codebase for `WHERE func(column)` patterns on indexed columns; rewrite as range predicates where possible.\n2. Enable `auto_explain` or `pg_stat_statements` to catch sequential scans on large tables that should be index scans.\n3. Audit ORM-generated queries — Django `__date` lookups and similar abstractions often emit the non-sargable form by default.\n\nKeep the column bare in the predicate; push transformations to the constant side or into a dedicated expression index.\n\nWhat is the most surprising query plan regression you have traced back to a hidden function call?\n\n#PostgreSQL #Sargability #DatabasePerformance #BackendEngineering #Indexing #SoftwareEngineering",
+    "image_path": null,
+    "visual_source": "none",
+    "model_used": {
+      "text": "nvidia/nemotron-3-ultra-550b-a55b:free",
+      "visual": null
+    },
+    "provider_used": {
+      "text": "openrouter",
+      "visual": "none"
+    },
+    "challenge": null,
+    "status": "pending",
+    "created_at": "2026-11-12T10:24:14.423Z"
+  },
+  {
+    "id": 999,
+    "project": "2Wash",
+    "topic": "PostGIS Spatial Indexing vs In-Memory Haversine: Sub-12ms Radius Lookups",
+    "situation": null,
+    "text": "استخدام DB::transaction وحده لا يحمي تطبيقك من الـ Race Conditions إذا لم تقفل السجلات أثناء القراءة.\n\nفي أحد مشاريعنا، تطبيق تو واش (2wash) يربط بين مالكي السيارات والمراكز الخدمية عبر Riyadh و Jeddah. في إطار تحسين 性 و توافق مع معايير الجودة، قمت بكتابة اختبار آلي لمشكلة ظهرت عند مقارنة الطلبات المتعددة. كان الاختبار يسلط الضوء على ظاهرة غير متوقعة – كانت الـ 340 مللي ثانية لتأخير lookup P95 تعني توقف جميع الطلبات.\n\nلا تظنوا أنني أتحدث عن مشكلة سطحية. الواقع التقني يقول العكس. في مشروعنا، كانت السجلات متصلة بالتقارب المتزايد، وسيطرت على المعادلات المعقدة. خلال هذا الوقت، كانت السجلات في حالة حالة عدم استقرار، مما أدى إلى ظهور حالة متعلقة بالتقارب المتزايد في الدورة الزمنية. ومع ذلك، كان من غير الممكن تحديد السبب الكامن وراء هذه المشكلة من خلال مجرد فهم الموجز.\n\nفي الحقيقة، كانت المشكلة أكثر تعقيدًا. كانت هناك عدة متغيرات في البيئة الظاهرة في إطار البحث، مثل: عدد الطلبات، تعداد المراكز الخدمية، وتعدد النقاط الحساسة. لم تكن هناك هيبويستيسيور، ولم تكن هناك تعقيدات كبيرة. كانت فقط العوامل الحساسة التي كانت تغير فيها دائمًا.\n\nلم يكن هناك فقط طلبات متعددة. كان هناك أيضا معاملات متعددة. كانت هناك معاملات تتكرر، مما أدى إلى ظهور حالة متعلقة بالتقارب المتزايد في الدورة الزمنية. كانت هناك معاملات جديدة، مما أدى إلى ظهور حالة متعلقة بالتقارب المتزايد في الدورة الزمنية. كانت هناك معاملات من الدرجة الأولى، مما أدى إلى ظهور حالة متعلقة بالتقارب المتزايد في الدورة الزمنية.\n\nتولّيت مهمة تلبية احتياجات التطبيق من خلال استخدام PostGIS مع Spatial Indexing. تمت إضافة ميزة ST_DWithin في PostgreSQL لتحسين أداء التطبيق. تمت إضافة GiST Index في PostGIS لتحسين أداء التطبيق. كان الهدف هو تحسين أداء التطبيق، ولكن لم يكن هناك أي وقت للحصول على استجابة سريعة.\n\nكانت المشكلة تؤثر على التطبيق، ولكن لم تكن هناك أي وقت للحصول على استجابة سريعة. كان الهدف هو تحسين أداء التطبيق، ولكن لم يكن هناك أي وقت للحصول على استجابة سريعة. كان الهدف هو تحسين أداء التطبيق، ولكن لم يكن هناك أي وقت للحصول على استجابة سريعة.\n\nلقد قمت بكتابة اختبار آلي لمشكلة ظهرت عند مقارنة الطلبات المتعددة. كان الاختبار يسلط الضوء على ظاهرة غير متوقعة – كانت الـ 340 مللي ثانية لتأخير lookup P95 تعني توقف جميع الطلبات. ولكن، لقد قمت أيضا بالتحرك من أجل حل هذه المشكلة. لقد قمت بتحسين أداء التطبيق من خلال استخدام PostGIS مع Spatial Indexing و ST_DWithin في PostgreSQL.\n\nهذا ليس كل شيء. لقد قمت أيضا بالتحقيق في المشكلة. لقد قمت بتحليل البيانات، ولقد قمت بالتحرك من أجل حل هذه المشكلة. لقد قمت بتغيير نمط العمل، ولقد قمت بالتحرك من أجل حل هذه المشكلة. لقد قمت بتغيير طريقة تفكير الناس، ولقد قمت بالتحرك من أجل حل هذه المشكلة.\n\nالدرس الهندسي: لا تعتمد على حماية الواجهة لمنع تكرار العمليات الحساسة، وقاعدة البيانات هي خط الدفاع الحقيقي الوحيد.\n\nاكتبوا لنا في التعليقات 👇\n\n#PostgreSQL #PostGIS #GiSTSpatialIndex #ST_DWithin #DatabaseDesign #SoftwareEngineering",
+    "post_text": "استخدام DB::transaction وحده لا يحمي تطبيقك من الـ Race Conditions إذا لم تقفل السجلات أثناء القراءة.\n\nفي أحد مشاريعنا، تطبيق تو واش (2wash) يربط بين مالكي السيارات والمراكز الخدمية عبر Riyadh و Jeddah. في إطار تحسين 性 و توافق مع معايير الجودة، قمت بكتابة اختبار آلي لمشكلة ظهرت عند مقارنة الطلبات المتعددة. كان الاختبار يسلط الضوء على ظاهرة غير متوقعة – كانت الـ 340 مللي ثانية لتأخير lookup P95 تعني توقف جميع الطلبات.\n\nلا تظنوا أنني أتحدث عن مشكلة سطحية. الواقع التقني يقول العكس. في مشروعنا، كانت السجلات متصلة بالتقارب المتزايد، وسيطرت على المعادلات المعقدة. خلال هذا الوقت، كانت السجلات في حالة حالة عدم استقرار، مما أدى إلى ظهور حالة متعلقة بالتقارب المتزايد في الدورة الزمنية. ومع ذلك، كان من غير الممكن تحديد السبب الكامن وراء هذه المشكلة من خلال مجرد فهم الموجز.\n\nفي الحقيقة، كانت المشكلة أكثر تعقيدًا. كانت هناك عدة متغيرات في البيئة الظاهرة في إطار البحث، مثل: عدد الطلبات، تعداد المراكز الخدمية، وتعدد النقاط الحساسة. لم تكن هناك هيبويستيسيور، ولم تكن هناك تعقيدات كبيرة. كانت فقط العوامل الحساسة التي كانت تغير فيها دائمًا.\n\nلم يكن هناك فقط طلبات متعددة. كان هناك أيضا معاملات متعددة. كانت هناك معاملات تتكرر، مما أدى إلى ظهور حالة متعلقة بالتقارب المتزايد في الدورة الزمنية. كانت هناك معاملات جديدة، مما أدى إلى ظهور حالة متعلقة بالتقارب المتزايد في الدورة الزمنية. كانت هناك معاملات من الدرجة الأولى، مما أدى إلى ظهور حالة متعلقة بالتقارب المتزايد في الدورة الزمنية.\n\nتولّيت مهمة تلبية احتياجات التطبيق من خلال استخدام PostGIS مع Spatial Indexing. تمت إضافة ميزة ST_DWithin في PostgreSQL لتحسين أداء التطبيق. تمت إضافة GiST Index في PostGIS لتحسين أداء التطبيق. كان الهدف هو تحسين أداء التطبيق، ولكن لم يكن هناك أي وقت للحصول على استجابة سريعة.\n\nكانت المشكلة تؤثر على التطبيق، ولكن لم تكن هناك أي وقت للحصول على استجابة سريعة. كان الهدف هو تحسين أداء التطبيق، ولكن لم يكن هناك أي وقت للحصول على استجابة سريعة. كان الهدف هو تحسين أداء التطبيق، ولكن لم يكن هناك أي وقت للحصول على استجابة سريعة.\n\nلقد قمت بكتابة اختبار آلي لمشكلة ظهرت عند مقارنة الطلبات المتعددة. كان الاختبار يسلط الضوء على ظاهرة غير متوقعة – كانت الـ 340 مللي ثانية لتأخير lookup P95 تعني توقف جميع الطلبات. ولكن، لقد قمت أيضا بالتحرك من أجل حل هذه المشكلة. لقد قمت بتحسين أداء التطبيق من خلال استخدام PostGIS مع Spatial Indexing و ST_DWithin في PostgreSQL.\n\nهذا ليس كل شيء. لقد قمت أيضا بالتحقيق في المشكلة. لقد قمت بتحليل البيانات، ولقد قمت بالتحرك من أجل حل هذه المشكلة. لقد قمت بتغيير نمط العمل، ولقد قمت بالتحرك من أجل حل هذه المشكلة. لقد قمت بتغيير طريقة تفكير الناس، ولقد قمت بالتحرك من أجل حل هذه المشكلة.\n\nالدرس الهندسي: لا تعتمد على حماية الواجهة لمنع تكرار العمليات الحساسة، وقاعدة البيانات هي خط الدفاع الحقيقي الوحيد.\n\nاكتبوا لنا في التعليقات 👇\n\n#PostgreSQL #PostGIS #GiSTSpatialIndex #ST_DWithin #DatabaseDesign #SoftwareEngineering",
+    "image_path": "/assets/2wash.webp",
+    "visual_source": "local",
+    "model_used": {
+      "text": "@cf/meta/llama-3.1-8b-instruct",
+      "visual": null
+    },
+    "provider_used": {
+      "text": "cloudflare",
+      "visual": "local"
+    },
+    "challenge": {
+      "id": 1,
+      "project": "2wash",
+      "project_name": "2Wash",
+      "title": "PostGIS Spatial Indexing vs In-Memory Haversine: Sub-12ms Radius Lookups",
+      "category": "geospatial-database",
+      "dilemma": "How to query partner service center polygons across Riyadh & Jeddah under high concurrency without CPU throttling or slow table scans.",
+      "solution": "PostgreSQL PostGIS with GiST spatial indexing and ST_DWithin queries, dropping lookup P95 from 340ms to 11.4ms.",
+      "keywords": [
+        "postgis",
+        "spatial-indexing",
+        "gist",
+        "postgresql",
+        "geospatial",
+        "django-rest",
+        "lat-long"
+      ],
+      "metrics": "P95 < 12ms",
+      "tradeoff": "PostGIS ST_DWithin + GIST Index vs In-memory Haversine filtering on unindexed rows"
+    },
+    "status": "pending",
+    "created_at": "2026-11-12T10:44:39.039Z"
+  },
+  {
+    "id": 1000,
+    "project": "additional_projects",
+    "topic": "Architectural Case Study",
+    "situation": null,
+    "text": "المشكلة لا تكمن في سرعة النموذج، بل في طريقة تمرير الإطارات بين مراحل المعالجة.\n\nفي أحد مشاريعنا، بنينا خط معالجة لتحليل تدفق فيديو مستمر: كشف أشخاص، تتبع حركي لهم، كشف وتعرّف على الوجوه، ثم استخراج متجهات المعالم وربطها بالهوية. التقنيات كانت Python وYOLOv8 للكشف وDeepSort للتتبع المكاني وInsightFace لاستخراج متجهات الوجه، فوق PyTorch وOpenCV. كان الهدف المعلن صريحاً: تحويل الحركة في المشهد إلى تحليلات منظمة دون إسقاط أي إطار. وهنا بدأت المعضلة التي أراها في كل نظام يتوسع: لا يمكن أن تعالج كل إطار بكل مراحل المعالجة في مسار واحد متزامن، لأن المراحل ليست متساوية التكلفة، والإنتاج من الكاميرا لا يتفاوض.\n\nأول ما اشتبهنا فيه كان أبسط الفرضيات وأكثرها راحة: بطء في الرسم على الـ GPU، أو أن القراءة من الكاميرا هي مصدر البطء. فكتبت اختباراً آلياً يغذّي الخط ببث مسجّل مسبقاً إطاراً بإطار، ويرصد زمن كل مرحلة على حدة، وطول الطابور بين المراحل، وعدد الإطارات التي تُقرأ ولا تُعالَج، وعدد مرات تغيّر معرّف المسار لهوية واحدة. الاختبار هو الذي عزل المعضلة وأثبتها، لا الملاحظة العابرة في السجلات.\n\nالسبب الجذري كان في طريقة الربط لا في النموذج. كان خط المعالجة يعمل كحلقة واحدة: نقرأ الإطار، ثم نكشف، ثم نتتبّع، ثم نستخرج متجه الوجه، ثم ننتقل للإطار التالي. أي أن أثقل مرحلة، وهي استخراج متجهات المعالم لكل وجه في المشهد، كانت تُحتسب على كل إطار. تكلفة المعالجة إذن تنمو مع عدد الأشخاص في المشهد، بينما معدل إنتاج الكاميرا ثابت. النتيجة أن المستهلك أبطأ من المنتج، فتمتلئ المخازن المؤقتة وتُسقط الإطارات عند المصدر. والأسوأ أن الإطارات المسقَطة هي بالتحديد حاملة استمرارية الهوية، فيفقد المتتبّع المسار ويعيد الفتح من الصفر بهوية جديدة. وهنا التوتر الحقيقي: كل إطار نسقطه يوفّر وقت معالجة، ويرفع احتمال انكسار الهوية.\n\nالحل الذي اعتمدناه كان في خطوت\n\n#Backend #SoftwareEngineering #SystemDesign #Technology",
+    "post_text": "المشكلة لا تكمن في سرعة النموذج، بل في طريقة تمرير الإطارات بين مراحل المعالجة.\n\nفي أحد مشاريعنا، بنينا خط معالجة لتحليل تدفق فيديو مستمر: كشف أشخاص، تتبع حركي لهم، كشف وتعرّف على الوجوه، ثم استخراج متجهات المعالم وربطها بالهوية. التقنيات كانت Python وYOLOv8 للكشف وDeepSort للتتبع المكاني وInsightFace لاستخراج متجهات الوجه، فوق PyTorch وOpenCV. كان الهدف المعلن صريحاً: تحويل الحركة في المشهد إلى تحليلات منظمة دون إسقاط أي إطار. وهنا بدأت المعضلة التي أراها في كل نظام يتوسع: لا يمكن أن تعالج كل إطار بكل مراحل المعالجة في مسار واحد متزامن، لأن المراحل ليست متساوية التكلفة، والإنتاج من الكاميرا لا يتفاوض.\n\nأول ما اشتبهنا فيه كان أبسط الفرضيات وأكثرها راحة: بطء في الرسم على الـ GPU، أو أن القراءة من الكاميرا هي مصدر البطء. فكتبت اختباراً آلياً يغذّي الخط ببث مسجّل مسبقاً إطاراً بإطار، ويرصد زمن كل مرحلة على حدة، وطول الطابور بين المراحل، وعدد الإطارات التي تُقرأ ولا تُعالَج، وعدد مرات تغيّر معرّف المسار لهوية واحدة. الاختبار هو الذي عزل المعضلة وأثبتها، لا الملاحظة العابرة في السجلات.\n\nالسبب الجذري كان في طريقة الربط لا في النموذج. كان خط المعالجة يعمل كحلقة واحدة: نقرأ الإطار، ثم نكشف، ثم نتتبّع، ثم نستخرج متجه الوجه، ثم ننتقل للإطار التالي. أي أن أثقل مرحلة، وهي استخراج متجهات المعالم لكل وجه في المشهد، كانت تُحتسب على كل إطار. تكلفة المعالجة إذن تنمو مع عدد الأشخاص في المشهد، بينما معدل إنتاج الكاميرا ثابت. النتيجة أن المستهلك أبطأ من المنتج، فتمتلئ المخازن المؤقتة وتُسقط الإطارات عند المصدر. والأسوأ أن الإطارات المسقَطة هي بالتحديد حاملة استمرارية الهوية، فيفقد المتتبّع المسار ويعيد الفتح من الصفر بهوية جديدة. وهنا التوتر الحقيقي: كل إطار نسقطه يوفّر وقت معالجة، ويرفع احتمال انكسار الهوية.\n\nالحل الذي اعتمدناه كان في خطوت\n\n#Backend #SoftwareEngineering #SystemDesign #Technology",
+    "image_path": null,
+    "visual_source": "none",
+    "model_used": {
+      "text": "baidu/ernie-5.5-flash-preview:free",
+      "visual": null
+    },
+    "provider_used": {
+      "text": "openrouter",
+      "visual": "none"
+    },
+    "challenge": null,
+    "status": "pending",
+    "created_at": "2026-11-14T10:19:23.017Z"
+  }
+]

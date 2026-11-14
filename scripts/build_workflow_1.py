@@ -52,8 +52,8 @@ try {
       if (settled) return;
       settled = true;
       proc.kill('SIGKILL');
-      reject(new Error('RAG process timed out after 90000ms'));
-    }, 90000);
+      reject(new Error('RAG process timed out after 120000ms'));
+    }, 120000);
     proc.stdout.on('data', (chunk) => { stdout += chunk; });
     proc.stderr.on('data', (chunk) => { stderr += chunk; });
     proc.on('error', (err) => {

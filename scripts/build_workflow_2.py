@@ -303,7 +303,11 @@ try {
   console.error('Could not read pending drafts:', error.message);
 }
 
-const draft = drafts.find((item) => String(item.id) === draftId);
+const draft = draftId
+  ? (drafts.find((item) => String(item.id) === draftId) ||
+     drafts.find((item) => String(item.project || '').toLowerCase().includes(draftId.toLowerCase())) ||
+     drafts.find((item) => String(item.topic || '').toLowerCase().includes(draftId.toLowerCase())))
+  : (drafts.length > 0 ? drafts[drafts.length - 1] : undefined);
 const postText = draft?.text || draft?.post_text || draft?.content || '(لا يوجد نص للمنشور)';
 let imagePath = null;
 if (draft) {
