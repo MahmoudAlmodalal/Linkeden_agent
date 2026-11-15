@@ -134,8 +134,11 @@ export async function savePendingDrafts(drafts, dataPath = DEFAULT_DATA_PATH) {
   if (!Array.isArray(drafts)) {
     throw new TypeError('Drafts must be an array');
   }
-  await fs.mkdir(path.dirname(dataPath), { recursive: true });
-  await fs.writeFile(dataPath, JSON.stringify(drafts, null, 2) + '\n', 'utf8');
+  const resolved = path.resolve(dataPath);
+  await fs.mkdir(path.dirname(resolved), { recursive: true });
+  const tempPath = `${resolved}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
+  await fs.writeFile(tempPath, JSON.stringify(drafts, null, 2) + '\n', 'utf8');
+  await fs.rename(tempPath, resolved);
 }
 
 /**
@@ -222,7 +225,7 @@ export async function stageDraft(topic = null, options = {}) {
     language: targetTopic.language || 'ar',
     content: options.content || null,
     visual_asset: visualAsset,
-    status: 'pending_review',
+    status: 'pending',
     created_at: new Date().toISOString()
   };
 
@@ -254,7 +257,7 @@ export async function addPendingDraft(draftData, dataPath = DEFAULT_DATA_PATH) {
     ...draftData,
     id: draftId,
     draft_id: draftId,
-    status: draftData.status || 'pending_review',
+    status: draftData.status || 'pending',
     created_at: draftData.created_at || new Date().toISOString()
   };
 

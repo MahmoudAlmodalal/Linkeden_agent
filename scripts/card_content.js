@@ -4,7 +4,7 @@
 
 import { extractCardContent } from './generate_card_asset.js';
 
-const FOREIGN_SCRIPTS = /[\u0E00-\u0E7F\u3040-\u30FF\u3400-\u9FFF\uAC00-\uD7AF\u0400-\u04FF\u0590-\u05FF]/u;
+export const FOREIGN_SCRIPTS = /[\u0E00-\u0E7F\u3040-\u30FF\u3400-\u9FFF\uAC00-\uD7AF\u0400-\u04FF\u0590-\u05FF]/u;
 
 // The old generic defaults in extractCardContent. They must never reach a card.
 const GENERIC_PHRASES = [

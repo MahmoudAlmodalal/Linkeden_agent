@@ -37,6 +37,7 @@ try {
   const childEnv = {
     PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
     HOME: '/home/node',
+    NODE_PATH: ($env.NODE_PATH || '/app/node_modules'),
   };
   for (const key of envKeys) {
     if ($env[key] !== undefined && $env[key] !== null && $env[key] !== '') {
@@ -124,8 +125,9 @@ const imageWarning = imageError
   ? `\n\n⚠️ تعذر توليد الصورة المخصصة (السبب: ${String(imageError).slice(0, 500)})`
   : '';
 
+const topicLabel = project || 'الموضوع التقني';
 const previewCaption = `[Draft ID: #${draftId}]\n\n` +
-  `تم توليد مسودة كاملة عن ${project}. ستصل الرسالة الكاملة بعد الصورة.`;
+  `تم توليد مسودة كاملة عن ${topicLabel}. ستصل الرسالة الكاملة بعد الصورة.`;
 
 if (!resolvedImagePath) {
   return [{
@@ -188,6 +190,7 @@ wf = {
       "parameters": {
         "httpMethod": "POST",
         "path": "generate",
+        "responseMode": "onReceived",
         "options": {}
       },
       "id": "7b8d4c9a-2222-4444-8888-000000000002",
@@ -285,7 +288,8 @@ wf = {
         "bodyParameters": {
           "parameters": [
             { "name": "chat_id", "value": "={{ $env.TELEGRAM_ALLOWED_USER_ID }}" },
-            { "name": "text", "value": "={{ $json.text }}" }
+            { "name": "text", "value": "={{ $json.text }}" },
+            { "name": "reply_markup", "value": "={{ JSON.stringify({ inline_keyboard: [[ { text: '✅ نشر المسودة #' + $json.id, callback_data: 'approve_' + $json.id }, { text: '🗑️ حذف #' + $json.id, callback_data: 'reject_' + $json.id } ]] }) }}" }
           ]
         },
         "options": {}

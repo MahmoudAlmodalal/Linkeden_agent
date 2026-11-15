@@ -226,18 +226,22 @@ export function getNextChallenge({
 
   const state = loadRAGState(statePath);
   let nextIdx = 0;
+  let hasWrapped = false;
 
   if (state.lastChallengeId) {
     const currentIdx = challenges.findIndex((c) => c.id === state.lastChallengeId);
     if (currentIdx !== -1) {
       nextIdx = (currentIdx + 1) % challenges.length;
+      if (currentIdx === challenges.length - 1) {
+        hasWrapped = true;
+      }
     }
   }
 
   const selected = challenges[nextIdx];
   state.lastChallengeId = selected.id;
   state.lastGeneratedAt = new Date().toISOString();
-  if (nextIdx === 0 && state.lastChallengeId) {
+  if (hasWrapped) {
     state.cycleCount = (state.cycleCount || 1) + 1;
   }
   saveRAGState(state, statePath);
@@ -378,7 +382,7 @@ export async function retrieveProjectContext(query, options = {}) {
     id: `challenge-${c.id}`,
     project: c.project,
     title: c.title,
-    text: `Project: ${c.project_name}. Challenge: ${c.title}. Dilemma: ${c.dilemma}. Solution: ${c.solution}. Metrics: ${c.metrics}. Trade-off: ${c.tradeoff}. Keywords: ${c.keywords.join(' ')}`,
+    text: `Project: ${c.project_name}. Challenge: ${c.title}. Dilemma: ${c.dilemma}. Solution: ${c.solution}. Metrics: ${c.metrics}. Trade-off: ${c.tradeoff}. Keywords: ${(c.keywords || []).join(' ')}`,
     isChallenge: true,
     rawChallenge: c,
   }));
@@ -502,12 +506,6 @@ export function buildGroundedRAGPrompt({
 English is allowed ONLY for established technical names, APIs, database operators, framework names, metrics, and hashtags (for example: PostgreSQL, PostGIS, GiST index, ST_DWithin, Haversine, P95 latency, CPU throttling, Django, Redis, Celery, Race Condition, Idempotency).
 Do not insert random English words or any other language. Never output words such as "enabled", "problem", "cause", or "solution" inside Arabic sentences. Do not use Chinese, Turkish, or machine-translated fragments. Do not translate or transliterate established technical names awkwardly.`;
 
-  const hookExample = isEnglish
-    ? 'A database transaction is not a lock.'
-    : 'استخدام DB::transaction وحده لا يحمي تطبيقك من الـ Race Conditions إذا لم تقفل السجلات أثناء القراءة.';
-  const ruleExample = isEnglish
-    ? 'Engineering rule: protect correctness at the database boundary, not only in the UI.'
-    : 'الدرس الهندسي: لا تعتمد على حماية الواجهة لمنع تكرار العمليات الحساسة، وقاعدة البيانات هي خط الدفاع الحقيقي الوحيد.';
   const ctaLine = isEnglish ? 'Share your approach in the comments.' : 'اكتبوا لنا في التعليقات 👇';
   const rootCauseExample = isEnglish ? 'state the root cause clearly' : 'اذكر السبب الجذري بوضوح';
   const qualityCheck = isEnglish ? 'the English is coherent' : 'the Arabic is coherent';
@@ -522,7 +520,7 @@ Do not insert random English words or any other language. Never output words suc
 Strategic Angle: ${angle.labelAr} — ${angle.directiveAr}
 Hook Style: ${angle.hookStyle}
 Suggested opening hook (use as inspiration, adapt to the topic): "${hookTemplate}"
-Post Length & Depth: ${lengthVariant.labelAr} — ${lengthVariant.detailLevel} (approximately ${lengthVariant.paragraphs} paragraphs)
+Post Length & Depth: ${lengthVariant.labelAr} — ${lengthVariant.detailLevel} (strictly 180-260 words, approximately ${lengthVariant.paragraphs} paragraphs)
 
 CRITICAL: Do NOT reuse the same narrative lens or hook structure from previous posts about this same project. Apply the strategic angle above to reshape the entire post: the opening, the body, the lesson, and the call-to-action must all reflect this angle. The post must read as if written from a different perspective each time.
 `;
@@ -554,7 +552,7 @@ Transform the real-world scenario/incident described above into the primary focu
 `
     : '';
 
-  return `You are Mahmoud H. Almodalal (محمود هشام المدلل), Computer Engineer, Backend Developer, and Technical Manager at Washer (Saudi Arabia) & Teaching Assistant at Islamic University of Gaza.
+  return `You are Mahmoud H. Almodalal (محمود هشام المدلل), Backend Engineer & Software Architect, EduTracker Co-founder, Freelance Backend Engineer based in Berlin, Germany. Formerly Technical Manager at Washer (Saudi Arabia) & Teaching Assistant at Islamic University of Gaza.
 
 You are writing an authoritative, high-signal technical LinkedIn post grounded in your real-world production engineering experience, real metrics, and specific project decisions.
 
@@ -568,40 +566,28 @@ Additional Architectural Documentation:
 ${contextSnippets || 'Refer to primary engineering specifications and trade-offs.'}
 
 === AUTHOR IDENTITY & STYLE RULES ===
-1. You write from first-person authority as a hands-on builder and leader ("في أحد مشاريعنا...", "قمت بكتابة اختبار آلي...").
+1. You write from first-person authority as a hands-on builder and leader ("في أحد مشاريعنا...").
 2. Focus on REAL production failure modes, concurrency clashes, database bottlenecks, and architectural trade-offs—never generic fluff or textbook theory.
 3. Use only facts present in the grounding context. Never invent metrics, project details, tests, locations, or outcomes. Preserve exact numbers and names when provided. For this project, write “GiST spatial index”; never write “GIST R-tree”.
-4. STRICT FORMATTING RULE: Absolutely NEVER output section numbers, brackets, markdown headers or labels like "[1. The Hook]" or "### Root Cause". The output MUST be a seamless, beautifully spaced LinkedIn engineering post with double line-breaks between short paragraphs.
+4. STRICT LENGTH CONSTRAINT: The post MUST be between 180 and 260 words total (3-4 short punchy paragraphs). Never exceed 260 words.
+5. STRICT FORMATTING RULE: Plain text only. Absolutely NEVER output section numbers, brackets, markdown headers or labels like "[1. The Hook]", "1. The Hook", "### Root Cause", or "الدرس التقني:". The output MUST be a seamless, beautifully spaced LinkedIn engineering post with double line-breaks between short paragraphs.
 
-Structure your post strictly according to this natural engineering narrative:
+Structure your post as a seamless 3-4 paragraph narrative strictly adhering to this lean structure:
 
-1. [The Hook - Architectural Dilemma]:
-Start immediately on line 1 with a bold, punchy, counter-intuitive architectural dilemma or technical statement (e.g., "${hookExample}"). No greeting, no fluff, no brackets.
+1. [The Hook]:
+Start immediately on line 1 with a bold, punchy, counter-intuitive architectural dilemma or technical statement drawn directly from the topic context. No greeting, no intro fluff, no brackets or labels.
 
-2. [Real Project Context & Incident]:
-Describe the real project (${challenge?.project_name || 'the system'}) and the subtle production issue / failure mode that emerged under concurrency or scale (e.g. negative balances on concurrent requests, duplicate voucher redemption, or latency spikes).
+2. [The Friction & Root Cause]:
+Describe the real context (${challenge?.project_name || 'the system'}) and the subtle technical failure mode or friction that surfaced under scale or concurrency. Explain the exact technical mechanics and root cause under the hood without generic filler (${rootCauseExample}).
 
-3. [Initial Hypothesis & Automated Testing]:
-Mention the initial suspicion/hypothesis (e.g. frontend double-click or queue worker issue), then explain that you wrote an automated test simulating concurrent requests to isolate and prove the race condition / bottleneck.
+3. [The Engineering Decision & Trade-Off]:
+Explain the concrete architectural decision implemented to resolve the bottleneck. Contrast the chosen approach with rejected alternatives (${challenge?.tradeoff || 'Chosen vs Rejected'}) and reference real production metrics (${challenge?.metrics || 'verified performance'}) where available.
 
-4. [Root Cause Analysis & Technical Mechanics]:
-Explain the exact root cause under the hood with technical depth and ${rootCauseExample}.
+4. [Takeaway & Peer Question]:
+Deliver one memorable, battle-tested engineering rule of thumb (Key Takeaways) drawn directly from this experience, followed by an engaging technical question inviting senior peers and software architects to share their approaches in the comments ("${ctaLine}").
 
-5. [Actionable Concrete Solution]:
-Present the direct solution in 2 numbered steps (1. and 2.) featuring exact framework/database mechanisms (e.g. Pessimistic Locking with lockForUpdate / SELECT FOR UPDATE, and direct atomic DB operations like decrement).
-
-6. [The Trade-Off & Verification]:
-Confirm that re-running the automated test proved zero race conditions and total data protection. Contrast the chosen approach with the rejected alternatives (${challenge?.tradeoff || 'Chosen vs Rejected'}) and cite the real production metric (${challenge?.metrics || 'zero anomalies'}).
-
-7. [Key Takeaways - Battle-Tested Engineering Rules]:
-Provide exactly one powerful, memorable golden rule (e.g. "${ruleExample}").
-
-8. [Call to Action - Peer Question]:
-An engaging technical question directed at fellow software architects, backend leads, and senior engineers, followed by:
-"${ctaLine}"
-
-9. [Clean Hashtags]:
-4 to 6 relevant technical hashtags formatted as plain space-separated text (e.g., #Laravel #PHP #WebDevelopment #DatabaseDesign #SoftwareEngineering). Do NOT use Markdown links.
+5. [Hashtags]:
+4 to 6 relevant technical hashtags formatted as plain space-separated text on the final line (e.g., #SystemDesign #SoftwareArchitecture #Backend). Do NOT use Markdown links.
 
 Deliver maximum engineering signal. No corporate buzzwords. Before finalizing, silently check that ${qualityCheck}, the post is complete, and no random foreign-language fragments remain.`;
 }

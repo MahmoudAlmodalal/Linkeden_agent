@@ -39,6 +39,12 @@ if (publish.error || publish.status !== 0) {
   console.warn('Telegram workflow publish skipped or failed');
 }
 
+// Ensure Telegram webhook is registered with current secret token
+spawnSync('node', ['/scripts/register_telegram_webhook.mjs'], {
+  env: process.env,
+  stdio: 'inherit',
+});
+
 const host = process.env.N8N_HOST || '0.0.0.0';
 const port = process.env.PORT || process.env.N8N_PORT || '5678';
 const child = spawn(n8n, ['start', '--host', host, '--port', port], {

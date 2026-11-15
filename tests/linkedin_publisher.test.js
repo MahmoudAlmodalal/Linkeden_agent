@@ -11,6 +11,8 @@ import {
   publishDraft,
   loadPendingDrafts,
   removeDraftFromStorage,
+  escapeLinkedIn,
+  createComment,
   LINKEDIN_API_VERSION,
   RESTLI_PROTOCOL_VERSION,
 } from '../scripts/linkedin_publisher.js';
@@ -314,6 +316,47 @@ describe('LinkedIn 3-Step Publisher', () => {
         'https://www.linkedin.com/feed/update/urn:li:share:9876543210'
       );
       assert.equal(result.imageUrn, 'urn:li:image:ASSET_789');
+    });
+
+    it('supports text-only publishing without image upload when imagePath is omitted', async () => {
+      let postCreated = false;
+      const mockFetch = async (url, options) => {
+        if (url.includes('/images?action=initializeUpload') || url.includes('/upload-target')) {
+          throw new Error('Should not call image upload endpoints for text-only post');
+        }
+        if (url.includes('/posts')) {
+          postCreated = true;
+          const body = JSON.parse(options.body);
+          assert.equal(body.content, undefined);
+          return new Response('', {
+            status: 201,
+            headers: { 'x-restli-id': 'urn:li:share:textonly123' },
+          });
+        }
+        return new Response('Not found', { status: 404 });
+      };
+
+      const result = await publishToLinkedIn({
+        authorUrn: 'urn:li:person:user-123',
+        commentary: 'A text-only post without image',
+        accessToken: 'token-xyz',
+        fetchClient: mockFetch,
+      });
+
+      assert.equal(postCreated, true);
+      assert.equal(result.postUrn, 'urn:li:share:textonly123');
+      assert.equal(result.imageUrn, null);
+    });
+  });
+
+  describe('Commentary Escaping (escapeLinkedIn)', () => {
+    it('escapes reserved LinkedIn characters while keeping hashtags intact', () => {
+      const raw = 'PostGIS ST_DWithin() with snake_case and [brackets], {braces}, @mentions, ~tilde, |pipe, <tags>, *bold*. #PostGIS';
+      const escaped = escapeLinkedIn(raw);
+      assert.equal(
+        escaped,
+        'PostGIS ST\\_DWithin\\(\\) with snake\\_case and \\[brackets\\], \\{braces\\}, \\@mentions, \\~tilde, \\|pipe, \\<tags\\>, \\*bold\\*. #PostGIS'
+      );
     });
   });
 

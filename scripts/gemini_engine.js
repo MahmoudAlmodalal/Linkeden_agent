@@ -8,20 +8,21 @@ import {
 } from './rag_engine.js';
 import { resolveDataPath, resolveAssetPath } from './path_resolver.js';
 import { buildTopicPostPrompt } from './topic_mode.js';
+import { FOREIGN_SCRIPTS } from './card_content.js';
 
 export const DEFAULT_TEXT_MODEL = 'gemini-3.8-flash';
 export const FALLBACK_TEXT_MODEL = 'gemini-2.5-flash'; // Fast retry when primary times out
 export const DEFAULT_VISUAL_MODEL = 'gemini-nano-banana-2.1';
 export const FALLBACK_VISUAL_MODEL = 'gemini-3-pro-image';
 export const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
-export const DEFAULT_OPENROUTER_FREE_MODELS = [
-  'baidu/ernie-5.5-flash-preview:free',
-  'openrouter/free',
-  'nvidia/nemotron-3.5-lightning:free',
+export const DEFAULT_OPENROUTER_TEXT_MODEL = 'deepseek/deepseek-v4.1-flash';
+export const DEFAULT_OPENROUTER_MODELS = [
+  'deepseek/deepseek-v4.1-flash',
+  'deepseek/deepseek-chat',
   'google/gemma-4-31b-it:free',
-  'google/gemma-4-26b-a4b-it:free',
   'nvidia/nemotron-3-ultra-550b-a55b:free',
 ];
+export const DEFAULT_OPENROUTER_FREE_MODELS = DEFAULT_OPENROUTER_MODELS;
 
 import {
   STRATEGIC_ANGLES,
@@ -128,12 +129,6 @@ export function buildContentPrompt(topic, { innovation } = {}) {
     : `Language: Professional Arabic enriched with standard English technical terms. English technical terms are allowed ONLY for established technical names, APIs, operators, framework names, metrics, and hashtags (for example: PostgreSQL, PostGIS, GiST index, ST_DWithin, Redis, Django, P95 latency, Race Condition, Idempotency).
 Do not insert random English words or any other language. Never output words such as "enabled", "problem", "cause", or "solution" inside Arabic sentences. Do NOT translate or transliterate established technical names. Do not use Chinese or machine-translated fragments.`;
 
-  const hookExample = isEnglish
-    ? 'A database transaction is not a lock.'
-    : 'استخدام DB::transaction وحده لا يحمي تطبيقك من الـ Race Conditions إذا لم تقفل السجلات أثناء القراءة.';
-  const ruleExample = isEnglish
-    ? 'Engineering rule: protect correctness at the database boundary, not only in the UI.'
-    : 'الدرس الهندسي: لا تعتمد على حماية الواجهة لمنع تكرار العمليات الحساسة، وقاعدة البيانات هي خط الدفاع الحقيقي الوحيد.';
   const ctaLine = isEnglish ? 'Share your approach in the comments.' : 'اكتبوا لنا في التعليقات 👇';
   const rootCauseExample = isEnglish ? 'state the root cause clearly' : 'اذكر السبب الجذري بوضوح';
   const qualityCheck = isEnglish ? 'the English is coherent' : 'the Arabic is coherent';
@@ -148,7 +143,7 @@ Do not insert random English words or any other language. Never output words suc
 Strategic Angle: ${angle.labelAr} — ${angle.directiveAr}
 Hook Style: ${angle.hookStyle}
 Suggested opening hook (use as inspiration, adapt to the topic): "${hookTemplate}"
-Post Length & Depth: ${lengthVariant.labelAr} — ${lengthVariant.detailLevel} (approximately ${lengthVariant.paragraphs} paragraphs)
+Post Length & Depth: ${lengthVariant.labelAr} — ${lengthVariant.detailLevel} (strictly 180-260 words, approximately ${lengthVariant.paragraphs} paragraphs)
 
 CRITICAL: Do NOT reuse the same narrative lens or hook structure from previous posts about this same project. Apply the strategic angle above to reshape the entire post: the opening, the body, the lesson, and the call-to-action must all reflect this angle. The post must read as if written from a different perspective each time.
 `;
@@ -165,27 +160,24 @@ ${innovationSection}
 
 Post Requirements:
 You MUST structure your post into a seamless, high-signal LinkedIn engineering narrative with double line-breaks between short paragraphs.
-CRITICAL FORMATTING RULE: Absolutely NEVER output section numbers, brackets, markdown headers or labels like "[1. The Hook]" or "### Root Cause". The output must read like a senior software architect genuinely sharing a real production incident.
+STRICT LENGTH CONSTRAINT: The post MUST be between 180 and 260 words total (3-4 short punchy paragraphs). Never exceed 260 words.
+CRITICAL FORMATTING RULE: Plain text only. Absolutely NEVER output section numbers, brackets, markdown headers or labels like "[1. The Hook]", "1. The Hook", "### Root Cause", or "الدرس التقني:". The output must read like a senior software architect genuinely sharing a real production incident.
 
-Follow this natural narrative structure:
+Follow this lean narrative structure:
 
 1. [The Hook - Architectural Dilemma]:
-Start immediately on line 1 with a bold, punchy, counter-intuitive architectural dilemma or technical statement (e.g., "${hookExample}"). Avoid generic introductions. Hook the reader immediately with an engineering dilemma.
+Start immediately on line 1 with a bold, punchy, counter-intuitive architectural dilemma or technical statement drawn directly from the topic details. Avoid generic introductions. Hook the reader immediately with an engineering dilemma. No greetings or labels.
 
-2. [Deep-Dive - Technical Mechanics & Incident]:
-Describe the real production context, the subtle failure mode or race condition that emerged under high concurrency or throughput, the initial hypothesis, and how you wrote an automated test to isolate and prove the issue. Explain the "how" and "why" under the hood with technical depth and ${rootCauseExample}.
+2. [The Friction & Root Cause - Technical Mechanics]:
+Describe the real production context, the subtle failure mode or race condition that emerged under high concurrency or throughput, the initial hypothesis, and what the automated test or profiling revealed. Explain the "how" and "why" under the hood with technical depth and ${rootCauseExample}.
 
-3. [Actionable Concrete Solution]:
-Present the direct solution in 2 numbered steps (1. and 2.) featuring exact framework/database mechanisms and code constructs.
+3. [The Engineering Decision & Trade-Off]:
+Present the concrete engineering solution and architectural decision implemented. Contrast the chosen approach with trade-offs and alternatives, highlighting exact technical mechanisms and code constructs.
 
-4. [Key Takeaways - Engineering Rules]:
-Provide a memorable, battle-tested engineering rule of thumb (e.g. "${ruleExample}").
+4. [Takeaway & Peer Question - Key Takeaways & Engineering Rules]:
+Provide a memorable, battle-tested engineering rule of thumb (Key Takeaways) drawn directly from the topic, followed immediately by an engaging technical question directed at fellow software architects and senior engineers ("${ctaLine}").
 
-5. [Call to Action - Peer Question]:
-An engaging technical question directed at fellow software architects and senior engineers to foster discussion in the comments, followed immediately by:
-"${ctaLine}"
-
-6. [Hashtags]:
+5. [Hashtags]:
 4 to 6 relevant technical hashtags as plain space-separated text (e.g., #SystemDesign #SoftwareArchitecture #Backend #DistributedSystems). Do NOT use Markdown links.
 
 Maintain an authoritative, insightful tone. Do not use corporate fluff or clickbait. Use only facts in Topic Details; do not invent metrics or outcomes. Before finalizing, silently check that ${qualityCheck}, the post is complete, and no random foreign-language fragments remain. Deliver maximum engineering signal.`;
@@ -245,13 +237,24 @@ export function ensureHashtags(text, topic = {}) {
     .forEach(add);
 
   const hashtags = candidates.slice(0, 6);
-  const withoutInlineTags = source
-    .replace(/(^|\s)#[\p{L}\p{N}_-]+/gu, '$1')
-    .replace(/[ \t]{2,}/g, ' ')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
 
-  return `${withoutInlineTags}\n\n${hashtags.slice(0, 4).length >= 4 ? hashtags.join(' ') : '#SoftwareEngineering #SystemDesign #Backend #Technology'}`;
+  // Remove trailing line(s) of standalone hashtags from the bottom of the post
+  const lines = source.split('\n');
+  while (lines.length > 0 && /^[\s#\p{L}\p{N}_-]+$/u.test(lines[lines.length - 1])) {
+    const lastLine = lines[lines.length - 1].trim();
+    if (!lastLine || lastLine.startsWith('#')) {
+      lines.pop();
+    } else {
+      break;
+    }
+  }
+  let cleanedBody = lines.join('\n').trim();
+
+  // Strip leading '#' from inline hashtags inside sentences (e.g. "#Redis" -> "Redis") so words are kept
+  cleanedBody = cleanedBody.replace(/(?<=\s|^)#([\p{L}\p{N}_-]+)/gu, '$1');
+  cleanedBody = cleanedBody.replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+
+  return `${cleanedBody}\n\n${hashtags.slice(0, 4).length >= 4 ? hashtags.join(' ') : '#SoftwareEngineering #SystemDesign #Backend #Technology'}`;
 }
 
 /**
@@ -321,11 +324,11 @@ export async function generateRawTextOpenRouter(prompt, options = {}) {
     throw new Error('fetchClient function is required to call OpenRouter');
   }
 
-  const explicitModel = options.openRouterModel || process.env.OPENROUTER_TEXT_MODEL;
-  const models = [...new Set([explicitModel, ...DEFAULT_OPENROUTER_FREE_MODELS].filter(Boolean))];
-  const maxTokens = options.max_tokens ?? 2500;
-  const temperature = options.temperature ?? 0.8;
-  const timeoutMs = Number(options.openRouterTimeoutMs || process.env.OPENROUTER_TIMEOUT_MS) || 25000;
+  const explicitModel = options.openRouterModel || process.env.OPENROUTER_TEXT_MODEL || DEFAULT_OPENROUTER_TEXT_MODEL;
+  const models = [...new Set([explicitModel, ...DEFAULT_OPENROUTER_MODELS].filter(Boolean))];
+  const maxTokens = options.max_tokens ?? 4000;
+  const temperature = options.temperature ?? 0.7;
+  const timeoutMs = Number(options.openRouterTimeoutMs || process.env.OPENROUTER_TIMEOUT_MS) || 50000;
   const systemPrompt = options.systemPrompt || 'You are a Principal Software Architect writing a high-signal technical post for LinkedIn aimed at engineering leaders.';
 
   const errors = [];
@@ -696,15 +699,35 @@ export async function generateRawText(prompt, options = {}) {
 export async function generatePostContent(topic, options = {}) {
   const innovation = options.innovation ?? topic?.innovation ?? topic?.ragContext?.innovation;
   const prompt = buildContentPrompt(topic, { innovation });
-  const result = await generateRawText(prompt, options);
+  const maxRetries = options.maxRetries ?? 2;
+  let result = null;
+  let lastText = '';
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    result = await generateRawText(prompt, options);
+    lastText = result?.text || '';
+    const hasForeign = FOREIGN_SCRIPTS.test(lastText);
+    const isTooLong = lastText.length > 3000;
+
+    if (!hasForeign && !isTooLong) {
+      break;
+    }
+
+    if (attempt < maxRetries) {
+      console.warn(
+        `[Gemini Engine] Generated post failed validation (foreignScript: ${hasForeign}, length: ${lastText.length}). Retrying...`
+      );
+    }
+  }
+
   return {
     ...result,
-    text: ensureHashtags(result.text, topic),
+    text: ensureHashtags(lastText, topic),
   };
 }
 
 /**
- * Generates visual asset fallback using gemini-nano-banana-2.1,
+ * Generates visual asset fallback using gemini-nano-banana-2.1 or official image generation,
  * with automatic fallback to Cloudflare Workers AI (FLUX.1-schnell) if Gemini fails.
  */
 export async function generateVisualAsset(topic, options = {}) {
@@ -721,25 +744,38 @@ export async function generateVisualAsset(topic, options = {}) {
 
   try {
     const geminiClient = client || await createGeminiClient();
-
-    const interaction = await withTimeout(
-      geminiClient.interactions.create({
-        model: validModel,
-        input: visualPrompt,
-      }),
-      timeoutMs,
-      'Gemini visual generation timed out'
-    );
-
     let imageData = null;
-    if (interaction?.output_image?.data) {
-      imageData = interaction.output_image.data;
-    } else if (interaction?.image?.data) {
-      imageData = interaction.image.data;
-    } else if (interaction?.data) {
-      imageData = interaction.data;
-    } else if (Buffer.isBuffer(interaction?.output_image)) {
-      imageData = interaction.output_image;
+
+    if (geminiClient.models?.generateImages) {
+      const imgRes = await withTimeout(
+        geminiClient.models.generateImages({
+          model: 'imagen-3.0-generate-002',
+          prompt: visualPrompt,
+          config: { numberOfImages: 1 },
+        }),
+        timeoutMs,
+        'Gemini visual generation timed out'
+      );
+      imageData = imgRes?.generatedImages?.[0]?.image?.imageBytes;
+    } else if (geminiClient.interactions?.create) {
+      const interaction = await withTimeout(
+        geminiClient.interactions.create({
+          model: validModel,
+          input: visualPrompt,
+        }),
+        timeoutMs,
+        'Gemini visual generation timed out'
+      );
+
+      if (interaction?.output_image?.data) {
+        imageData = interaction.output_image.data;
+      } else if (interaction?.image?.data) {
+        imageData = interaction.image.data;
+      } else if (interaction?.data) {
+        imageData = interaction.data;
+      } else if (Buffer.isBuffer(interaction?.output_image)) {
+        imageData = interaction.output_image;
+      }
     }
 
     if (!imageData) {

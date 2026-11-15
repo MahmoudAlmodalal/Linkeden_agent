@@ -136,7 +136,7 @@ export function extractCardContent(postText = '', challengeOrTopic = {}) {
 
   // Format title into main headline + highlight
   if (title.includes('؟')) {
-    const parts = title.split(/(?<=\b(?:جديدة|تطبيقك|الإنتاج|مشاريعك|البيانات|الأنظمة)\b|\n)/);
+    const parts = title.split(/(?<=(?:جديدة|تطبيقك|الإنتاج|مشاريعك|البيانات|الأنظمة)(?:\s+|$|\n))/);
     if (parts.length > 1) {
       title = parts[0].trim();
       highlight = parts.slice(1).join(' ').trim();
@@ -297,7 +297,7 @@ export function generateCardHTML(cardData = {}, author = DEFAULT_AUTHOR) {
   }
 
   body {
-    font-family: 'Cairo', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: 'Cairo', 'Noto Sans Arabic', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     color: #ffffff;
     display: flex;
     align-items: center;

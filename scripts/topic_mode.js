@@ -8,7 +8,7 @@ import { resolveDataPath } from './path_resolver.js';
 const HISTORY_FILE = 'topic_history.json'; // stored in data/
 
 export const AUTHOR_BIO =
-  'Mahmoud H. Almodalal (محمود هشام المدلل), Computer Engineer, Backend Developer, and Technical Manager at Washer (Saudi Arabia) & Teaching Assistant at Islamic University of Gaza. Builds production systems with Python/Django, PostgreSQL/PostGIS, Redis, Docker, and Node.js.';
+  'Mahmoud H. Almodalal (محمود هشام المدلل), Backend Engineer & Software Architect, EduTracker Co-founder, Freelance Backend Engineer based in Berlin, Germany. Formerly Technical Manager at Washer (Saudi Arabia) & Teaching Assistant at Islamic University of Gaza. Builds production systems with Python/Django, PostgreSQL/PostGIS, Redis, Docker, and Node.js.';
 
 export const TOPIC_AREAS = [
   'Distributed systems and consistency',
@@ -156,11 +156,9 @@ export function buildTopicPostPrompt(topic, { innovation = {} } = {}) {
     ? 'Language: English. Crisp, direct, professional engineering English.'
     : 'Language: Arabic (clear Modern Standard Arabic, natural technical tone). English only for established technical names (tools, SQL, APIs, patterns, metrics) and hashtags. Never mix any other language or script.';
 
-  const lengthDescription = len?.chars
-    ? `about ${len.chars} characters`
-    : len?.paragraphs
-      ? `about ${len.paragraphs} short paragraphs (${len.detailLevel || 'balanced'})`
-      : 'about 1200-1700 characters';
+  const lengthDescription = len?.paragraphs
+    ? `strictly 150-220 words (${len.paragraphs} concise paragraphs)`
+    : 'strictly 150-220 words (3-4 concise paragraphs)';
 
   const angleBlock = angle
     ? `Angle: ${angle.labelAr}. ${angle.directiveAr}
@@ -191,18 +189,16 @@ Keywords: ${(topic.keywords || []).join(', ')}
 === THIS GENERATION'S ANGLE ===
 ${angleBlock}
 
-=== STRUCTURE (flexible) ===
-1. Hook in line 1-2, under 200 characters: a misconception, surprising consequence, or sharp question. No greeting, no emoji at the start.
-2. Why this matters in 1-2 short lines.
-3. The mechanism: what actually happens under the hood.
-4. The trade-off or the common mistake, and the better approach.
-5. At most 3 concrete steps or checks (lines starting 1. 2. 3.) the reader can apply.
-6. One memorable rule of thumb in a single sentence.
-7. One specific question to peers about their experience.
-8. 3 to 5 hashtags on the last line, plain text.
+=== POST REQUIREMENTS ===
+- LENGTH: Strictly 150-220 words total (3-4 concise paragraphs). Keep it tight, punchy, and high-signal.
+- FORMAT: Plain text only. Absolutely NO markdown headers (#, ##), no bold asterisks (**), no bullet points, and no section labels (e.g. "[Hook]" or "Takeaway:"). Separate paragraphs with double line-breaks.
+- TONE: Natural, authoritative engineering voice. Concrete over abstract. No buzzwords, no clickbait, no generic introductions.
 
-=== STYLE ===
-Short paragraphs, blank line between them. Plain text only: no markdown, no headers, no bold, no labels like [Hook]. Concrete over abstract. No buzzwords, no clickbait, no "I'm excited to share". Do not mention these instructions.
+=== STREAMLINED NARRATIVE STRUCTURE ===
+1. The Hook (lines 1-2, under 200 characters): A sharp misconception, counter-intuitive insight, or provocative question about the core topic. No greeting or emojis at the start.
+2. Technical Context & Friction: Why this matters in real systems and what happens under the hood (the technical mechanism, bottleneck, or trade-off).
+3. Practical Engineering Decision: The recommended approach, concrete pattern, or battle-tested rule of thumb to apply.
+4. Takeaway & Peer Question: A brief takeaway leading into an engaging question inviting backend peers to share their perspectives, followed by 3 to 5 plain-text hashtags on the final line.
 
 Return ONLY the final post text.`;
 }

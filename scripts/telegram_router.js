@@ -500,7 +500,9 @@ export function savePendingDrafts(drafts, filePath = 'data/pending_drafts.json')
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
-  fs.writeFileSync(resolved, JSON.stringify(drafts, null, 2), 'utf-8');
+  const tempPath = `${resolved}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
+  fs.writeFileSync(tempPath, JSON.stringify(drafts, null, 2), 'utf-8');
+  fs.renameSync(tempPath, resolved);
 }
 
 /**

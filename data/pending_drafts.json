@@ -80,5 +80,85 @@
     "challenge": null,
     "status": "pending",
     "created_at": "2026-11-14T10:19:23.017Z"
+  },
+  {
+    "id": 1001,
+    "project": "2Wash",
+    "topic": "PostGIS Spatial Indexing vs In-Memory Haversine: Sub-12ms Radius Lookups",
+    "situation": null,
+    "text": "في2Wash تنازلتُ طوعاً عن منطق حسابي كتبته بنفسي لصالح امتداد داخل قاعدة البيانات، وكلاهما له ثمن… والمقايضة هنا لم تكن أكاديمية بل فُرضت تحت الضغط.\n\nالمنصة تربط مالكي السيارات بمراكز خدمة شركاء في الرياض وجدة — أكثر من 20 مركزاً — والطلب الأول في كل جلسة هو: «أقرب مركز يخدم موقعي الآن». النسخة الأولى كانت تحسب المسافة داخل التطبيق عبر Haversine على كل صفوف المراكز ثم تُرتّب النتائج في الذاكرة. المنطق كان سليماً ومقروءاً وقابلاً للاختبار، لكنه انهار عند التزامن العالي: زمن البحث بلغ P95 = 340ms مع CPU throttling واضح، لأن كل طلب يقرأ الجدول كاملاً ثم يفلتر بعد الحساب.\n\nالسبب الجذري أن المسافة دالة محسوبة على العمودين، فلا يستطيع مُخطِّط الاستعلامات استخدام أي فهرس لتقليص مجموعة المرشحين؛ النتيجة مسح كامل للجدول يتكرر مع كل طلب، وكلفته تنمو خطياً مع عدد الصفوف وعدد الطلبات المتزامنة. الحل جاء في خطوتين: 1. إضافة أعمدة مكانية عبر PostGIS وبناء GiST spatial index عليها. 2. استبدال الفلترة الحسابية باستعلام ST_DWithin بنصف قطر بالأمتار، فيقلّص الفهرس أولاً إلى مربع إحداثي صغير ثم يتحقق من المسافة الفعلية على عدد قليل من الصفوف. النتيجة في الإنتاج: P95 نزل من 340ms إلى 11.4ms، أي P95 < 12ms.\n\nالثمن الذي قبلته: امتداد إضافي في قاعدة البيانات، هجرة بيانات، وصيانة فهرس مكاني يضيف كلفة على عمليات الكتابة، مقابل بساطة نشر أعلى في المسار البديل. لكن حساب Haversine على صفوف غير مفهرسة يبقى مقبولاً فقط عندما تكون البيانات في الذاكرة أو العدد صغيراً جداً؛ أما عند آلاف الطلبات المتزامنة فهو يحرق المعالج بصمت. الدرس الهندسي: لا تُجرِ حسابات مكانية على صفوف غير مفهرسة داخل التطبيق — دع محرك قاعدة البيانات يقلّص المرشحين أولاً، ثم احسب.\n\nسؤال لزملائي المعماريين وقادة الـ backend: هل ما زلتم تفضلون الفلترة داخل التطبيق مقابل تجنّب تعقيد الامتدادات، أم أن الحد الفاصل عندكم هو حجم البيانات أم زمن الاستجابة؟ اكتبوا لنا في التعليقات 👇\n\n#PostgreSQL #PostGIS #Django #DatabaseDesign #BackendEngineering #SoftwareEngineering",
+    "post_text": "في2Wash تنازلتُ طوعاً عن منطق حسابي كتبته بنفسي لصالح امتداد داخل قاعدة البيانات، وكلاهما له ثمن… والمقايضة هنا لم تكن أكاديمية بل فُرضت تحت الضغط.\n\nالمنصة تربط مالكي السيارات بمراكز خدمة شركاء في الرياض وجدة — أكثر من 20 مركزاً — والطلب الأول في كل جلسة هو: «أقرب مركز يخدم موقعي الآن». النسخة الأولى كانت تحسب المسافة داخل التطبيق عبر Haversine على كل صفوف المراكز ثم تُرتّب النتائج في الذاكرة. المنطق كان سليماً ومقروءاً وقابلاً للاختبار، لكنه انهار عند التزامن العالي: زمن البحث بلغ P95 = 340ms مع CPU throttling واضح، لأن كل طلب يقرأ الجدول كاملاً ثم يفلتر بعد الحساب.\n\nالسبب الجذري أن المسافة دالة محسوبة على العمودين، فلا يستطيع مُخطِّط الاستعلامات استخدام أي فهرس لتقليص مجموعة المرشحين؛ النتيجة مسح كامل للجدول يتكرر مع كل طلب، وكلفته تنمو خطياً مع عدد الصفوف وعدد الطلبات المتزامنة. الحل جاء في خطوتين: 1. إضافة أعمدة مكانية عبر PostGIS وبناء GiST spatial index عليها. 2. استبدال الفلترة الحسابية باستعلام ST_DWithin بنصف قطر بالأمتار، فيقلّص الفهرس أولاً إلى مربع إحداثي صغير ثم يتحقق من المسافة الفعلية على عدد قليل من الصفوف. النتيجة في الإنتاج: P95 نزل من 340ms إلى 11.4ms، أي P95 < 12ms.\n\nالثمن الذي قبلته: امتداد إضافي في قاعدة البيانات، هجرة بيانات، وصيانة فهرس مكاني يضيف كلفة على عمليات الكتابة، مقابل بساطة نشر أعلى في المسار البديل. لكن حساب Haversine على صفوف غير مفهرسة يبقى مقبولاً فقط عندما تكون البيانات في الذاكرة أو العدد صغيراً جداً؛ أما عند آلاف الطلبات المتزامنة فهو يحرق المعالج بصمت. الدرس الهندسي: لا تُجرِ حسابات مكانية على صفوف غير مفهرسة داخل التطبيق — دع محرك قاعدة البيانات يقلّص المرشحين أولاً، ثم احسب.\n\nسؤال لزملائي المعماريين وقادة الـ backend: هل ما زلتم تفضلون الفلترة داخل التطبيق مقابل تجنّب تعقيد الامتدادات، أم أن الحد الفاصل عندكم هو حجم البيانات أم زمن الاستجابة؟ اكتبوا لنا في التعليقات 👇\n\n#PostgreSQL #PostGIS #Django #DatabaseDesign #BackendEngineering #SoftwareEngineering",
+    "image_path": "/home/mahmoud/Desktop/N8N/data/generated_images/card-draft-1001.png",
+    "visual_source": "branded_card",
+    "model_used": {
+      "text": "deepseek/deepseek-v4.1-flash",
+      "visual": null
+    },
+    "provider_used": {
+      "text": "openrouter",
+      "visual": "local"
+    },
+    "challenge": {
+      "id": 1,
+      "project": "2wash",
+      "project_name": "2Wash",
+      "title": "PostGIS Spatial Indexing vs In-Memory Haversine: Sub-12ms Radius Lookups",
+      "category": "geospatial-database",
+      "dilemma": "How to query partner service center polygons across Riyadh & Jeddah under high concurrency without CPU throttling or slow table scans.",
+      "solution": "PostgreSQL PostGIS with GiST spatial indexing and ST_DWithin queries, dropping lookup P95 from 340ms to 11.4ms.",
+      "keywords": [
+        "postgis",
+        "spatial-indexing",
+        "gist",
+        "postgresql",
+        "geospatial",
+        "django-rest",
+        "lat-long"
+      ],
+      "metrics": "P95 < 12ms",
+      "tradeoff": "PostGIS ST_DWithin + GIST Index vs In-memory Haversine filtering on unindexed rows"
+    },
+    "status": "pending",
+    "created_at": "2026-11-15T09:02:20.310Z"
+  },
+  {
+    "id": 1002,
+    "project": "2Wash",
+    "topic": "PostGIS Spatial Indexing vs In-Memory Haversine: Sub-12ms Radius Lookups",
+    "situation": null,
+    "text": "هل المشكلة الحقيقية في حساب المسافة، أم في عدد الصفوف التي نُجبر PostgreSQL على تقييمها قبل أن يبدأ الحساب أصلاً؟ في 2Wash، بدا السؤال بسيطاً: ابحث عن مراكز الخدمة القريبة من العميل في الرياض وجدة. لكن المبدأ الأول هنا ليس Haversine، بل شكل البيانات وطريقة وصول الفهرس إليها.\n\nفي البداية جرّبنا فلترة Haversine داخل التطبيق على صفوف غير مفهرسة. تحت التزامن العالي، كان كل طلب يقرأ كل المراكز ثم يحسب المسافة يدوياً. النتيجة: مسح كامل للجدول بشكل متكرر، CPU throttling، وP95 يصل إلى 340ms. الجذر التقني لم يكن صيغة المسافة، بل أن قاعدة البيانات لم تستطع تضييق مجموعة المرشحين قبل الحساب؛ فكل صف كان مرشحاً دائماً.\n\nقررنا نقل القرار إلى PostgreSQL 15 + PostGIS، وتخزين المضلعات كـ geometry مع GiST spatial index. استخدمنا ST_DWithin لاستعلامات النطاق، فيقلّص الفهرس المرشحين مكانياً قبل أي حساب دقيق. البديل المرفوض كان Haversine في الذاكرة على صفوف غير مفهرسة؛ يبدو أخف في البداية، لكنه يتحول إلى دين تقني تحت الحمل. النتيجة الإنتاجية: P95 انخفض من 340ms إلى 11.4ms، وثبت تحت 12ms مع 20+ مركز خدمة و500+ حجز تجاري.\n\nالقاعدة التي أتعلمها: لا تحسب المسافة قبل أن يضيّق الفهرس المرشحين. الفهرس المكاني ليس تحسيناً ثانوياً، بل هو ما يمنع الحساب من أن يصبح عبئاً على CPU. سؤال\n\n#PostGIS #PostgreSQL #GiST #SpatialIndexing #Geospatial #Django",
+    "post_text": "هل المشكلة الحقيقية في حساب المسافة، أم في عدد الصفوف التي نُجبر PostgreSQL على تقييمها قبل أن يبدأ الحساب أصلاً؟ في 2Wash، بدا السؤال بسيطاً: ابحث عن مراكز الخدمة القريبة من العميل في الرياض وجدة. لكن المبدأ الأول هنا ليس Haversine، بل شكل البيانات وطريقة وصول الفهرس إليها.\n\nفي البداية جرّبنا فلترة Haversine داخل التطبيق على صفوف غير مفهرسة. تحت التزامن العالي، كان كل طلب يقرأ كل المراكز ثم يحسب المسافة يدوياً. النتيجة: مسح كامل للجدول بشكل متكرر، CPU throttling، وP95 يصل إلى 340ms. الجذر التقني لم يكن صيغة المسافة، بل أن قاعدة البيانات لم تستطع تضييق مجموعة المرشحين قبل الحساب؛ فكل صف كان مرشحاً دائماً.\n\nقررنا نقل القرار إلى PostgreSQL 15 + PostGIS، وتخزين المضلعات كـ geometry مع GiST spatial index. استخدمنا ST_DWithin لاستعلامات النطاق، فيقلّص الفهرس المرشحين مكانياً قبل أي حساب دقيق. البديل المرفوض كان Haversine في الذاكرة على صفوف غير مفهرسة؛ يبدو أخف في البداية، لكنه يتحول إلى دين تقني تحت الحمل. النتيجة الإنتاجية: P95 انخفض من 340ms إلى 11.4ms، وثبت تحت 12ms مع 20+ مركز خدمة و500+ حجز تجاري.\n\nالقاعدة التي أتعلمها: لا تحسب المسافة قبل أن يضيّق الفهرس المرشحين. الفهرس المكاني ليس تحسيناً ثانوياً، بل هو ما يمنع الحساب من أن يصبح عبئاً على CPU. سؤال\n\n#PostGIS #PostgreSQL #GiST #SpatialIndexing #Geospatial #Django",
+    "image_path": "/home/mahmoud/Desktop/N8N/data/generated_images/card-draft-1002.png",
+    "visual_source": "branded_card",
+    "model_used": {
+      "text": "deepseek/deepseek-v4.1-flash",
+      "visual": null
+    },
+    "provider_used": {
+      "text": "openrouter",
+      "visual": "local"
+    },
+    "challenge": {
+      "id": 1,
+      "project": "2wash",
+      "project_name": "2Wash",
+      "title": "PostGIS Spatial Indexing vs In-Memory Haversine: Sub-12ms Radius Lookups",
+      "category": "geospatial-database",
+      "dilemma": "How to query partner service center polygons across Riyadh & Jeddah under high concurrency without CPU throttling or slow table scans.",
+      "solution": "PostgreSQL PostGIS with GiST spatial indexing and ST_DWithin queries, dropping lookup P95 from 340ms to 11.4ms.",
+      "keywords": [
+        "postgis",
+        "spatial-indexing",
+        "gist",
+        "postgresql",
+        "geospatial",
+        "django-rest",
+        "lat-long"
+      ],
+      "metrics": "P95 < 12ms",
+      "tradeoff": "PostGIS ST_DWithin + GIST Index vs In-memory Haversine filtering on unindexed rows"
+    },
+    "status": "pending",
+    "created_at": "2026-11-15T09:13:56.394Z"
   }
 ]

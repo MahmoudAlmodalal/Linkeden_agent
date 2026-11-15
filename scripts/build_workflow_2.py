@@ -1,6 +1,7 @@
 import json
 
 js_security = r"""const body = $input.item.json.body || $input.item.json;
+const incomingHeaders = $input.item.json.headers || {};
 const callback = body.callback_query;
 let fromId = '';
 let chatId = '';
@@ -15,6 +16,26 @@ if (callback) {
   fromId = String(message.from?.id || '');
   chatId = message.chat?.id || fromId;
   text = (message.text || '').trim();
+}
+
+const webhookSecret = String(
+  (typeof $env !== 'undefined' && $env && $env.TELEGRAM_WEBHOOK_SECRET) ||
+  (typeof process !== 'undefined' && process.env && process.env.TELEGRAM_WEBHOOK_SECRET) ||
+  ''
+).trim();
+if (webhookSecret) {
+  const secretHeader = incomingHeaders['x-telegram-bot-api-secret-token'];
+  if (!secretHeader || secretHeader !== webhookSecret) {
+    return [{
+      json: {
+        authorized: false,
+        chatId,
+        text,
+        command: 'unauthorized',
+        replyText: '⛔ Unauthorized: Missing or invalid Telegram secret token.'
+      }
+    }];
+  }
 }
 
 const allowedId = String($input.item.json.allowedTelegramUserId || '').trim();
@@ -134,22 +155,66 @@ if (inlineCallback) {
     if (numMatch) draftId = numMatch[1];
   }
 } else if (
+  text.startsWith('/edit') ||
+  text.startsWith('edit:') ||
+  text.startsWith('✏️') ||
+  text.startsWith('تعديل')
+) {
+  command = 'edit';
+  const cleanEdit = text.replace(/^(?:\/edit|edit:|✏️|تعديل)(?:@\w+)?\s*/iu, '').trim();
+  const editMatch = cleanEdit.match(/^#?(\d+)\s+([\s\S]+)$/);
+  if (editMatch) {
+    draftId = editMatch[1];
+    situation = editMatch[2].trim();
+  } else {
+    command = 'help';
+    replyText = '⚠️ صيغة الأمر غير صحيحة. استخدم: /edit [رقم_المسودة] [النص الجديد]';
+  }
+} else if (
+  text.startsWith('/situation') ||
+  text.startsWith('/incident') ||
+  text.startsWith('/scenario') ||
+  text.startsWith('💡 كتابة موقف') ||
+  text === 'situation'
+) {
+  const situationArg = text
+    .replace(/^(?:\/situation|\/incident|\/scenario|💡\s*كتابة\s*موقف)(?:@\w+)?\s*/iu, '')
+    .trim();
+
+  if (situationArg) {
+    command = 'generate';
+    situation = situationArg;
+  } else {
+    botState[fromId] = { state: 'awaiting_situation', updated_at: new Date().toISOString() };
+    saveBotState(botState);
+    command = 'help';
+    replyText = '💡 كتابة برمبت موقف هندسي\n\nأرسل الآن نص الموقف أو المعضلة البرمجية في رسالة، وسيقوم النظام فوراً بدمجها في الـ System Prompt وتوليد بوست معماري عالي القيمة مع بطاقة مرئية مخصصة لهويتك.\n\n(أو أرسل /cancel للإلغاء)';
+  }
+} else if (text === '/cancel' || text === 'cancel' || text === 'إلغاء') {
+  delete botState[fromId];
+  saveBotState(botState);
+  command = 'help';
+  replyText = 'لا توجد عملية جارية لإلغائها.';
+} else if (text.length >= 40 || text.includes('\n')) {
+  command = 'generate';
+  situation = text;
+} else if (
   text.startsWith('show:') ||
   text.startsWith('/show') ||
   text.startsWith('/preview') ||
   text.startsWith('/post') ||
   text.startsWith('/project') ||
-  text.includes('عرض مسودة') ||
-  text.includes('عرض المنشور') ||
-  text.includes('عرض المناشير') ||
-  text.includes('عرض مشروع') ||
-  text.includes('عرض المشروع') ||
-  text.includes('عرض مشاريع') ||
-  text.includes('عرض المشاريع') ||
-  text.includes('المشاريع') ||
-  text.includes('مشاريع') ||
   text.startsWith('مشروع') ||
-  text.includes('معاينة') ||
+  text.startsWith('المشاريع') ||
+  text.startsWith('مشاريع') ||
+  text.startsWith('معاينة') ||
+  text.startsWith('عرض مسودة') ||
+  text.startsWith('عرض المنشور') ||
+  text.startsWith('عرض المناشير') ||
+  text.startsWith('عرض مشروع') ||
+  text.startsWith('عرض المشروع') ||
+  text.startsWith('عرض مشاريع') ||
+  text.startsWith('عرض المشاريع') ||
   text.startsWith('👁️')
 ) {
   command = 'show';
@@ -177,47 +242,17 @@ if (inlineCallback) {
   text === 'grafs' ||
   text.startsWith('/graf') ||
   text === 'graf' ||
-  text.includes('/drafts') ||
-  text.includes('/grafs') ||
   text.startsWith('📋 عرض') ||
-  text.includes('المسودات') ||
-  text.includes('المنشورات')
+  text === 'المسودات' ||
+  text === 'المنشورات'
 ) {
   command = 'drafts';
-} else if (
-  text.startsWith('/situation') ||
-  text.startsWith('/incident') ||
-  text.startsWith('/scenario') ||
-  text.startsWith('💡 كتابة موقف') ||
-  text === 'situation'
-) {
-  const situationArg = text
-    .replace(/^(?:\/situation|\/incident|\/scenario|💡\s*كتابة\s*موقف)(?:@\w+)?\s*/iu, '')
-    .trim();
-
-  if (situationArg) {
-    command = 'generate';
-    situation = situationArg;
-  } else {
-    botState[fromId] = { state: 'awaiting_situation', updated_at: new Date().toISOString() };
-    saveBotState(botState);
-    command = 'help';
-    replyText = '💡 *كتابة برمبت موقف هندسي*\n\nأرسل الآن نص الموقف أو المعضلة البرمجية في رسالة، وسيقوم النظام فوراً بدمجها في الـ System Prompt وتوليد بوست معماري عالي القيمة مع بطاقة مرئية مخصصة لهويتك.\n\n_(أو أرسل /cancel للإلغاء)_';
-  }
-} else if (text === '/cancel' || text === 'cancel' || text === 'إلغاء') {
-  delete botState[fromId];
-  saveBotState(botState);
-  command = 'help';
-  replyText = 'لا توجد عملية جارية لإلغائها.';
-} else if (text.startsWith('/generate') || text === 'generate' || text.includes('/generate') || text.startsWith('⚡ توليد')) {
+} else if (text.startsWith('/generate') || text === 'generate' || text.startsWith('⚡ توليد')) {
   command = 'generate';
   const genArg = text.replace(/^(?:\/generate|⚡\s*توليد)(?:@\w+)?\s*/iu, '').trim();
   if (genArg) query = genArg;
-} else if (text.startsWith('/help') || text === 'help' || text === '/start' || text.includes('/help') || text.startsWith('ℹ️ المساعدة')) {
+} else if (text.startsWith('/help') || text === 'help' || text === '/start' || text.startsWith('ℹ️ المساعدة')) {
   command = 'help';
-} else if (text.length >= 40 || text.includes('\n')) {
-  command = 'generate';
-  situation = text;
 } else {
   command = 'help';
 }
@@ -468,7 +503,13 @@ try {
     if (removedCount === 0) {
       replyText = `⚠️ لم أجد المسودة #${cleanId} في قائمة الانتظار.`;
     } else {
-      fs.writeFileSync(filePath, JSON.stringify(remaining, null, 2), 'utf8');
+      try {
+        const tempPath = `${filePath}.${Date.now()}.tmp`;
+        fs.writeFileSync(tempPath, JSON.stringify(remaining, null, 2), 'utf8');
+        fs.renameSync(tempPath, filePath);
+      } catch {
+        fs.writeFileSync(filePath, JSON.stringify(remaining, null, 2), 'utf8');
+      }
       const cardPath = `/data/generated_images/card-draft-${cleanId}.png`;
       try {
         if (fs.existsSync(cardPath)) fs.unlinkSync(cardPath);
@@ -482,6 +523,45 @@ try {
 
 return [{ json: { chatId, replyText } }];"""
 
+js_edit = r"""const fs = require('fs');
+const filePath = '/data/pending_drafts.json';
+const prev = $('Security & Command Parser').first().json;
+const rawDraftId = prev.draftId;
+const cleanId = String(rawDraftId ?? '').replace(/^#/, '').trim();
+const newText = prev.situation || '';
+const chatId = prev.chatId;
+
+if (!cleanId || !newText) {
+  return [{ json: { chatId, replyText: '⚠️ يرجى تحديد رقم المسودة والنص الجديد:\n/edit [رقم] [النص]' } }];
+}
+
+try {
+  if (!fs.existsSync(filePath)) {
+    return [{ json: { chatId, replyText: '⚠️ لا توجد مسودات محفوظة.' } }];
+  }
+  const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  const drafts = Array.isArray(parsed) ? parsed : (Array.isArray(parsed?.drafts) ? parsed.drafts : []);
+  const target = drafts.find((d) => String(d.id) === cleanId);
+  if (!target) {
+    return [{ json: { chatId, replyText: `⚠️ لم أجد المسودة #${cleanId} في قائمة الانتظار.` } }];
+  }
+  target.text = newText;
+  target.post_text = newText;
+  target.updated_at = new Date().toISOString();
+
+  try {
+    const tempPath = `${filePath}.${Date.now()}.tmp`;
+    fs.writeFileSync(tempPath, JSON.stringify(drafts, null, 2), 'utf8');
+    fs.renameSync(tempPath, filePath);
+  } catch {
+    fs.writeFileSync(filePath, JSON.stringify(drafts, null, 2), 'utf8');
+  }
+
+  return [{ json: { chatId, replyText: `✏️ تم تحديث نص المسودة #${cleanId} بنجاح!\n\nيمكنك الآن معاينتها بـ /show #${cleanId} أو نشرها بـ /approve #${cleanId}` } }];
+} catch (err) {
+  return [{ json: { chatId, replyText: `❌ فشل تحديث المسودة: ${err.message}` } }];
+}"""
+
 wf2 = {
   "id": "workflow-2-publishing",
   "name": "Workflow 2 - LinkedIn Publishing & Telegram Command Handler",
@@ -490,6 +570,7 @@ wf2 = {
       "parameters": {
         "httpMethod": "POST",
         "path": "telegram-webhook",
+        "responseMode": "onReceived",
         "options": {}
       },
       "id": "webhook-telegram",
@@ -616,6 +697,13 @@ wf2 = {
                 "conditions": [{ "leftValue": "={{ $json.command }}", "rightValue": "help", "operator": { "type": "string", "operation": "equals" } }],
                 "combinator": "and"
               }
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": True, "leftValue": "", "typeValidation": "strict" },
+                "conditions": [{ "leftValue": "={{ $json.command }}", "rightValue": "edit", "operator": { "type": "string", "operation": "equals" } }],
+                "combinator": "and"
+              }
             }
           ]
         }
@@ -628,7 +716,7 @@ wf2 = {
     },
     {
       "parameters": {
-        "jsCode": "const { execSync } = require('child_process');\nconst draftId = $input.item.json.draftId || '';\nlet stdout = '';\nlet stderr = '';\ntry {\n  stdout = execSync(`node /scripts/linkedin_publisher.js ${draftId}`, { cwd: '/', encoding: 'utf8' });\n} catch (err) {\n  stderr = err.stderr || err.message || '';\n  stdout = err.stdout || '';\n}\nreturn [{ json: { stdout, stderr } }];"
+        "jsCode": "const { execFileSync } = require('child_process');\nconst rawDraftId = String($input.item.json.draftId || '').replace(/^#/, '').trim();\nif (rawDraftId && !/^\\d+$/.test(rawDraftId)) {\n  throw new Error('Invalid draft ID: must contain digits only');\n}\nconst args = ['/scripts/linkedin_publisher.js'];\nif (rawDraftId) args.push(rawDraftId);\nlet stdout = '';\nlet stderr = '';\ntry {\n  stdout = execFileSync('node', args, { cwd: '/', encoding: 'utf8' });\n} catch (err) {\n  stderr = err.stderr || err.message || '';\n  stdout = err.stdout || '';\n}\nreturn [{ json: { stdout, stderr } }];"
       },
       "id": "linkedin-publishing-node",
       "name": "LinkedIn Publishing Node",
@@ -639,7 +727,7 @@ wf2 = {
     },
     {
       "parameters": {
-        "jsCode": "const stdout = $input.item.json.stdout || '';\nconst stderr = $input.item.json.stderr || '';\nlet result = {};\ntry { result = JSON.parse(stdout); } catch { result = { success: false, error: stderr || stdout || 'Unknown error' }; }\nconst prev = $('Security & Command Parser').first().json;\nconst chatId = prev.chatId;\nlet replyText = '';\nif (result.success) {\n  replyText = `✅ *تم النشر بنجاح على LinkedIn!*\\n\\n*رقم المسودة:* #${result.draftId}\\n*رابط المنشور الحي:* ${result.liveUrl}`;\n} else {\n  const draftId = result.draftId || prev.draftId || 'latest';\n  replyText = `❌ *فشل النشر للمسودة #${draftId}*\\n\\n*الخطأ:* ${result.error}\\n\\n_تم الاحتفاظ بالمسودة في النظام للمحاولة لاحقاً._`;\n}\nreturn [{ json: { chatId, replyText } }];"
+        "jsCode": "const stdout = $input.item.json.stdout || '';\nconst stderr = $input.item.json.stderr || '';\nlet result = {};\ntry { result = JSON.parse(stdout); } catch { result = { success: false, error: stderr || stdout || 'Unknown error' }; }\nconst prev = $('Security & Command Parser').first().json;\nconst chatId = prev.chatId;\nlet replyText = '';\nif (result.success) {\n  replyText = `✅ تم النشر بنجاح على LinkedIn!\\n\\nرقم المسودة: #${result.draftId}\\nرابط المنشور الحي: ${result.liveUrl}`;\n} else {\n  const draftId = result.draftId || prev.draftId || 'latest';\n  replyText = `❌ فشل النشر للمسودة #${draftId}\\n\\nالخطأ: ${result.error}\\n\\nتم الاحتفاظ بالمسودة في النظام للمحاولة لاحقاً.`;\n}\nreturn [{ json: { chatId, replyText } }];"
       },
       "id": "format-publish-reply",
       "name": "Format Publishing Reply",
@@ -758,6 +846,16 @@ wf2 = {
       "typeVersion": 4.2,
       "position": [1240, 820],
       "continueOnFail": True
+    },
+    {
+      "parameters": {
+        "jsCode": js_edit
+      },
+      "id": "handle-edit-node",
+      "name": "Handle Edit Node",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [780, 940]
     }
   ],
   "connections": {
@@ -783,7 +881,8 @@ wf2 = {
         [{ "node": "Handle Generate Node", "type": "main", "index": 0 }],
         [{ "node": "Handle Drafts Node", "type": "main", "index": 0 }],
         [{ "node": "Handle Show Node", "type": "main", "index": 0 }],
-        [{ "node": "Handle Help Node", "type": "main", "index": 0 }]
+        [{ "node": "Handle Help Node", "type": "main", "index": 0 }],
+        [{ "node": "Handle Edit Node", "type": "main", "index": 0 }]
       ]
     },
     "LinkedIn Publishing Node": {
@@ -808,6 +907,9 @@ wf2 = {
       "main": [[{ "node": "Telegram Preview Reply Node", "type": "main", "index": 0 }]]
     },
     "Handle Help Node": {
+      "main": [[{ "node": "Telegram Reply Node", "type": "main", "index": 0 }]]
+    },
+    "Handle Edit Node": {
       "main": [[{ "node": "Telegram Reply Node", "type": "main", "index": 0 }]]
     }
   },

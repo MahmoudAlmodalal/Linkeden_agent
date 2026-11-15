@@ -3,10 +3,19 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-export const LINKEDIN_API_VERSION = '202401';
+export const LINKEDIN_API_VERSION = process.env.LINKEDIN_API_VERSION || '202501';
 export const RESTLI_PROTOCOL_VERSION = '2.0.0';
 export const LINKEDIN_API_BASE = 'https://api.linkedin.com/rest';
 export const DEFAULT_DRAFTS_PATH = 'data/pending_drafts.json';
+
+/**
+ * Escapes reserved formatting characters in LinkedIn commentary:
+ * \ | { } @ [ ] ( ) < > * _ ~
+ */
+export function escapeLinkedIn(text) {
+  if (!text || typeof text !== 'string') return '';
+  return text.replace(/[\\|{}@[\]()<>*_~]/g, (m) => '\\' + m);
+}
 
 /**
  * Step 1: Initialize Image Upload
@@ -114,6 +123,8 @@ export async function createPost({
   commentary,
   imageUrn,
   accessToken,
+  title,
+  altText,
   fetchClient = globalThis.fetch,
 }) {
   if (!authorUrn) {
@@ -136,7 +147,7 @@ export async function createPost({
 
   const payload = {
     author: authorUrn,
-    commentary,
+    commentary: escapeLinkedIn(commentary),
     visibility: 'PUBLIC',
     distribution: {
       feedDistribution: 'MAIN_FEED',
@@ -151,6 +162,8 @@ export async function createPost({
     payload.content = {
       media: {
         id: imageUrn,
+        altText: altText || 'Technical architecture post by Mahmoud H. Almodalal',
+        title: title || 'Architecture Blueprint',
       },
     };
   }
@@ -191,7 +204,43 @@ export async function createPost({
 }
 
 /**
- * 3-step publishing pipeline to LinkedIn
+ * Optional: Add First Comment to Post
+ * POST https://api.linkedin.com/rest/socialActions/{postUrn}/comments
+ */
+export async function createComment({
+  postUrn,
+  authorUrn,
+  text,
+  accessToken,
+  fetchClient = globalThis.fetch,
+}) {
+  if (!postUrn || !authorUrn || !text || !accessToken) return null;
+  const endpoint = `${LINKEDIN_API_BASE}/socialActions/${encodeURIComponent(postUrn)}/comments`;
+  const headers = {
+    'LinkedIn-Version': LINKEDIN_API_VERSION,
+    'X-Restli-Protocol-Version': RESTLI_PROTOCOL_VERSION,
+    'Authorization': `Bearer ${accessToken}`,
+    'Content-Type': 'application/json',
+  };
+  const body = {
+    actor: authorUrn,
+    message: { text: String(text).trim() },
+  };
+  const response = await fetchClient(endpoint, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '');
+    throw new Error(`LinkedIn createComment failed (${response.status}): ${errorText}`);
+  }
+  const commentUrn = response.headers?.get ? response.headers.get('x-restli-id') : response.headers?.['x-restli-id'];
+  return { commentUrn };
+}
+
+/**
+ * 3-step publishing pipeline to LinkedIn with text-only fallback
  */
 export async function publishToLinkedIn({
   commentary,
@@ -199,6 +248,9 @@ export async function publishToLinkedIn({
   imageBuffer,
   authorUrn,
   accessToken,
+  title,
+  altText,
+  firstComment = process.env.LINKEDIN_FIRST_COMMENT,
   fetchClient = globalThis.fetch,
 }) {
   const token = accessToken || process.env.LINKEDIN_ACCESS_TOKEN || process.env.LINKEDIN_TOKEN;
@@ -211,36 +263,61 @@ export async function publishToLinkedIn({
     throw new Error('Missing LinkedIn author URN (LINKEDIN_PERSON_URN)');
   }
 
-  // Step 1: Initialize image upload
-  const { uploadUrl, imageUrn } = await initializeUpload({
-    ownerUrn: author,
-    accessToken: token,
-    fetchClient,
-  });
+  let imageUrn = null;
+  const hasImage = Boolean(imageBuffer || (imagePath && fs.existsSync(imagePath)));
 
-  // Step 2: Upload binary image
-  await uploadImageBinary({
-    uploadUrl,
-    imageBuffer,
-    imagePath,
-    accessToken: token,
-    fetchClient,
-  });
+  if (hasImage) {
+    // Step 1: Initialize image upload
+    const uploadRes = await initializeUpload({
+      ownerUrn: author,
+      accessToken: token,
+      fetchClient,
+    });
 
-  // Step 3: Create post referencing image
+    // Step 2: Upload binary image
+    await uploadImageBinary({
+      uploadUrl: uploadRes.uploadUrl,
+      imageBuffer,
+      imagePath,
+      accessToken: token,
+      fetchClient,
+    });
+    imageUrn = uploadRes.imageUrn;
+  }
+
+  // Step 3: Create post referencing image (or text-only if imageUrn is null)
   const { postUrn, liveUrl } = await createPost({
     authorUrn: author,
     commentary,
     imageUrn,
+    title,
+    altText,
     accessToken: token,
     fetchClient,
   });
+
+  let commentUrn = null;
+  if (firstComment && postUrn) {
+    try {
+      const commentRes = await createComment({
+        postUrn,
+        authorUrn: author,
+        text: firstComment,
+        accessToken: token,
+        fetchClient,
+      });
+      commentUrn = commentRes?.commentUrn;
+    } catch (commentErr) {
+      console.warn(`[LinkedIn Publisher] Could not post first comment: ${commentErr.message}`);
+    }
+  }
 
   return {
     success: true,
     postUrn,
     liveUrl,
     imageUrn,
+    ...(commentUrn ? { commentUrn } : {}),
   };
 }
 
@@ -270,14 +347,17 @@ export async function loadPendingDrafts(filePath = DEFAULT_DRAFTS_PATH) {
  * Save pending drafts to JSON file
  */
 export async function savePendingDrafts(filePath, drafts, formatInfo = { format: 'array' }) {
-  await fs.promises.mkdir(path.dirname(path.resolve(filePath)), { recursive: true });
+  const resolvedPath = path.resolve(filePath);
+  await fs.promises.mkdir(path.dirname(resolvedPath), { recursive: true });
   let output;
   if (formatInfo.format === 'object' && formatInfo.rawObject) {
     output = { ...formatInfo.rawObject, drafts };
   } else {
     output = drafts;
   }
-  await fs.promises.writeFile(filePath, JSON.stringify(output, null, 2), 'utf-8');
+  const tempPath = `${resolvedPath}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
+  await fs.promises.writeFile(tempPath, JSON.stringify(output, null, 2), 'utf-8');
+  await fs.promises.rename(tempPath, resolvedPath);
 }
 
 /**

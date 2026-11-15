@@ -16,13 +16,13 @@ export const STRATEGIC_ANGLES = [
   {
     id: 'production-incident',
     labelAr: 'حادثة إنتاج حقيقية',
-    directiveAr: 'ابنِ السرد حول حادثة إنتاجية واقعية مررت بها، واذكر المؤشر المرئي (P95، معدل错误، التأخير) الذي كشفت المشكلة.',
-    hookStyle: 'تصريح جريءcounter-intuitive عن خطأ شائع يعتقده معظم المهندسين.',
+    directiveAr: 'ابنِ السرد حول حادثة إنتاجية واقعية مررت بها، واذكر المؤشر المرئي (P95، معدل الأخطاء، زمن الاستجابة) الذي كشف المشكلة.',
+    hookStyle: 'تصريح جريء وغير بديهي عن خطأ شائع يعتقده معظم المهندسين.',
   },
   {
     id: 'trade-off-analysis',
     labelAr: 'تحليل المقايضة',
-    directiveAr: 'قارن بين حلين Arquitecturaisين متضادين (مثل متغير واحد على حساب آخر)، ووضح لماذا اخترت أحدهما في هذا المشروع تحديداً.',
+    directiveAr: 'قارن بين حلين معماريين متضادين (مثل متغير واحد على حساب آخر)، ووضح لماذا اخترت أحدهما في هذا المشروع تحديداً.',
     hookStyle: 'إعلان عن تنازل مقصود بين خيارين تقنيين، وكلاهما له ثمن.',
   },
   {
@@ -40,8 +40,8 @@ export const STRATEGIC_ANGLES = [
   {
     id: 'metric-driven',
     labelAr: 'موجه بالمقاييس',
-    directiveAr: 'ابدأ بالرقم الإنتاجي الحقيقي (مثل P95 340ms → 11.4ms)، ثم اشرح كيف تم الوصول إليه.',
-    hookStyle: 'رقم صادم أو تحسن ملحوظ يجعل القارئ يتساءل كيف حدث.',
+    directiveAr: 'ابدأ بالرقم الإنتاجي الحقيقي الموثق في سياق المشروع دون اختلاق، ثم اشرح كيف تم الوصول إليه.',
+    hookStyle: 'رقم حقيقي أو تحسن ملحوظ يجعل القارئ يتساءل كيف حدث.',
   },
   {
     id: 'anti-pattern',
@@ -59,7 +59,7 @@ export const HOOK_TEMPLATES = [
   'المشكلة لا تكمن في الأداة، بل في كيف نستخدمها.',
   'الأنظمة الموزعة تُظهر أسوأ مخاوفها تحت الضغط، ليس في المختبر.',
   'ما يبدو حلاً مؤقتاً يتحول إلى دين تقني دائم خلال أسابيع.',
-  'كلฐาน بيانات يُباع على أنه موحد يسلك سلوكاً مختلفاً تحت التزامن.',
+  'كل قاعدة بيانات تُباع على أنها موحدة تسلك سلوكاً مختلفاً تحت التزامن.',
 ];
 
 const TEXT_INNOVATION_STATE_FILE = resolveDataPath('text_innovation_state.json');
@@ -182,9 +182,9 @@ export function resolveHookTemplate(index) {
 }
 
 export const TEXT_LENGTH_VARIANTS = [
-  { id: 'concise', labelAr: 'مختصر', paragraphs: 4, detailLevel: 'موجز مع التركيز على الخلاصة فقط' },
-  { id: 'balanced', labelAr: 'متوازن', paragraphs: 6, detailLevel: 'تفصيل معتدل للميكانيكية التقنية' },
-  { id: 'deep-dive', labelAr: 'غوص عميق', paragraphs: 8, detailLevel: 'تفصيل تقني كامل مع ذكر القياسات والاختبارات' },
+  { id: 'concise', labelAr: 'مختصر', paragraphs: 3, detailLevel: 'موجز مع التركيز على الخلاصة فقط' },
+  { id: 'balanced', labelAr: 'متوازن', paragraphs: 4, detailLevel: 'تفصيل معتدل للميكانيكية التقنية' },
+  { id: 'deep-dive', labelAr: 'غوص عميق', paragraphs: 5, detailLevel: 'تفصيل تقني كامل مع ذكر القياسات والاختبارات' },
 ];
 
 const TEXT_LENGTH_STATE_FILE = resolveDataPath('text_length_state.json');

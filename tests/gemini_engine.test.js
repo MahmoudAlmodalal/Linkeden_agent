@@ -43,6 +43,15 @@ describe('Gemini Engine - Mandatory LinkedIn Hashtags', () => {
     assert.ok(tags.length >= 4 && tags.length <= 6);
     assert.match(result, /#Backend #SystemDesign/);
   });
+
+  it('preserves inline hashtag words in post body instead of deleting words', () => {
+    const text = 'استخدمنا #Redis مع #PostgreSQL لحل مشكلة التزامن في النظام.';
+    const result = ensureHashtags(text, { keywords: ['backend', 'caching'] });
+    assert.match(result, /استخدمنا Redis مع PostgreSQL لحل مشكلة التزامن في النظام\./);
+    const lines = result.trim().split('\n');
+    const lastLine = lines[lines.length - 1];
+    assert.match(lastLine, /#(Redis|PostgreSQL|Backend|Caching)/i);
+  });
 });
 
 describe('Gemini Engine - Model Enforcement & Deprecation Rules', () => {
@@ -119,16 +128,17 @@ describe('Gemini Engine - 5-Element Prompt Breakdown & Language Rules', () => {
     assert.match(prompt, /Hook/i);
     assert.match(prompt, /Architectural Dilemma/i);
 
-    // 2. Deep-dive (technical mechanics)
-    assert.match(prompt, /Deep-Dive/i);
+    // 2. The Friction & Root Cause (technical mechanics)
+    assert.match(prompt, /Friction/i);
+    assert.match(prompt, /Root Cause/i);
     assert.match(prompt, /Technical Mechanics/i);
 
-    // 3. Key Takeaways (engineering rules)
-    assert.match(prompt, /Key Takeaways/i);
-    assert.match(prompt, /Engineering Rules/i);
+    // 3. The Engineering Decision & Trade-Off
+    assert.match(prompt, /Engineering Decision/i);
+    assert.match(prompt, /Trade-Off/i);
 
-    // 4. Call to Action (peer question)
-    assert.match(prompt, /Call to Action/i);
+    // 4. Takeaway & Peer Question (engineering rules)
+    assert.match(prompt, /Takeaway/i);
     assert.match(prompt, /Peer Question/i);
 
     // 5. Hashtags

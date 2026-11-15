@@ -1,6 +1,8 @@
 #!/bin/sh
 set -eu
 
+export NODE_PATH="${NODE_PATH:-/app/node_modules}"
+
 # Import repository workflows into the n8n database before the server starts.
 # The official n8n image provides the `n8n` command on PATH inside this script.
 for workflow in /workflows/workflow_1_staging.json /workflows/workflow_2_publishing.json; do

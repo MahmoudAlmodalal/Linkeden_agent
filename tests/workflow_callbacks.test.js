@@ -250,3 +250,137 @@ test('workflow 2 Handle Rejection Node validates draftId and verifies deletion',
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 });
+
+test('workflow 2 validates secret token header against TELEGRAM_WEBHOOK_SECRET when set', () => {
+  const parserCode = nodes.get('Security & Command Parser')?.parameters?.jsCode;
+  assert.ok(parserCode);
+  const execute = new Function('$input', '$env', 'require', parserCode);
+
+  const makePayload = (headers = {}, userId = 445566) => ({
+    item: {
+      json: {
+        headers,
+        body: {
+          message: {
+            from: { id: userId },
+            chat: { id: userId },
+            text: '/help',
+          },
+        },
+        allowedTelegramUserId: String(userId),
+      },
+    },
+  });
+
+  const envWithSecret = { TELEGRAM_WEBHOOK_SECRET: 'my-super-secret-123' };
+
+  // Matching secret token header
+  const authorizedResult = execute(
+    makePayload({ 'x-telegram-bot-api-secret-token': 'my-super-secret-123' }),
+    envWithSecret,
+    (mod) => (mod === 'fs' ? fs : (mod === 'path' ? path : null)),
+  )[0].json;
+  assert.equal(authorizedResult.authorized, true);
+
+  // Mismatched secret token header
+  const invalidResult = execute(
+    makePayload({ 'x-telegram-bot-api-secret-token': 'wrong-secret' }),
+    envWithSecret,
+    (mod) => (mod === 'fs' ? fs : (mod === 'path' ? path : null)),
+  )[0].json;
+  assert.equal(invalidResult.authorized, false);
+
+  // Missing secret token header when secret is configured
+  const missingResult = execute(
+    makePayload({}),
+    envWithSecret,
+    (mod) => (mod === 'fs' ? fs : (mod === 'path' ? path : null)),
+  )[0].json;
+  assert.equal(missingResult.authorized, false);
+});
+
+test('workflow 2 parser prioritizes long situations containing project keywords over short commands', () => {
+  const parserCode = nodes.get('Security & Command Parser')?.parameters?.jsCode;
+  const execute = new Function('$input', 'require', parserCode);
+  const parseMsg = (text) => execute({
+    item: {
+      json: {
+        body: {
+          message: {
+            from: { id: 445566 },
+            chat: { id: 445566 },
+            text,
+          },
+        },
+        allowedTelegramUserId: '445566',
+      },
+    },
+  }, (mod) => (mod === 'fs' ? fs : (mod === 'path' ? path : null)))[0].json;
+
+  // A long technical text mentioning "مشاريع" and "معاينة"
+  const situationText = 'واجهنا مشكلة غير متوقعة في مشاريع سابقة متعلقة بـ PostGIS وبطء استعلامات الفهرس الجغرافي عند ضغط الطلبات';
+  const parsed = parseMsg(situationText);
+  assert.equal(parsed.command, 'generate');
+  assert.equal(parsed.situation, situationText);
+
+  // Short commands still trigger show
+  assert.equal(parseMsg('مشاريع').command, 'show');
+  assert.equal(parseMsg('معاينة 5').command, 'show');
+  assert.equal(parseMsg('معاينة 5').draftId, '5');
+});
+
+test('workflow 2 parses /edit command and Handle Edit Node updates draft text atomically', () => {
+  const parserCode = nodes.get('Security & Command Parser')?.parameters?.jsCode;
+  const executeParser = new Function('$input', 'require', parserCode);
+  const parsed = executeParser({
+    item: {
+      json: {
+        body: {
+          message: {
+            from: { id: 445566 },
+            chat: { id: 445566 },
+            text: '/edit 105 هذا النص المحدث بعد المراجعة اليدوية للمنشور الهندسي.',
+          },
+        },
+        allowedTelegramUserId: '445566',
+      },
+    },
+  }, (mod) => (mod === 'fs' ? fs : (mod === 'path' ? path : null)))[0].json;
+
+  assert.equal(parsed.command, 'edit');
+  assert.equal(parsed.draftId, '105');
+  assert.equal(parsed.situation, 'هذا النص المحدث بعد المراجعة اليدوية للمنشور الهندسي.');
+
+  // Test Handle Edit Node
+  const editCode = nodes.get('Handle Edit Node')?.parameters?.jsCode || '';
+  assert.ok(editCode, 'Handle Edit Node code should be present');
+
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wf2-edit-'));
+  const draftsFile = path.join(tmpDir, 'pending_drafts.json');
+  fs.writeFileSync(draftsFile, JSON.stringify([
+    { id: 105, text: 'نص قديم يحتاج تعديل' },
+    { id: 106, text: 'منشور آخر' },
+  ]));
+
+  const fakeFs = {
+    ...fs,
+    existsSync: (p) => (p === '/data/pending_drafts.json' ? fs.existsSync(draftsFile) : false),
+    readFileSync: (p, enc) => (p === '/data/pending_drafts.json' ? fs.readFileSync(draftsFile, enc) : ''),
+    writeFileSync: (p, data, enc) => (p === '/data/pending_drafts.json' ? fs.writeFileSync(draftsFile, data, enc) : undefined),
+  };
+
+  try {
+    const executeEdit = new Function('$', 'require', editCode);
+    const result = executeEdit(
+      () => ({ first: () => ({ json: { chatId: 445566, draftId: '105', situation: 'النص الجديد المحكم' } }) }),
+      (mod) => (mod === 'fs' ? fakeFs : null),
+    )[0].json;
+
+    assert.match(result.replyText, /تم تحديث نص المسودة #105 بنجاح/);
+    const updatedDrafts = JSON.parse(fs.readFileSync(draftsFile, 'utf8'));
+    assert.equal(updatedDrafts.find((d) => d.id === 105)?.text, 'النص الجديد المحكم');
+    assert.equal(updatedDrafts.find((d) => d.id === 106)?.text, 'منشور آخر');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});

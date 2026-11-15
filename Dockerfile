@@ -1,7 +1,7 @@
 FROM alpine:3.20 AS apk-source
 RUN apk add --no-cache apk-tools-static
 
-FROM n8nio/n8n:latest
+FROM n8nio/n8n:1.80.0
 
 USER root
 
@@ -31,6 +31,7 @@ RUN chown -R node:node /data /config /workflows /assets /scripts /app
 USER node
 WORKDIR /home/node
 
+ENV NODE_PATH=/app/node_modules
 ENV N8N_BLOCK_ENV_ACCESS_IN_NODE=false
 ENV N8N_RUNNERS_GRANT_TOKEN_TTL=120
 ENV N8N_PORT=5678

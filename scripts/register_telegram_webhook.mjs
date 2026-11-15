@@ -26,11 +26,21 @@ export async function registerTelegramWebhook({
   logger = console,
 } = {}) {
   const token = env.TELEGRAM_BOT_TOKEN?.trim();
+  const secretToken = (env.TELEGRAM_WEBHOOK_SECRET || env.TELEGRAM_SECRET_TOKEN)?.trim();
   const url = resolveTelegramWebhookUrl(env);
 
   if (!token || !url) {
     logger.warn?.('Telegram webhook registration skipped: bot token or public webhook URL is not configured.');
     return { skipped: true };
+  }
+
+  const payload = {
+    url,
+    allowed_updates: ['message', 'edited_message', 'callback_query'],
+    drop_pending_updates: false,
+  };
+  if (secretToken) {
+    payload.secret_token = secretToken;
   }
 
   let lastError;
@@ -39,11 +49,7 @@ export async function registerTelegramWebhook({
       const response = await fetchImpl(`https://api.telegram.org/bot${token}/setWebhook`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          url,
-          allowed_updates: ['message', 'edited_message', 'callback_query'],
-          drop_pending_updates: false,
-        }),
+        body: JSON.stringify(payload),
         signal: AbortSignal.timeout(10_000),
       });
 
