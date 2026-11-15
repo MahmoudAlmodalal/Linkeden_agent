@@ -31,6 +31,24 @@ test('startup scripts activate both repository workflows before serving Telegram
   }
 });
 
+test('scripts are ESM in the container and can resolve dependencies installed in /app', () => {
+  const scriptsPackage = JSON.parse(
+    fs.readFileSync(path.join(projectRoot, 'scripts/package.json'), 'utf8'),
+  );
+  const dockerfile = fs.readFileSync(path.join(projectRoot, 'Dockerfile'), 'utf8');
+  assert.equal(scriptsPackage.type, 'module');
+  assert.match(dockerfile, /COPY \.\/scripts \/scripts/);
+  assert.match(dockerfile, /ln -s \/app\/node_modules \/scripts\/node_modules/);
+});
+
+test('startup diagnostics report provider-key presence without exposing values', () => {
+  const entrypoint = fs.readFileSync(path.join(projectRoot, 'scripts/docker-entrypoint.sh'), 'utf8');
+  for (const key of ['OPENROUTER_API_KEY', 'GEMINI_API_KEY', 'CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN']) {
+    assert.ok(entrypoint.includes(key));
+  }
+  assert.match(entrypoint, /process\.env\[key\] \? "set" : "missing"/);
+});
+
 test('workflow exports are single workflow objects with stable IDs', () => {
   const expected = [
     ['workflows/workflow_1_staging.json', 'workflow-1-staging'],

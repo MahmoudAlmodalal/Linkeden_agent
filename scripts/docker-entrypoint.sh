@@ -3,6 +3,9 @@ set -eu
 
 export NODE_PATH="${NODE_PATH:-/app/node_modules}"
 
+# Report key presence only; never print secret values to Render logs.
+node -e 'for (const key of ["OPENROUTER_API_KEY", "GEMINI_API_KEY", "CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN"]) console.log("[config-check] " + key + ": " + (process.env[key] ? "set" : "missing"))'
+
 # n8n 1.x expects an array for --input unless --separate is used.
 # These repository files are individual workflow exports, so import the directory.
 if [ -d /workflows ]; then

@@ -21,6 +21,7 @@ COPY ./config /config
 COPY ./workflows /workflows
 COPY ./assets /assets
 COPY ./scripts /scripts
+RUN ln -s /app/node_modules /scripts/node_modules
 RUN test -s /scripts/start_n8n.mjs
 COPY ./scripts/docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
