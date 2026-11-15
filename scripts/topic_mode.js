@@ -11,19 +11,16 @@ export const AUTHOR_BIO =
   'Mahmoud H. Almodalal (محمود هشام المدلل), Backend Engineer & Software Architect, EduTracker Co-founder, Freelance Backend Engineer based in Berlin, Germany. Formerly Technical Manager at Washer (Saudi Arabia) & Teaching Assistant at Islamic University of Gaza. Builds production systems with Python/Django, PostgreSQL/PostGIS, Redis, Docker, and Node.js.';
 
 export const TOPIC_AREAS = [
-  'Distributed systems and consistency',
-  'Database internals and query performance',
-  'API design and reliability',
-  'Caching and scalability',
-  'Concurrency and background processing',
-  'Software architecture and clean code',
-  'Backend security',
-  'Observability and debugging production issues',
-  'Docker, deployment and CI/CD',
-  'Testing strategy and code quality',
-  'Python / Django backend pitfalls',
-  'Data modeling and multi-tenancy',
-  'LLMs and AI features inside backend systems',
+  'Advanced Django ORM query planning and PostgreSQL indexes',
+  'Django transactions, row locking, and idempotency',
+  'Django REST Framework serialization and API performance',
+  'Django ASGI, async views, and sync/async boundaries',
+  'Celery task delivery, retries, and Django transaction consistency',
+  'Redis caching, invalidation, and stampede control in Django',
+  'Zero-downtime Django schema migrations and deployment safety',
+  'Django multi-tenancy, authorization, and backend security',
+  'Observability, backpressure, and failure handling in Django services',
+  'Testing concurrency and database behavior in Django',
 ];
 
 // ---------------- history (so topics never repeat) ----------------
@@ -80,19 +77,43 @@ export function chooseLanguage(history, ratioEnglish = 0.5) {
 // ---------------- topic idea generation ----------------
 export function buildTopicIdeaPrompt({ area, history }) {
   const recent = history.slice(-60).map((h) => `- ${h.title}`).join('\n') || '(none yet)';
-  return `You are a senior backend engineer planning LinkedIn content for engineering managers and recruiters.
+  return `You are a senior Python/Django backend engineer planning advanced LinkedIn content for experienced backend developers.
 
-Propose ONE new, specific technical topic in this area: ${area}
+Propose ONE new, specific, advanced Django/Python backend topic in this area: ${area}
 
 Rules:
-- Specific and concrete, not a broad subject. Good: "Why SELECT COUNT(*) gets slower as your table grows in Postgres". Bad: "Databases".
-- It must be a real, well-established technical idea you are certain about. No invented tools, no invented statistics.
-- Interesting to a working backend engineer: a common misconception, a trade-off, a failure mode, or a decision framework.
+- Center the topic on a real Django/backend mechanism such as QuerySet evaluation, select_related/prefetch_related, transaction.atomic, select_for_update, transaction.on_commit, UniqueConstraint, async views, Celery delivery, Redis cache invalidation, or PostgreSQL query plans.
+- Make it specific and senior-level, not a broad subject or beginner checklist.
+- Explain a real mechanism, trade-off, failure mode, or decision boundary; no invented tools or statistics.
+- Keep it general and educational. Do not invent a personal incident, company, client, project, test, or result.
 - Must NOT overlap with any of these already-used topics:
 ${recent}
 
 Return ONLY valid JSON, no markdown fences:
 {"title": "...", "concept": "2-3 sentences describing the core technical idea and the key mechanism", "keywords": ["...", "...", "..."], "slug": "kebab-case-slug"}`;
+}
+
+export function topicFromTechnicalSeed(input, { language = 'ar' } = {}) {
+  const sourceText = String(input || '').trim();
+  if (!sourceText) throw new Error('A technical idea is required');
+
+  const firstLine = sourceText.split(/\r?\n/, 1)[0].replace(/\s+/g, ' ').trim();
+  const isDjangoSpecific = /\b(?:Django|Django REST Framework|DRF|QuerySet|Celery|transaction\.atomic|select_for_update)\b/i.test(sourceText);
+  const title = isDjangoSpecific
+    ? (firstLine.slice(0, 120) || 'Advanced Django backend engineering')
+    : 'Advanced Django backend architecture';
+  return {
+    id: `custom-${Date.now()}`,
+    slug: `custom-django-backend-${Date.now()}`,
+    title,
+    concept: 'Extract the underlying technical principle and explain it as a general, advanced Django/Python backend design lesson.',
+    keywords: ['Django', 'Python', 'Backend', 'PostgreSQL'],
+    area: 'Advanced Django/backend engineering',
+    language,
+    isGeneral: true,
+    isCustomSource: true,
+    sourceText,
+  };
 }
 
 function parseJsonLoose(text) {
@@ -157,48 +178,52 @@ export function buildTopicPostPrompt(topic, { innovation = {} } = {}) {
     : 'Language: Arabic (clear Modern Standard Arabic, natural technical tone). English only for established technical names (tools, SQL, APIs, patterns, metrics) and hashtags. Never mix any other language or script.';
 
   const lengthDescription = len?.paragraphs
-    ? `strictly 150-220 words (${len.paragraphs} concise paragraphs)`
-    : 'strictly 150-220 words (3-4 concise paragraphs)';
+    ? `130-190 words (${len.paragraphs} concise paragraphs)`
+    : '130-190 words (3 concise paragraphs)';
 
   const angleBlock = angle
     ? `Angle: ${angle.labelAr}. ${angle.directiveAr}
-(Note: if the angle mentions incidents or metrics, frame them strictly as hypothetical examples or general mechanisms—never claim a personal incident or unverified benchmark.)
-Hook style: ${angle.hookStyle}
-Hook pattern (adapt, never copy literally): ${hook || ''}
+Use this only as a quiet editorial hint; do not force a story or copy a hook template.
 Length: ${len?.labelAr || 'balanced'}, ${lengthDescription}.`
     : `Length: ${lengthDescription}.`;
 
-  return `You write LinkedIn posts for this engineer:
-${AUTHOR_BIO}
+  const sourceSection = topic?.sourceText
+    ? `
+=== USER'S TECHNICAL SEED (NOT A VERIFIED PERSONAL ACCOUNT) ===
+${topic.sourceText}
 
-AUDIENCE: engineering managers, tech leads and recruiters hiring backend engineers. The post must show deep, correct technical understanding and good engineering judgement.
+Use this only as subject matter. If it contains first-person, company, or project claims, do not repeat or attribute them to the author. Extract the underlying idea and explain it generally through a Django/Python backend lens.
+`
+    : '';
+
+  return `You are an experienced Python/Django backend engineer writing a natural LinkedIn explainer for senior backend peers.
+
+AUDIENCE: Django/backend engineers, tech leads, and engineering managers. Prioritize advanced implementation details and sound engineering judgment.
 
 ${language}
 
-=== TOPIC (general technical topic, not tied to any specific project) ===
+=== TOPIC (general technical explanation, never a fabricated project story) ===
 Title: ${topic.title}
 Core idea: ${topic.concept}
 Keywords: ${(topic.keywords || []).join(', ')}
+${sourceSection}
 
 === HONESTY RULES (critical) ===
-- This is a general technical post. Do NOT invent a personal production incident, team, company, client, test you wrote, or result you achieved.
-- You may use a clearly hypothetical example ("Imagine a payment API that...") and may give opinions in first person ("I prefer...", "My rule of thumb is..."), but never claim events happened to you.
-- Only state facts you are certain are true. No invented benchmarks, percentages or statistics. If you give numbers, make them obviously illustrative ("say 10 million rows") or well-established.
-- Be precise about mechanisms: name the actual feature, command, or algorithm.
+- Keep the post general and Django/backend-focused. Do NOT claim "في أحد مشاريعنا", "في مشاريعنا", "we built", or any personal production experience.
+- Never invent a company, client, team, incident, test, metric, benchmark, or outcome. Clearly label any example as hypothetical.
+- If the supplied idea is outside Django, translate only its underlying design principle into a concrete Django/backend example; do not keep the post about an unrelated field.
+- Explain one precise mechanism and its boundary conditions. Use an actual Django/Python/PostgreSQL feature when relevant; avoid vague advice.
+- Write in an individual, thoughtful voice without pretending to report events. Vary the structure naturally; avoid a rigid incident-postmortem template and stock AI phrases.
 
 === THIS GENERATION'S ANGLE ===
 ${angleBlock}
 
 === POST REQUIREMENTS ===
-- LENGTH: Strictly 150-220 words total (3-4 concise paragraphs). Keep it tight, punchy, and high-signal.
-- FORMAT: Plain text only. Absolutely NO markdown headers (#, ##), no bold asterisks (**), no bullet points, and no section labels (e.g. "[Hook]" or "Takeaway:"). Separate paragraphs with double line-breaks.
-- TONE: Natural, authoritative engineering voice. Concrete over abstract. No buzzwords, no clickbait, no generic introductions.
-
-=== STREAMLINED NARRATIVE STRUCTURE ===
-1. The Hook (lines 1-2, under 200 characters): A sharp misconception, counter-intuitive insight, or provocative question about the core topic. No greeting or emojis at the start.
-2. Technical Context & Friction: Why this matters in real systems and what happens under the hood (the technical mechanism, bottleneck, or trade-off).
-3. Practical Engineering Decision: The recommended approach, concrete pattern, or battle-tested rule of thumb to apply.
-4. Takeaway & Peer Question: A brief takeaway leading into an engaging question inviting backend peers to share their perspectives, followed by 3 to 5 plain-text hashtags on the final line.
+- LENGTH: ${lengthDescription}. Keep it concise and high-signal.
+- FORMAT: Plain text only. No markdown headers, bold, bullets, or section labels. Separate paragraphs with double line-breaks.
+- TONE: Natural, specific, and technically advanced. Avoid generic introductions, repetitive hooks, canned transitions, and the stock CTA "اكتبوا لنا في التعليقات".
+- Explain the mechanism, when it matters, and one real trade-off or caveat. A small code/API detail is better than several generic recommendations.
+- End with a peer question only if it follows naturally; never force a question or a personal story. Finish with 4-6 relevant plain-text hashtags.
 
 Return ONLY the final post text.`;
 }

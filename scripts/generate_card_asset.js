@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { execSync } from 'node:child_process';
+import { execSync, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { resolveDataPath, resolveAssetPath } from './path_resolver.js';
 import { escapeHtml } from './card_content.js';
@@ -769,6 +769,35 @@ export function findChromeExecutable() {
   return null;
 }
 
+function runChromeScreenshot(chromeBin, args, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(chromeBin, args, {
+      stdio: 'ignore',
+      timeout: timeoutMs,
+      killSignal: 'SIGKILL',
+    });
+    let settled = false;
+
+    child.once('error', (error) => {
+      if (settled) return;
+      settled = true;
+      reject(error.code === 'ETIMEDOUT'
+        ? new Error(`Chromium screenshot timed out after ${timeoutMs}ms`)
+        : error);
+    });
+
+    child.once('close', (code, signal) => {
+      if (settled) return;
+      settled = true;
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`Chromium screenshot failed (exit ${code ?? 'unknown'}, signal ${signal || 'none'})`));
+      }
+    });
+  });
+}
+
 /**
  * Renders the dynamic mahmoud_card to a PNG image file using headless Chrome.
  */
@@ -776,6 +805,7 @@ export async function renderCardImage(cardData = {}, {
   author = DEFAULT_AUTHOR,
   outputDir = 'data/generated_images',
   filename = null,
+  timeoutMs = Number(process.env.CARD_RENDER_TIMEOUT_MS) || 60000,
 } = {}) {
   const htmlContent = generateCardHTML(cardData, author);
 
@@ -797,12 +827,35 @@ export async function renderCardImage(cardData = {}, {
     throw new Error('Chrome/Chromium executable not found on system');
   }
 
+  let imageReady = false;
   try {
-    const cmd = `${chromeBin} --headless=new --disable-gpu --no-sandbox --hide-scrollbars --virtual-time-budget=2000 --screenshot="${finalPngPath}" --window-size=${CARD_WIDTH},${CARD_HEIGHT} "${tempHtmlPath}"`;
-    execSync(cmd, { stdio: 'pipe', timeout: 20000 });
+    await runChromeScreenshot(chromeBin, [
+      '--headless=new',
+      '--disable-gpu',
+      '--no-sandbox',
+      '--disable-dev-shm-usage',
+      '--hide-scrollbars',
+      '--virtual-time-budget=2000',
+      `--screenshot=${finalPngPath}`,
+      `--window-size=${CARD_WIDTH},${CARD_HEIGHT}`,
+      tempHtmlPath,
+    ], timeoutMs);
+
+    if (!fs.existsSync(finalPngPath)) {
+      throw new Error('Chromium completed without creating a card image');
+    }
+    const imageBuffer = fs.readFileSync(finalPngPath);
+    const pngSignature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+    if (imageBuffer.length < 1024 || !imageBuffer.subarray(0, 8).equals(pngSignature)) {
+      throw new Error('Chromium did not produce a valid PNG card image');
+    }
+    imageReady = true;
   } finally {
     if (fs.existsSync(tempHtmlPath)) {
       try { fs.unlinkSync(tempHtmlPath); } catch {}
+    }
+    if (!imageReady && fs.existsSync(finalPngPath)) {
+      try { fs.unlinkSync(finalPngPath); } catch {}
     }
   }
 

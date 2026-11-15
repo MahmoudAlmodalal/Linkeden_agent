@@ -604,8 +604,8 @@ export async function dispatchSituationDraft({ situation, senderFromId, options 
     situation,
     scenarioId: scenarioItem.id,
     replyText:
-      '🚀 *تم استلام تفاصيل الموقف بنجاح!*\n\n' +
-      'جارٍ حقن الموقف في الـ System Prompt وتوليد المنشور والبطاقة المرئية...\n' +
+      '🚀 *تم استلام الفكرة التقنية!*\n\n' +
+      'جارٍ إعداد شرح عام ومتقدم عن Django وPython backend وتجهيز بطاقة خاصة بالموضوع...\n' +
       'ستصلك رسالة المعاينة والاعتماد فور جهوزيتها.',
     replyMarkup: TELEGRAM_REPLY_KEYBOARD,
   };
@@ -985,8 +985,8 @@ export async function handleTelegramUpdate(update, options = {}) {
           command: 'situation',
           waitingForInput: true,
           replyText:
-            '💡 *كتابة برمبت موقف هندسي*\n\n' +
-            'أرسل الآن نص الموقف أو المعضلة البرمجية في رسالة، وسيقوم النظام فوراً بدمجها في الـ System Prompt وتوليد بوست معماري عالي القيمة مع بطاقة مرئية مخصصة لهويتك.\n\n' +
+            '💡 *كتابة فكرة أو سؤال تقني*\n\n' +
+            'أرسل فكرة أو سؤالًا متقدمًا في Django أو Python backend، وسيحوّله النظام إلى شرح عام بصياغة طبيعية من دون ادعاء تجربة شخصية.\n\n' +
             '_(أو أرسل /cancel للإلغاء)_',
           replyMarkup: TELEGRAM_REPLY_KEYBOARD,
         };
@@ -1016,7 +1016,7 @@ export async function handleTelegramUpdate(update, options = {}) {
       const helpText =
         '🤖 *لوحة تحكم بوت النشر على LinkedIn*\n\n' +
         'أهلاً بك! يمكنك التحكم الكامل بنظام توليد ونشر المحتوى عبر الأوامر التالية:\n\n' +
-        '💡 */situation [نص الموقف]* — كتابة برمبت موقف هندسي وتوليد بوست وصورة فوراً\n' +
+        '💡 */situation [فكرة تقنية]* — شرح عام ومتقدم عن Django/backend مع بطاقة خاصة\n' +
         '⚡ */generate* — توليد مسودة تقنية جديدة مع الصورة فوراً\n' +
         '📋 */drafts* — عرض قائمة المسودات المعلقة مع أزرار النشر/الرفض والمعاينة\n' +
         '✅ */approve [id]* — اعتماد ونشر المسودة على LinkedIn (تلقائياً أحدث مسودة)\n' +
@@ -1026,7 +1026,7 @@ export async function handleTelegramUpdate(update, options = {}) {
 
       const helpInlineButtons = [
         [
-          { text: '💡 كتابة موقف (/situation)', callback_data: 'situation' },
+          { text: '💡 فكرة تقنية (/situation)', callback_data: 'situation' },
           { text: '⚡ توليد تلقائي', callback_data: 'generate' },
         ],
         [
@@ -1053,7 +1053,7 @@ export async function handleTelegramUpdate(update, options = {}) {
         command: 'unknown',
         replyText:
           'Unknown command. Available commands:\n' +
-          '• /situation [prompt] - Write custom engineering scenario/incident\n' +
+          '• /situation [idea] - Write a general, advanced Django/backend explainer\n' +
           '• /approve [id] - Approve draft for LinkedIn publication (defaults to latest)\n' +
           '• /reject <id> - Discard draft from pending queue\n' +
           '• /generate - Trigger immediate technical draft generation\n' +
@@ -1126,16 +1126,23 @@ export async function sendPreviewMessage(draft, options = {}) {
   const chatId = options.chatId || process.env.TELEGRAM_ALLOWED_USER_ID;
   const botToken = options.botToken || process.env.TELEGRAM_BOT_TOKEN;
   const rawPhoto = draft?.image_path || draft?.image || draft?.photo;
-  const project = draft?.project || draft?.challenge?.project || draft?.challenge?.project_name;
-  const photo = resolveImagePath(rawPhoto, project) || rawPhoto;
+  const photo = rawPhoto ? (resolveImagePath(rawPhoto) || rawPhoto) : null;
   const caption = options.caption || formatPreviewCaption(draft);
   const replyMarkup = options.replyMarkup || options.reply_markup;
 
-  if (options.client && typeof options.client.sendPhoto === 'function') {
+  if (photo && options.client && typeof options.client.sendPhoto === 'function') {
     return options.client.sendPhoto({
       chat_id: String(chatId),
       photo,
       caption,
+      reply_markup: replyMarkup,
+    });
+  }
+
+  if (!photo && options.client && typeof options.client.sendMessage === 'function') {
+    return options.client.sendMessage({
+      chat_id: String(chatId),
+      text: caption,
       reply_markup: replyMarkup,
     });
   }

@@ -20,10 +20,11 @@ import { runRAGStaging } from '../scripts/generate_rag_draft.js';
 const TEST_DRAFTS_PATH = 'data/test_pending_drafts_situation.json';
 const TEST_SCENARIOS_PATH = 'data/test_scenarios.json';
 const TEST_STATE_PATH = 'data/test_bot_state.json';
+const TEST_TOPIC_HISTORY_PATH = 'data/test_topic_history_situation.json';
 const TEST_IMG_DIR = 'data/test_situation_images';
 
 function cleanupTestFiles() {
-  for (const p of [TEST_DRAFTS_PATH, TEST_SCENARIOS_PATH, TEST_STATE_PATH]) {
+  for (const p of [TEST_DRAFTS_PATH, TEST_SCENARIOS_PATH, TEST_STATE_PATH, TEST_TOPIC_HISTORY_PATH]) {
     if (fs.existsSync(p)) fs.unlinkSync(p);
   }
   if (fs.existsSync(TEST_IMG_DIR)) {
@@ -152,7 +153,7 @@ describe('Situation Prompt - Telegram Router Stateful Interaction', () => {
 
     assert.equal(res.command, 'situation');
     assert.equal(res.waitingForInput, true);
-    assert.ok(res.replyText.includes('كتابة برمبت موقف'));
+    assert.ok(res.replyText.includes('كتابة فكرة أو سؤال تقني'));
 
     const state = getUserState(allowedUserId, TEST_STATE_PATH);
     assert.equal(state?.state, 'awaiting_situation');
@@ -181,7 +182,7 @@ describe('Situation Prompt - Telegram Router Stateful Interaction', () => {
     });
 
     assert.equal(res.command, 'situation');
-    assert.ok(res.replyText.includes('تم استلام تفاصيل الموقف'));
+    assert.ok(res.replyText.includes('تم استلام الفكرة التقنية'));
     assert.ok(triggeredPayload);
     assert.equal(triggeredPayload.situation, 'انقطاع كامل في خدمة التنبيهات بسبب تجاوز الـ rate limit في FCM');
 
@@ -250,25 +251,36 @@ describe('Situation Prompt - Staging & Visual Card Generation', () => {
   beforeEach(cleanupTestFiles);
   afterEach(cleanupTestFiles);
 
-  it('stages draft with situation injected and generates branded card image', async () => {
-    // Mock client to avoid remote API calls in test
+  it('stages supplied text as a general Django/backend topic and generates a fresh branded card', async () => {
+    let callCount = 0;
     const mockClient = {
       interactions: {
         create: async ({ input }) => {
-          assert.ok(input.includes('=== FEATURED REAL PRODUCTION SCENARIO (FROM AUTHOR) ==='));
-          assert.ok(input.includes('Memory leak caused by unclosed DB connections'));
+          callCount += 1;
+          if (callCount === 1) {
+            assert.ok(input.includes("USER'S TECHNICAL SEED"));
+            assert.ok(input.includes('NOT A VERIFIED PERSONAL ACCOUNT'));
+            assert.ok(input.includes('Django/Python backend lens'));
+            assert.ok(input.includes('Memory leak caused by unclosed DB connections'));
+            return {
+              output_text:
+                'في Django، إرسال المهمة إلى Celery قبل تثبيت المعاملة قد يجعل العامل يقرأ بيانات غير موجودة بعد.\n\n' +
+                'استخدم transaction.on_commit لتأخير الإرسال، واجعل المهمة idempotent لأن وسيط الرسائل قد يعيد التسليم.\n\n' +
+                'هذا يحافظ على مسار الطلب قصيرًا، لكنه لا يغني عن outbox إذا كان فقدان الرسالة غير مقبول.\n\n' +
+                'كيف تضمنون اتساق الكتابة مع المهام الخلفية؟ #Django #Celery #Backend #PostgreSQL',
+            };
+          }
           return {
-            output_text:
-              '💡 معضلة الذاكرة في الإنتاج\n\n' +
-              'أثناء تشغيل النظام حدث تسريب في الذاكرة بسبب اتصالات غير مغلقة.\n\n' +
-              '🔍 Mechanics & Solution:\n' +
-              '• تطبيق Connection Pool مع timeouts محددة.\n' +
-              '• تفعيل health checks تلقائية.\n\n' +
-              '📌 أهم التوصيات:\n' +
-              '1. مراقبة استهلاك الاتصالات.\n' +
-              '2. غلق الموارد في بلوك finally.\n\n' +
-              '💬 كيف تضمنون عدم تسريب الاتصالات في بيئتكم؟\n\n' +
-              '#SystemDesign #Backend #PostgreSQL',
+            output_text: JSON.stringify({
+              title: 'اتساق Django مع المهام الخلفية',
+              highlight: 'on_commit وidempotency',
+              pill: 'Django Backend',
+              steps: [
+                'أرسل مهمة Celery بعد transaction.on_commit',
+                'اجعل إعادة التسليم idempotent',
+                'استخدم outbox عندما يلزم ضمان تسليم الرسالة',
+              ],
+            }),
           };
         },
       },
@@ -279,19 +291,20 @@ describe('Situation Prompt - Staging & Visual Card Generation', () => {
       client: mockClient,
       draftsPath: TEST_DRAFTS_PATH,
       scenariosPath: TEST_SCENARIOS_PATH,
+      topicHistoryPath: TEST_TOPIC_HISTORY_PATH,
       outputDir: TEST_IMG_DIR,
       useBrandedCard: true,
     });
 
     assert.equal(res.success, true);
     assert.ok(res.draft);
-    assert.equal(res.draft.situation, 'Memory leak caused by unclosed DB connections during high traffic');
+    assert.equal(res.draft.situation, null);
+    assert.equal(res.draft.project, null);
     assert.equal(res.draft.visual_source, 'branded_card');
     assert.ok(fs.existsSync(res.draft.image_path));
 
-    // Verifies scenario is archived
+    // General idea seeds are not mislabeled as verified personal incidents.
     const scenarios = loadScenarios(TEST_SCENARIOS_PATH);
-    assert.equal(scenarios.length, 1);
-    assert.equal(scenarios[0].situation, 'Memory leak caused by unclosed DB connections during high traffic');
+    assert.equal(scenarios.length, 0);
   });
 });

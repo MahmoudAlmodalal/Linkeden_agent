@@ -701,6 +701,37 @@ describe('Preview Dispatcher (sendPreviewMessage)', () => {
     assert.ok(dispatchedPayload.caption.includes('[Draft ID: #5]'));
     assert.ok(dispatchedPayload.caption.includes('/approve 5'));
   });
+
+  it('sends a text preview when the draft has no image instead of inferring a project asset', async () => {
+    let photoCalled = false;
+    let messagePayload = null;
+    const mockClient = {
+      sendPhoto: async () => {
+        photoCalled = true;
+        return { ok: true };
+      },
+      sendMessage: async (payload) => {
+        messagePayload = payload;
+        return { ok: true };
+      },
+    };
+
+    const result = await sendPreviewMessage({
+      id: 6,
+      project: '2wash',
+      challenge: { project: '2wash' },
+      image_path: null,
+      text: 'A general Django backend explanation.',
+    }, {
+      chatId: '123456789',
+      client: mockClient,
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(photoCalled, false);
+    assert.equal(messagePayload.chat_id, '123456789');
+    assert.ok(messagePayload.text.includes('A general Django backend explanation.'));
+  });
 });
 
 describe('Workflow 1 Staging Specification Validation', () => {

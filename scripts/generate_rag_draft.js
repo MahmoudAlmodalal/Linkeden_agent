@@ -8,7 +8,7 @@ import {
   generatePostContent,
   getNextInnovation,
 } from './gemini_engine.js';
-import { proposeTopic, saveTopicToHistory } from './topic_mode.js';
+import { proposeTopic, saveTopicToHistory, topicFromTechnicalSeed } from './topic_mode.js';
 import { addPendingDraft, loadPendingDrafts, addScenario } from './telegram_router.js';
 import { renderCardImage } from './generate_card_asset.js';
 import { generateCardContent } from './card_content.js';
@@ -29,6 +29,9 @@ export async function runRAGStaging({
   cfAccountId,
   cfApiToken,
   fetchClient,
+  synthesizeRAGDraftFn = synthesizeRAGDraft,
+  renderCardImageFn = renderCardImage,
+  generateCardContentFn = generateCardContent,
 } = {}) {
   const existingDrafts = loadPendingDrafts(draftsPath);
   const calculatedDraftId = draftId ?? (
@@ -37,22 +40,26 @@ export async function runRAGStaging({
       : 1
   );
 
-  const isGeneralMode = !String(query || '').trim() && !String(situation || '').trim();
+  // User-supplied text is a technical seed by default, not proof of a personal incident.
+  // Project-grounded RAG is reserved for an explicit query.
+  const isGeneralMode = !String(query || '').trim();
 
   let draft;
   if (isGeneralMode) {
-    const topic = await proposeTopic({
-      generateText: async (prompt) => {
-        const res = await generateRawText(prompt, {
-          client,
-          cfAccountId,
-          cfApiToken,
-          fetchClient,
-        });
-        return res.text;
-      },
-      historyPath: topicHistoryPath,
-    });
+    const topic = String(situation || '').trim()
+      ? topicFromTechnicalSeed(situation)
+      : await proposeTopic({
+        generateText: async (prompt) => {
+          const res = await generateRawText(prompt, {
+            client,
+            cfAccountId,
+            cfApiToken,
+            fetchClient,
+          });
+          return res.text;
+        },
+        historyPath: topicHistoryPath,
+      });
 
     const innovation = getNextInnovation();
     const textResult = await generatePostContent(topic, {
@@ -91,7 +98,7 @@ export async function runRAGStaging({
       },
     };
   } else {
-    draft = await synthesizeRAGDraft({
+    draft = await synthesizeRAGDraftFn({
       query,
       situation,
       client,
@@ -137,24 +144,30 @@ export async function runRAGStaging({
         });
         return res.text;
       };
-      const cardContent = await generateCardContent({
+      const cardContent = await generateCardContentFn({
         generateText,
         postText: draft.text,
         topic,
         language,
       });
 
-      const cardResult = await renderCardImage(cardContent, {
+      const cardResult = await renderCardImageFn(cardContent, {
         outputDir,
-        filename: `card-draft-${calculatedDraftId}.png`,
+        filename: `card-draft-${calculatedDraftId}-${Date.now()}.png`,
       });
       if (cardResult?.imagePath) {
         finalImagePath = cardResult.imagePath;
         finalVisualSource = 'branded_card';
+      } else {
+        throw new Error('Card renderer did not return an image path');
       }
     } catch (cardErr) {
       imageError = cardErr.message;
-      console.warn(`[CardGenerator] Could not render branded card: ${cardErr.message}. Using default visual asset.`);
+      if (!isProjectImageRequested && finalVisualSource === 'local') {
+        finalImagePath = null;
+        finalVisualSource = 'none';
+      }
+      console.warn(`[CardGenerator] Could not render branded card: ${cardErr.message}. Keeping only a fresh topic image, if available.`);
     }
   }
 
@@ -162,7 +175,7 @@ export async function runRAGStaging({
     id: calculatedDraftId,
     project: draft.project,
     topic: draft.challenge?.title || draft.topic.title,
-    situation: situation || null,
+    situation: isGeneralMode ? null : (situation || null),
     text: draft.text,
     post_text: draft.text,
     image_path: finalImagePath,
@@ -176,7 +189,7 @@ export async function runRAGStaging({
 
   addPendingDraft(newDraft, draftsPath);
 
-  if (situation) {
+  if (situation && !isGeneralMode) {
     try {
       addScenario({
         draftId: calculatedDraftId,
