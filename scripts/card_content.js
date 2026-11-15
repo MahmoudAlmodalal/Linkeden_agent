@@ -10,7 +10,13 @@ export const FOREIGN_SCRIPTS = /[\u0E00-\u0E7F\u3040-\u30FF\u3400-\u9FFF\uAC00-\
 const GENERIC_PHRASES = [
   'حدد هدفك', 'خصص وقتاً', 'تعلم من مصادر موثوقة', 'طبق ما تعلمته', 'راجع وطور مهاراتك',
   'set clear goals', 'practice daily', 'keep learning',
+  'ai will replace', 'future of ai', 'game changer', 'الذكاء الاصطناعي سيغير العالم', 'مستقبل البرمجة',
 ];
+
+function containsGenericPhrase(text) {
+  const normalized = String(text ?? '').toLowerCase();
+  return GENERIC_PHRASES.some((phrase) => normalized.includes(phrase.toLowerCase()));
+}
 
 export function escapeHtml(s) {
   return String(s ?? '')
@@ -44,6 +50,7 @@ Rules:
 - title: the card headline, max 60 characters. A sharp claim or question about this exact topic (not a copy of the post's first line if that is longer).
 - highlight: optional second part of the headline, max 40 characters, or "" if not needed.
 - pill: a 2-3 word category label for this topic (e.g. ${isEn ? '"Database Internals", "Distributed Systems"' : '"معمارية البيانات", "أنظمة موزعة"'}).
+- Pill label: Use a sharp domain category (2-3 words max, e.g. "هندسة Django", "أنظمة RAG", "AI Agents", "System Design") so recruiters and engineers immediately recognize the domain.
 - steps: 3 to 5 items, each max ${maxStep} characters. Each is a concrete takeaway taken from the post: a mechanism, a rule, a check or a trade-off. Order them logically.
 - Do NOT add facts, numbers or tools that are not in the post.
 - Do NOT write generic advice (set goals, practice daily, keep learning, etc.).`;
@@ -75,7 +82,7 @@ export function validateCardContent(card, { postText = '', language = 'ar' } = {
 
   const all = [card.title, card.highlight, card.pill, ...(card.steps || [])].join(' ');
   if (FOREIGN_SCRIPTS.test(all)) issues.push('foreign script in card text');
-  if (GENERIC_PHRASES.some((g) => all.toLowerCase().includes(g.toLowerCase()))) issues.push('generic filler phrase');
+  if (containsGenericPhrase(all)) issues.push('generic filler phrase');
 
   const postWords = words(postText);
   (card.steps || []).forEach((st, i) => {
@@ -127,8 +134,8 @@ export async function generateCardContent({ generateText, postText, topic = {}, 
 
   // Fallback: topic title + real sentences from the post (never the generic defaults)
   const extracted = extractCardContent(postText, topic);
-  let steps = sentenceSteps(postText);
-  if (steps.length < 3) steps = extracted.steps.filter((s) => !GENERIC_PHRASES.some((g) => s.includes(g)));
+  let steps = sentenceSteps(postText).filter((step) => !containsGenericPhrase(step));
+  if (steps.length < 3) steps = extracted.steps.filter((step) => !containsGenericPhrase(step));
   return {
     title: topic.title ? topic.title.slice(0, 70) : extracted.title,
     highlight: '',

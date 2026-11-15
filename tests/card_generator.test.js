@@ -12,6 +12,7 @@ import {
   CARD_HEIGHT,
 } from '../scripts/generate_card_asset.js';
 import {
+  buildCardPrompt,
   escapeHtml,
   validateCardContent,
   generateCardContent,
@@ -194,6 +195,39 @@ describe('Card Content Generation & Validation (card_content.js)', () => {
     assert.ok(foreignRes.issues.includes('foreign script in card text'));
   });
 
+  it('rejects generic AI marketing phrases and prompts for a sharp domain pill', () => {
+    const postText = 'Redis scopes cached entries by tenant. Permissions define cached context. Cache invalidation prevents stale results.';
+    const marketingPhrases = [
+      'ai will replace',
+      'future of ai',
+      'game changer',
+      'الذكاء الاصطناعي سيغير العالم',
+      'مستقبل البرمجة',
+    ];
+
+    for (const phrase of marketingPhrases) {
+      const result = validateCardContent({
+        title: 'Redis Semantic Cache Boundaries',
+        highlight: phrase,
+        pill: 'Cache Design',
+        steps: [
+          'Redis scopes cached entries by tenant',
+          'Permissions define cached context',
+          'Cache invalidation prevents stale results',
+        ],
+      }, { postText, language: 'en' });
+      assert.ok(result.issues.includes('generic filler phrase'), `Expected rejection for: ${phrase}`);
+    }
+
+    const prompt = buildCardPrompt({
+      postText,
+      topic: { title: 'Semantic RAG caching', keywords: ['Redis', 'RAG'] },
+      language: 'en',
+    });
+    assert.match(prompt, /Pill label: Use a sharp domain category/);
+    assert.match(prompt, /"AI Agents"/);
+  });
+
   it('generateCardContent retries with validation feedback and returns grounded card', async () => {
     let calls = 0;
     const result = await generateCardContent({
@@ -244,5 +278,26 @@ describe('Card Content Generation & Validation (card_content.js)', () => {
     assert.equal(result.language, 'ar');
     assert.ok(result.steps.length >= 1);
     assert.ok(!result.steps.some((s) => s.includes('حدد هدفك')));
+  });
+
+  it('filters marketing phrases from fallback steps even when casing differs', async () => {
+    const postText = `Cache isolation depends on tenant-aware keys.
+
+A GAME CHANGER is emerging for LLM caching. The future of AI will replace manual retrieval.
+Redis scopes cache entries by tenant. Permission versions isolate cached context.
+Cache invalidation prevents stale results.`;
+    const result = await generateCardContent({
+      postText,
+      topic: { title: 'Tenant-Safe Semantic Caching', keywords: ['Redis', 'RAG'] },
+      language: 'en',
+      generateText: async () => {
+        throw new Error('LLM unavailable');
+      },
+    });
+    const forbidden = ['ai will replace', 'future of ai', 'game changer'];
+
+    assert.ok(result.steps.every((step) =>
+      forbidden.every((phrase) => !step.toLowerCase().includes(phrase))
+    ));
   });
 });

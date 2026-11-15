@@ -35,6 +35,18 @@ describe('Curated Topic Pool (config/post_topics.json)', () => {
     assert.ok(topics.length >= 15, `Expected >= 15 topics, got ${topics.length}`);
   });
 
+  it('adds four Django and AI Agents/RAG topics with alternating languages', async () => {
+    const topics = await loadTopics(DEFAULT_CONFIG_PATH);
+    const additions = topics.filter((topic) => topic.id >= 19 && topic.id <= 22);
+
+    assert.deepEqual(additions.map((topic) => topic.id), [19, 20, 21, 22]);
+    assert.deepEqual(additions.map((topic) => topic.language), ['ar', 'en', 'ar', 'en']);
+    assert.match(additions[0].slug, /django-celery/);
+    assert.match(additions[1].slug, /rag-pgvector/);
+    assert.match(additions[2].slug, /ai-agent/);
+    assert.match(additions[3].slug, /semantic-caching/);
+  });
+
   it('validates each topic schema structure and constraints', async () => {
     const topics = await loadTopics(DEFAULT_CONFIG_PATH);
     const seenIds = new Set();

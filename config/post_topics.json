@@ -285,5 +285,69 @@
     "language": "ar",
     "status": "pending",
     "published_at": null
+  },
+  {
+    "id": 19,
+    "slug": "django-celery-on-commit-consistency",
+    "title": "Why Firing Celery Tasks Inside transaction.atomic() Causes Silent Race Conditions",
+    "concept": "Explain how a Celery worker dispatched before transaction.atomic() commits may read missing or stale state. Distinguish transaction.on_commit() (defer dispatch until commit) from idempotency keys (make retried side effects safer), and discuss broker-failure and outbox trade-offs without claiming exactly-once delivery.",
+    "keywords": [
+      "django",
+      "celery",
+      "postgresql",
+      "redis",
+      "system-design"
+    ],
+    "language": "ar",
+    "status": "pending",
+    "published_at": null
+  },
+  {
+    "id": 20,
+    "slug": "hybrid-rag-pgvector-reranking-django",
+    "title": "Separating Retrieval from Reasoning in Production RAG Pipelines",
+    "concept": "Explain why raw pgvector top-k results can include irrelevant context, while processing larger context sets can add token and latency costs. Compare hybrid lexical/vector retrieval, permission filtering before model access, and reranking; discuss relevance gains against reranking's extra compute and latency rather than promising a universal accuracy or P95 improvement.",
+    "keywords": [
+      "rag",
+      "pgvector",
+      "django",
+      "reranking",
+      "backend"
+    ],
+    "language": "en",
+    "status": "pending",
+    "published_at": null
+  },
+  {
+    "id": 21,
+    "slug": "async-ai-agent-orchestration-celery",
+    "title": "Decoupling AI Agent Execution from Django Request-Response Cycles",
+    "concept": "Detail how multi-step AI Agent tool calls inside synchronous request handlers can occupy workers and exceed request deadlines. Explain offloading to Celery with bounded token and timeout budgets, idempotent task handling, and status retrieval, including the operational complexity of queues and retries.",
+    "keywords": [
+      "ai-agents",
+      "django",
+      "celery",
+      "python",
+      "software-architecture"
+    ],
+    "language": "ar",
+    "status": "pending",
+    "published_at": null
+  },
+  {
+    "id": 22,
+    "slug": "semantic-caching-redis-rag-cost-latency",
+    "title": "Semantic Caching in Redis Without Leaking Tenant Context",
+    "concept": "Explain when semantic caching may avoid repeated LLM calls and reduce cost or latency in a multi-tenant Django backend. Show why cache keys and invalidation must account for tenant, authorization scope, and changing source data; weigh fewer model calls against stale-context and false-hit risks.",
+    "keywords": [
+      "semantic-caching",
+      "redis",
+      "rag",
+      "django",
+      "system-design"
+    ],
+    "language": "en",
+    "status": "pending",
+    "published_at": null
   }
 ]
