@@ -4,46 +4,41 @@ import { spawn, spawnSync } from 'node:child_process';
 // absolute CLI path from the official n8n image instead of relying on PATH.
 const n8n = '/usr/local/bin/n8n';
 
-const workflows = [
-  '/workflows/workflow_1_staging.json',
-  '/workflows/workflow_2_publishing.json',
-];
-
-for (const workflow of workflows) {
-  const result = spawnSync(n8n, ['import:workflow', `--input=${workflow}`], {
+function runN8n(args, failureMessage) {
+  const result = spawnSync(n8n, args, {
     env: process.env,
     stdio: 'inherit',
   });
-
   if (result.error || result.status !== 0) {
-    console.warn(`Workflow import skipped or failed for ${workflow}`);
+    console.warn(failureMessage);
+    return false;
   }
+  return true;
 }
 
-// n8n 2.x uses publish/unpublish instead of the old active toggle. Publishing
-// this workflow registers its production Telegram webhook before the server
-// starts accepting Telegram updates.
-const stagingPublish = spawnSync(n8n, ['publish:workflow', '--id=workflow-1-staging'], {
+// n8n 1.x expects an array for --input unless --separate is used.
+// The repository stores one exported workflow per JSON file.
+runN8n(['import:workflow', '--separate', '--input=/workflows'], 'Workflow import failed');
+
+// n8n 1.80 activates workflows with update:workflow, not publish:workflow.
+// Do this before starting the server so its production webhook routes are ready.
+runN8n(
+  ['update:workflow', '--id=workflow-1-staging', '--active=true'],
+  'Staging workflow activation failed',
+);
+runN8n(
+  ['update:workflow', '--id=workflow-2-publishing', '--active=true'],
+  'Telegram workflow activation failed',
+);
+
+// Ensure Telegram's webhook is registered with the current secret token.
+const webhookRegistration = spawnSync('node', ['/scripts/register_telegram_webhook.mjs'], {
   env: process.env,
   stdio: 'inherit',
 });
-if (stagingPublish.error || stagingPublish.status !== 0) {
-  console.warn('Staging workflow publish skipped or failed');
+if (webhookRegistration.error || webhookRegistration.status !== 0) {
+  console.warn('Telegram webhook registration skipped or failed');
 }
-
-const publish = spawnSync(n8n, ['publish:workflow', '--id=workflow-2-publishing'], {
-  env: process.env,
-  stdio: 'inherit',
-});
-if (publish.error || publish.status !== 0) {
-  console.warn('Telegram workflow publish skipped or failed');
-}
-
-// Ensure Telegram webhook is registered with current secret token
-spawnSync('node', ['/scripts/register_telegram_webhook.mjs'], {
-  env: process.env,
-  stdio: 'inherit',
-});
 
 const host = process.env.N8N_HOST || '0.0.0.0';
 const port = process.env.PORT || process.env.N8N_PORT || '5678';

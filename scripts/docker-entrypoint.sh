@@ -3,17 +3,16 @@ set -eu
 
 export NODE_PATH="${NODE_PATH:-/app/node_modules}"
 
-# Import repository workflows into the n8n database before the server starts.
-# The official n8n image provides the `n8n` command on PATH inside this script.
-for workflow in /workflows/workflow_1_staging.json /workflows/workflow_2_publishing.json; do
-  if [ -s "$workflow" ]; then
-    n8n import:workflow --input="$workflow" || echo "Workflow import skipped: $workflow"
-  fi
-done
+# n8n 1.x expects an array for --input unless --separate is used.
+# These repository files are individual workflow exports, so import the directory.
+if [ -d /workflows ]; then
+  n8n import:workflow --separate --input=/workflows || echo "Workflow import failed"
+fi
 
-# n8n 2.x registers production webhooks when a workflow is published.
-n8n publish:workflow --id=workflow-1-staging || echo "Staging workflow publish skipped"
-n8n publish:workflow --id=workflow-2-publishing || echo "Telegram workflow publish skipped"
+# n8n 1.80 uses update:workflow to activate imported workflows.
+# Run this before starting n8n so active webhook routes are registered at startup.
+n8n update:workflow --id=workflow-1-staging --active=true || echo "Staging workflow activation failed"
+n8n update:workflow --id=workflow-2-publishing --active=true || echo "Telegram workflow activation failed"
 
 # Explicitly subscribe to callback_query updates as well as normal messages.
 # Telegram can retain an older allowed_updates filter after bot configuration changes.
