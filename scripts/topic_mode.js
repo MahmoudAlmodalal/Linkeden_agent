@@ -8,7 +8,7 @@ import { resolveDataPath } from './path_resolver.js';
 const HISTORY_FILE = 'topic_history.json'; // stored in data/
 
 export const AUTHOR_BIO =
-  'Mahmoud H. Almodalal (محمود هشام المدلل), Backend Engineer & Software Architect, EduTracker Co-founder, Freelance Backend Engineer based in Berlin, Germany. Formerly Technical Manager at Washer (Saudi Arabia) & Teaching Assistant at Islamic University of Gaza. Builds production systems with Python/Django, PostgreSQL/PostGIS, Redis, Docker, and Node.js.';
+  'Mahmoud H. Almodalal — Backend & AI Systems Engineer (Python/Django, AI Agents, RAG, PostgreSQL/PostGIS, Redis, Docker, Node.js).';
 
 export const TOPIC_AREAS = [
   'Advanced Django ORM query planning and PostgreSQL indexes',
@@ -21,6 +21,11 @@ export const TOPIC_AREAS = [
   'Django multi-tenancy, authorization, and backend security',
   'Observability, backpressure, and failure handling in Django services',
   'Testing concurrency and database behavior in Django',
+  'Hybrid RAG pipelines: combining pgvector semantic search, BM25 keyword filtering, and reranking in PostgreSQL/Django',
+  'AI Agent orchestration in Python/Django: offloading multi-step tool calls to Celery workers with strict token and timeout budgets',
+  'Semantic caching with Redis to cut LLM latency and API cost without serving stale or unauthorized tenant context',
+  'Deterministic guardrails for AI Agents: structured JSON outputs, retry policies, and fallback paths when tool calls fail',
+  'Document ingestion & chunking pipelines in Django: handling async embeddings, idempotent re-indexing, and permission-aware retrieval',
 ];
 
 // ---------------- history (so topics never repeat) ----------------
@@ -77,12 +82,12 @@ export function chooseLanguage(history, ratioEnglish = 0.5) {
 // ---------------- topic idea generation ----------------
 export function buildTopicIdeaPrompt({ area, history }) {
   const recent = history.slice(-60).map((h) => `- ${h.title}`).join('\n') || '(none yet)';
-  return `You are a senior Python/Django backend engineer planning advanced LinkedIn content for experienced backend developers.
+  return `You are a senior backend and AI systems engineer planning advanced LinkedIn content for experienced engineers.
 
-Propose ONE new, specific, advanced Django/Python backend topic in this area: ${area}
+Propose ONE new, specific, advanced topic in this selected area: ${area}
 
 Rules:
-- Center the topic on a real Django/backend mechanism such as QuerySet evaluation, select_related/prefetch_related, transaction.atomic, select_for_update, transaction.on_commit, UniqueConstraint, async views, Celery delivery, Redis cache invalidation, or PostgreSQL query plans.
+- Stay within the selected area. For Django topics, use a real Django/Python/PostgreSQL mechanism; for AI Agents/RAG topics, use a concrete mechanism such as retrieval, chunking, embeddings, reranking, tool orchestration, structured outputs, or permission-aware context handling.
 - Make it specific and senior-level, not a broad subject or beginner checklist.
 - Explain a real mechanism, trade-off, failure mode, or decision boundary; no invented tools or statistics.
 - Keep it general and educational. Do not invent a personal incident, company, client, project, test, or result.
@@ -99,16 +104,19 @@ export function topicFromTechnicalSeed(input, { language = 'ar' } = {}) {
 
   const firstLine = sourceText.split(/\r?\n/, 1)[0].replace(/\s+/g, ' ').trim();
   const isDjangoSpecific = /\b(?:Django|Django REST Framework|DRF|QuerySet|Celery|transaction\.atomic|select_for_update)\b/i.test(sourceText);
-  const title = isDjangoSpecific
-    ? (firstLine.slice(0, 120) || 'Advanced Django backend engineering')
-    : 'Advanced Django backend architecture';
+  const isAiSpecific = /\b(?:AI\s+agents?|RAG|LLMs?|large language models?|pgvector|vector search|rerank(?:ing)?|embeddings?|semantic caching|BM25|inference pipeline|computer[- ]vision)\b/i.test(sourceText);
+  const title = isAiSpecific
+    ? 'Advanced AI Agents and RAG architecture'
+    : isDjangoSpecific
+      ? (firstLine.slice(0, 120) || 'Advanced Django backend engineering')
+      : 'Advanced Django backend architecture';
   return {
     id: `custom-${Date.now()}`,
-    slug: `custom-django-backend-${Date.now()}`,
+    slug: `${isAiSpecific ? 'custom-ai-agents-rag' : 'custom-django-backend'}-${Date.now()}`,
     title,
-    concept: 'Extract the underlying technical principle and explain it as a general, advanced Django/Python backend design lesson.',
-    keywords: ['Django', 'Python', 'Backend', 'PostgreSQL'],
-    area: 'Advanced Django/backend engineering',
+    concept: `Extract the underlying technical principle and explain it as a general, advanced ${isAiSpecific ? 'Python AI/Agents/RAG and backend' : 'Django/Python backend'} design lesson.`,
+    keywords: isAiSpecific ? ['AI Agents', 'RAG', 'Python', 'Backend'] : ['Django', 'Python', 'Backend', 'PostgreSQL'],
+    area: isAiSpecific ? 'Advanced AI Agents/RAG engineering' : 'Advanced Django/backend engineering',
     language,
     isGeneral: true,
     isCustomSource: true,
@@ -192,13 +200,15 @@ Length: ${len?.labelAr || 'balanced'}, ${lengthDescription}.`
 === USER'S TECHNICAL SEED (NOT A VERIFIED PERSONAL ACCOUNT) ===
 ${topic.sourceText}
 
-Use this only as subject matter. If it contains first-person, company, or project claims, do not repeat or attribute them to the author. Extract the underlying idea and explain it generally through a Django/Python backend lens.
+Use this only as subject matter. If it contains first-person, company, or project claims, do not repeat or attribute them to the author. Extract the underlying idea and explain it through a relevant Python/backend lens: use a Django/Python backend lens for backend seeds, or an AI Agents/RAG lens when relevant.
 `
     : '';
 
-  return `You are an experienced Python/Django backend engineer writing a natural LinkedIn explainer for senior backend peers.
+  return `You are an experienced backend and AI systems engineer writing a natural LinkedIn explainer for senior technical readers.
 
-AUDIENCE: Django/backend engineers, tech leads, and engineering managers. Prioritize advanced implementation details and sound engineering judgment.
+AUDIENCE: HR tech recruiters, Engineering Managers, and Senior Backend Engineers. Prioritize advanced implementation details and sound engineering judgment.
+Audience & Hiring Signal: Frame the mechanism around production reliability, cost/latency control, data integrity, and clear architectural ownership — showing how an engineer thinks under real-world constraints.
+Honesty & Clarity: Keep all HONESTY RULES intact. Never invent clients, companies, or fake metrics. Focus on one concrete mechanism, its failure mode, and one honest engineering trade-off.
 
 ${language}
 
@@ -209,9 +219,9 @@ Keywords: ${(topic.keywords || []).join(', ')}
 ${sourceSection}
 
 === HONESTY RULES (critical) ===
-- Keep the post general and Django/backend-focused. Do NOT claim "في أحد مشاريعنا", "في مشاريعنا", "we built", or any personal production experience.
+- Keep the post general and relevant to the selected backend or AI Agents/RAG topic. Do NOT claim "في أحد مشاريعنا", "في مشاريعنا", "we built", or any personal production experience.
 - Never invent a company, client, team, incident, test, metric, benchmark, or outcome. Clearly label any example as hypothetical.
-- If the supplied idea is outside Django, translate only its underlying design principle into a concrete Django/backend example; do not keep the post about an unrelated field.
+- Explain the supplied idea through a relevant Python/backend lens, using Django or AI Agents/RAG mechanisms where they fit; do not force an unrelated Django example.
 - Explain one precise mechanism and its boundary conditions. Use an actual Django/Python/PostgreSQL feature when relevant; avoid vague advice.
 - Write in an individual, thoughtful voice without pretending to report events. Vary the structure naturally; avoid a rigid incident-postmortem template and stock AI phrases.
 

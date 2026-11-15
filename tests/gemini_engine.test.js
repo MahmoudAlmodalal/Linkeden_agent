@@ -37,6 +37,25 @@ describe('Gemini Engine - Mandatory LinkedIn Hashtags', () => {
     assert.match(result, /#PostgreSQL/);
   });
 
+  it('maps AI Agents and RAG keywords to their relevant hashtags', () => {
+    const aliases = [
+      ['rag', '#RAG'],
+      ['ai-agent', '#AIAgents'],
+      ['ai-agents', '#AIAgents'],
+      ['llm', '#LLM'],
+      ['pgvector', '#pgvector'],
+      ['vector-search', '#VectorSearch'],
+      ['reranking', '#RAG'],
+      ['semantic-caching', '#Redis'],
+      ['python', '#Python'],
+      ['celery', '#Celery'],
+    ];
+
+    for (const [keyword, hashtag] of aliases) {
+      assert.match(ensureHashtags('Technical post.', { keywords: [keyword] }), new RegExp(hashtag));
+    }
+  });
+
   it('normalizes existing hashtags and keeps the post ending with hashtags', () => {
     const result = ensureHashtags('Post body\n\n#Backend #SystemDesign', { keywords: [] });
     const tags = result.match(/#[\p{L}\p{N}_-]+/gu) || [];

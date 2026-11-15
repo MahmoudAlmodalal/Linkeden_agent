@@ -34,20 +34,27 @@ describe('Topic Mode - General Technical Topics', () => {
     assert.equal(pickArea(history), TOPIC_AREAS[2]);
   });
 
-  it('keeps generated subjects advanced and Django/backend-specific', () => {
-    assert.ok(TOPIC_AREAS.length >= 5);
-    assert.ok(TOPIC_AREAS.every((area) => /Django/i.test(area)));
+  it('keeps Django topics and adds advanced AI Agents/RAG topics', () => {
+    assert.equal(TOPIC_AREAS.length, 15);
+    assert.ok(TOPIC_AREAS.slice(0, 10).every((area) => /Django/i.test(area)));
+    assert.ok(TOPIC_AREAS.slice(10).some((area) => /RAG|AI Agent/i.test(area)));
 
     const ideaPrompt = buildTopicIdeaPrompt({ area: TOPIC_AREAS[0], history: [] });
     assert.match(ideaPrompt, /senior-level/i);
     assert.match(ideaPrompt, /Do not invent a personal incident/i);
+    const aiIdeaPrompt = buildTopicIdeaPrompt({ area: TOPIC_AREAS[10], history: [] });
+    assert.match(aiIdeaPrompt, /AI Agents\/RAG topics/i);
 
     const topic = topicFromTechnicalSeed('We solved a slow computer-vision pipeline in our project.');
     const postPrompt = buildTopicPostPrompt(topic);
     assert.equal(topic.isGeneral, true);
     assert.equal(topic.isCustomSource, true);
+    assert.match(topic.area, /AI Agents\/RAG/);
     assert.match(postPrompt, /NOT A VERIFIED PERSONAL ACCOUNT/);
-    assert.match(postPrompt, /Django\/Python backend lens/);
+    assert.match(postPrompt, /Python\/backend lens/);
+    assert.match(postPrompt, /HR tech recruiters, Engineering Managers, and Senior Backend Engineers/);
+    assert.match(postPrompt, /production reliability, cost\/latency control, data integrity/);
+    assert.match(postPrompt, /Never invent clients, companies, or fake metrics/);
     assert.match(postPrompt, /في أحد مشاريعنا/);
     assert.match(postPrompt, /stock AI phrases/);
   });
@@ -183,7 +190,7 @@ describe('Topic Mode - General Technical Topics', () => {
     }
   });
 
-  it('treats supplied situation text as a general Django/backend seed, not a claimed project incident', async () => {
+  it('treats supplied situation text as a general AI/backend seed, not a claimed project incident', async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rag-custom-seed-test-'));
     const draftsPath = path.join(tempDir, 'pending_drafts.json');
     const topicHistoryPath = path.join(tempDir, 'topic_history.json');
@@ -216,10 +223,10 @@ describe('Topic Mode - General Technical Topics', () => {
       assert.equal(result.success, true);
       assert.equal(result.draft.project, null);
       assert.equal(result.draft.situation, null);
-      assert.equal(result.draft.topic, 'Advanced Django backend architecture');
+      assert.equal(result.draft.topic, 'Advanced AI Agents and RAG architecture');
       assert.match(capturedPrompt, /USER'S TECHNICAL SEED/);
       assert.match(capturedPrompt, /NOT A VERIFIED PERSONAL ACCOUNT/);
-      assert.match(capturedPrompt, /Django\/Python backend lens/);
+      assert.match(capturedPrompt, /Python\/backend lens/);
       assert.match(capturedPrompt, /We implemented a slow inference pipeline/);
       assert.equal(loadTopicHistory(topicHistoryPath).length, 1);
     } finally {
