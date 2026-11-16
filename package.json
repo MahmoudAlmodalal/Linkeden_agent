@@ -1,5 +1,5 @@
 {
-  "name": "linkedin-agent",
+  "name": "linkedin-post-agent",
   "version": "1.0.0",
   "description": "Automated LinkedIn personal branding system via n8n and Telegram approval",
   "type": "module",
@@ -12,7 +12,7 @@
     "@google/genai": "^2.32.0"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.13.0"
   },
   "private": true
 }

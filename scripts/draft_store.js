@@ -2,40 +2,45 @@
 // All producers (staging workflow, Telegram router, publisher) must go through
 // these helpers so ID allocation and read-modify-write cycles cannot race.
 
-import fs from 'node:fs';
-import path from 'node:path';
+import {
+  readDocRaw,
+  writeDoc,
+  bumpSequence,
+  getSequence,
+  transaction,
+  transactionSync,
+} from './sqlite_store.js';
+
+const DRAFT_SEQUENCE = 'draft_id';
 
 /**
  * Read pending drafts from either the canonical array format or the legacy
- * { drafts: [...] } envelope. A missing or unreadable file yields an empty list.
+ * { drafts: [...] } envelope. A missing document yields an empty list.
+ * Legacy JSON files are imported into SQLite on first read.
  */
 export function readDraftsFile(filePath) {
-  try {
-    const raw = fs.readFileSync(filePath, 'utf8');
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) return { drafts: parsed, format: 'array', rawObject: null };
-    if (parsed && Array.isArray(parsed.drafts)) {
-      return { drafts: parsed.drafts, format: 'object', rawObject: parsed };
-    }
-    return { drafts: [], format: 'array', rawObject: null };
-  } catch (err) {
-    if (err.code === 'ENOENT') return { drafts: [], format: 'array', rawObject: null };
-    throw err;
+  const raw = readDocRaw(filePath);
+  if (raw === null) return { drafts: [], format: 'array', rawObject: null };
+  const parsed = JSON.parse(raw);
+  if (Array.isArray(parsed)) return { drafts: parsed, format: 'array', rawObject: null };
+  if (parsed && Array.isArray(parsed.drafts)) {
+    return { drafts: parsed.drafts, format: 'object', rawObject: parsed };
   }
+  return { drafts: [], format: 'array', rawObject: null };
 }
 
-/** Atomically persist pending drafts, preserving the original envelope format. */
+/** Persist pending drafts, preserving the original envelope format. */
 export function writeDraftsFile(filePath, drafts, formatInfo = { format: 'array' }) {
   if (!Array.isArray(drafts)) throw new TypeError('Drafts must be an array');
-  const resolved = path.resolve(filePath);
-  fs.mkdirSync(path.dirname(resolved), { recursive: true });
   const output =
     formatInfo.format === 'object' && formatInfo.rawObject
       ? { ...formatInfo.rawObject, drafts }
       : drafts;
-  const tempPath = `${resolved}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
-  fs.writeFileSync(tempPath, `${JSON.stringify(output, null, 2)}\n`, 'utf8');
-  fs.renameSync(tempPath, resolved);
+  transactionSync(filePath, () => {
+    writeDoc(filePath, output);
+    const highest = nextDraftId(drafts) - 1;
+    if (highest > 0) bumpSequence(filePath, DRAFT_SEQUENCE, highest);
+  });
 }
 
 /** Next strictly incrementing numeric draft ID. */
@@ -47,93 +52,29 @@ export function nextDraftId(drafts = []) {
   }, 0) + 1;
 }
 
-/**
- * Cross-process mutex around a draft file. Uses an exclusive-create lock file
- * with stale-lock recovery so a crashed worker cannot block the queue forever.
- */
-export async function withDraftLock(filePath, task, { timeoutMs = 15000, retryMs = 25 } = {}) {
-  const lockPath = `${path.resolve(filePath)}.lock`;
-  const deadline = Date.now() + timeoutMs;
-  let fd = null;
-
-  while (Date.now() < deadline) {
-    try {
-      fd = fs.openSync(lockPath, 'wx');
-      break;
-    } catch (err) {
-      if (err.code !== 'EEXIST') throw err;
-      try {
-        const stat = fs.statSync(lockPath);
-        if (Date.now() - stat.mtimeMs > timeoutMs) fs.unlinkSync(lockPath);
-      } catch {
-        // Lock was removed by another worker; retry.
-      }
-      await new Promise((resolve) => setTimeout(resolve, retryMs));
-    }
-  }
-
-  if (fd === null) {
-    throw new Error(`Timed out waiting for draft lock: ${lockPath}`);
-  }
-
-  try {
-    return await task();
-  } finally {
-    fs.closeSync(fd);
-    try {
-      fs.unlinkSync(lockPath);
-    } catch {
-      // Another worker may already have cleaned it up.
-    }
-  }
+/** Cross-process mutex (SQLite write transaction) around the draft store. */
+export function withDraftLock(filePath, task) {
+  return transaction(filePath, task);
 }
 
-/**
- * Synchronous variant for the legacy sync APIs in telegram_router.js.
- * The critical sections are tiny (one read + one write), so blocking briefly
- * is preferable to changing every caller to async.
- */
-export function withDraftLockSync(filePath, task, { timeoutMs = 15000, retryMs = 25 } = {}) {
-  const lockPath = `${path.resolve(filePath)}.lock`;
-  const deadline = Date.now() + timeoutMs;
-  const sleepBuffer = new Int32Array(new SharedArrayBuffer(4));
-  let fd = null;
+/** Synchronous variant for the legacy sync APIs in telegram_router.js. */
+export function withDraftLockSync(filePath, task) {
+  return transactionSync(filePath, task);
+}
 
-  while (Date.now() < deadline) {
-    try {
-      fd = fs.openSync(lockPath, 'wx');
-      break;
-    } catch (err) {
-      if (err.code !== 'EEXIST') throw err;
-      try {
-        const stat = fs.statSync(lockPath);
-        if (Date.now() - stat.mtimeMs > timeoutMs) fs.unlinkSync(lockPath);
-      } catch {
-        // Lock already released by another worker.
-      }
-      Atomics.wait(sleepBuffer, 0, 0, retryMs);
-    }
-  }
-
-  if (fd === null) {
-    throw new Error(`Timed out waiting for draft lock: ${lockPath}`);
-  }
-
-  try {
-    return task();
-  } finally {
-    fs.closeSync(fd);
-    try {
-      fs.unlinkSync(lockPath);
-    } catch {
-      // Already removed.
-    }
-  }
+/** Next draft ID for a store: never reuses an ID, even after drafts are removed. */
+export function nextDraftIdFor(filePath) {
+  const fromDrafts = nextDraftId(readDraftsFile(filePath).drafts);
+  return Math.max(fromDrafts, getSequence(filePath, DRAFT_SEQUENCE) + 1);
 }
 
 /** Reserve the next draft ID under lock. */
 export async function allocateDraftId(filePath) {
-  return withDraftLock(filePath, () => nextDraftId(readDraftsFile(filePath).drafts));
+  return withDraftLock(filePath, () => {
+    const id = nextDraftIdFor(filePath);
+    bumpSequence(filePath, DRAFT_SEQUENCE, id);
+    return id;
+  });
 }
 
 /**

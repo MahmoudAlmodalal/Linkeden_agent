@@ -7,6 +7,7 @@ import {
   writeDraftsFile,
   withDraftLockSync,
 } from './draft_store.js';
+import { readDoc, writeDoc } from './sqlite_store.js';
 
 // Load .env if present
 const envCandidates = [
@@ -41,10 +42,7 @@ export const TELEGRAM_REPLY_KEYBOARD = TELEGRAM_REMOVE_KEYBOARD;
  */
 export function loadScenarios(filePath = 'data/scenarios.json') {
   try {
-    const resolved = resolveDataPath(filePath);
-    if (!fs.existsSync(resolved)) return [];
-    const raw = fs.readFileSync(resolved, 'utf8');
-    const data = JSON.parse(raw);
+    const data = readDoc(resolveDataPath(filePath), []);
     return Array.isArray(data) ? data : (data.scenarios || []);
   } catch {
     return [];
@@ -58,10 +56,7 @@ export function loadScenarios(filePath = 'data/scenarios.json') {
  * @param {string} [filePath='data/scenarios.json']
  */
 export function saveScenarios(scenarios, filePath = 'data/scenarios.json') {
-  const resolved = resolveDataPath(filePath);
-  const dir = path.dirname(resolved);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(resolved, JSON.stringify(scenarios, null, 2), 'utf8');
+  writeDoc(resolveDataPath(filePath), scenarios);
 }
 
 /**
@@ -91,10 +86,7 @@ export function addScenario(scenario, filePath = 'data/scenarios.json') {
  */
 export function loadBotState(filePath = 'data/bot_state.json') {
   try {
-    const resolved = resolveDataPath(filePath);
-    if (!fs.existsSync(resolved)) return {};
-    const raw = fs.readFileSync(resolved, 'utf8');
-    return JSON.parse(raw) || {};
+    return readDoc(resolveDataPath(filePath), {}) || {};
   } catch {
     return {};
   }
@@ -107,10 +99,7 @@ export function loadBotState(filePath = 'data/bot_state.json') {
  * @param {string} [filePath='data/bot_state.json']
  */
 export function saveBotState(state, filePath = 'data/bot_state.json') {
-  const resolved = resolveDataPath(filePath);
-  const dir = path.dirname(resolved);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(resolved, JSON.stringify(state, null, 2), 'utf8');
+  writeDoc(resolveDataPath(filePath), state);
 }
 
 /**

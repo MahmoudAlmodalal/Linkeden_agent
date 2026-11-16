@@ -1,7 +1,7 @@
 FROM alpine:3.20 AS apk-source
 RUN apk add --no-cache apk-tools-static
 
-FROM n8nio/n8n:1.80.0
+FROM n8nio/n8n:2.46.4
 
 USER root
 
