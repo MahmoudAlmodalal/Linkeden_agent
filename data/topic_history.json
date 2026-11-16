@@ -12,5 +12,19 @@
     "area": "Database internals and query performance",
     "language": "en",
     "at": "2026-11-12T10:22:53.371Z"
+  },
+  {
+    "title": "Your Idempotency Key Check Has a Race: Why 'SELECT Then Insert' Still Double-Charges",
+    "slug": "idempotency-key-check-then-act-race",
+    "area": "API design and reliability",
+    "language": "ar",
+    "at": "2026-11-15T10:00:21.986Z"
+  },
+  {
+    "title": "Your TTL Jitter Doesn't Stop Cache Stampedes — Request Coalescing Does",
+    "slug": "ttl-jitter-doesnt-stop-cache-stampedes-request-coalescing",
+    "area": "Caching and scalability",
+    "language": "en",
+    "at": "2026-11-16T10:00:28.341Z"
   }
 ]

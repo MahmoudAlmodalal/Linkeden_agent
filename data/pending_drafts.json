@@ -160,5 +160,47 @@
     },
     "status": "pending",
     "created_at": "2026-11-15T09:13:56.394Z"
+  },
+  {
+    "id": 1003,
+    "project": null,
+    "topic": "Your Idempotency Key Check Has a Race: Why 'SELECT Then Insert' Still Double-Charges",
+    "situation": null,
+    "text": "تنفيذ idempotency key عبر SELECT ثم INSERT هو أحد أكثر الأنماط ضرراً في تصميم APIs. السبب ليس سوء النية، بل أن النمط يبدو صحيحاً تماماً في الاختبارات التسلسلية.\n\nالمشكلة أن الفحص والكتابة عمليتان منفصلتان، والفرق بينهما نافذة سباق. عند retry من load balancer أو انقطاع شبكة الجوال، أو عند at-least-once delivery، يقرأ الطلبان المفتاح نفسه كغائب، ثم ينفّذ كلاهما الأثر الجانبي: خصم رصيد، إرسال رسالة، إنشاء طلب. النافذة قد تكون ميلي ثانية، وهذا يكفي.\n\nالبديل هو جعل صف المفتاح نقطة التسلسل: INSERT أولاً تحت UNIQUE constraint على (account_id, endpoint, idempotency_key). إذا رجع unique violation فهذا يعني in flight، لا تعِد التنفيذ: أعد 409 أو انتظر النتيجة. وخزّن الـ response النهائي مع status code ليُعاد كما هو، وأضف expires_at ونظّف دورياً. الـ TTL مهم لأن المفاتيح القديمة تُضخّم الجدول وتُضعف أداء الفهرس.\n\nالضمان يأتي من قاعدة البيانات، لا من فحص التطبيق. الفحص المسبق مفيد لتقليل العمل، لكنه لا يُعطيك exactly-once side effects. سؤالي: هل تضع الـ key في نفس transaction مع الأثر الجانبي، أم تعتمد على outbox؟\n\n#BackendEngineering #Idempotency #DistributedSystems #APIDesign #PostgreSQL #Database",
+    "post_text": "تنفيذ idempotency key عبر SELECT ثم INSERT هو أحد أكثر الأنماط ضرراً في تصميم APIs. السبب ليس سوء النية، بل أن النمط يبدو صحيحاً تماماً في الاختبارات التسلسلية.\n\nالمشكلة أن الفحص والكتابة عمليتان منفصلتان، والفرق بينهما نافذة سباق. عند retry من load balancer أو انقطاع شبكة الجوال، أو عند at-least-once delivery، يقرأ الطلبان المفتاح نفسه كغائب، ثم ينفّذ كلاهما الأثر الجانبي: خصم رصيد، إرسال رسالة، إنشاء طلب. النافذة قد تكون ميلي ثانية، وهذا يكفي.\n\nالبديل هو جعل صف المفتاح نقطة التسلسل: INSERT أولاً تحت UNIQUE constraint على (account_id, endpoint, idempotency_key). إذا رجع unique violation فهذا يعني in flight، لا تعِد التنفيذ: أعد 409 أو انتظر النتيجة. وخزّن الـ response النهائي مع status code ليُعاد كما هو، وأضف expires_at ونظّف دورياً. الـ TTL مهم لأن المفاتيح القديمة تُضخّم الجدول وتُضعف أداء الفهرس.\n\nالضمان يأتي من قاعدة البيانات، لا من فحص التطبيق. الفحص المسبق مفيد لتقليل العمل، لكنه لا يُعطيك exactly-once side effects. سؤالي: هل تضع الـ key في نفس transaction مع الأثر الجانبي، أم تعتمد على outbox؟\n\n#BackendEngineering #Idempotency #DistributedSystems #APIDesign #PostgreSQL #Database",
+    "image_path": null,
+    "visual_source": "none",
+    "model_used": {
+      "text": "deepseek/deepseek-v4.1-flash",
+      "visual": null
+    },
+    "provider_used": {
+      "text": "openrouter",
+      "visual": "none"
+    },
+    "challenge": null,
+    "status": "pending",
+    "created_at": "2026-11-15T10:01:06.808Z"
+  },
+  {
+    "id": 1004,
+    "project": null,
+    "topic": "Your TTL Jitter Doesn't Stop Cache Stampedes — Request Coalescing Does",
+    "situation": null,
+    "text": "A 100% cache hit rate means nothing the millisecond your hottest key expires during peak traffic.\n\nEngineers often add TTL jitter and assume they've solved cache stampedes. They haven't. Jitter prevents cache avalanches — thousands of distinct keys expiring simultaneously. But for a single hot key handling 5,000 req/sec, jitter only randomizes when the stampede hits. The moment that key dies, every concurrent in-flight request reads a miss and dog-piles your database to recompute the exact same payload.\n\nYour database sees 5,000 identical queries in under 50ms. Connection pool exhausted, latency spikes, downstream cascades.\n\nTo actually protect your database from hot key expiration, you need one of three strategies:\n\n1. In-Process Request Coalescing (Singleflight):\nThe first worker takes an in-memory lock and recomputes; all concurrent callers for that key await that same future/promise.\n• Trade-off: Zero network overhead, but only coalesces per pod. If you run 40 replicas, the DB still takes 40 queries instead of 5,000. Usually more than enough.\n\n2. Distributed Locking (Redis SETNX / Redlock):\nOne worker acquires an explicit cluster-wide lock to query the DB and write to cache; everyone else polls or waits.\n• Trade-off: Guarantees exactly 1 query hitting the DB across the entire fleet, but adds network hops, lock contention, and failure mode complexity if the worker dies mid-flight.\n\n3. Probabilistic Early Expiration (XFetch / Stale-While-Revalidate):\nDon't wait for TTL to hit 0. Workers calculate whether to refresh in the background based on computation time and a probabilistic curve before expiration.\n• Trade-off: Zero cache misses and zero user latency spikes, at the expense of slight background write overhead and eventual consistency.\n\nJitter for key distribution across time. Coalescing or early recomputation for hot keys.\n\nHow do you handle hot-key stampedes across your distributed services?\n\n#BackendEngineering #Caching #DistributedSystems #SystemDesign #Redis #Database #HighAvailability",
+    "post_text": "A 100% cache hit rate means nothing the millisecond your hottest key expires during peak traffic.\n\nEngineers often add TTL jitter and assume they've solved cache stampedes. They haven't. Jitter prevents cache avalanches — thousands of distinct keys expiring simultaneously. But for a single hot key handling 5,000 req/sec, jitter only randomizes when the stampede hits. The moment that key dies, every concurrent in-flight request reads a miss and dog-piles your database to recompute the exact same payload.\n\nYour database sees 5,000 identical queries in under 50ms. Connection pool exhausted, latency spikes, downstream cascades.\n\nTo actually protect your database from hot key expiration, you need one of three strategies:\n\n1. In-Process Request Coalescing (Singleflight):\nThe first worker takes an in-memory lock and recomputes; all concurrent callers for that key await that same future/promise.\n• Trade-off: Zero network overhead, but only coalesces per pod. If you run 40 replicas, the DB still takes 40 queries instead of 5,000. Usually more than enough.\n\n2. Distributed Locking (Redis SETNX / Redlock):\nOne worker acquires an explicit cluster-wide lock to query the DB and write to cache; everyone else polls or waits.\n• Trade-off: Guarantees exactly 1 query hitting the DB across the entire fleet, but adds network hops, lock contention, and failure mode complexity if the worker dies mid-flight.\n\n3. Probabilistic Early Expiration (XFetch / Stale-While-Revalidate):\nDon't wait for TTL to hit 0. Workers calculate whether to refresh in the background based on computation time and a probabilistic curve before expiration.\n• Trade-off: Zero cache misses and zero user latency spikes, at the expense of slight background write overhead and eventual consistency.\n\nJitter for key distribution across time. Coalescing or early recomputation for hot keys.\n\nHow do you handle hot-key stampedes across your distributed services?\n\n#BackendEngineering #Caching #DistributedSystems #SystemDesign #Redis #Database #HighAvailability",
+    "image_path": "/data/generated_images/card-draft-1004.png",
+    "visual_source": "branded_card",
+    "model_used": {
+      "text": "deepseek/deepseek-v4.1-flash",
+      "visual": null
+    },
+    "provider_used": {
+      "text": "openrouter",
+      "visual": "none"
+    },
+    "challenge": null,
+    "status": "pending",
+    "created_at": "2026-11-16T10:01:01.421Z"
   }
 ]

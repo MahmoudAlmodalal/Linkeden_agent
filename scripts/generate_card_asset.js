@@ -632,7 +632,8 @@ export function generateCardHTML(cardData = {}, author = DEFAULT_AUTHOR) {
   .brand-details,.author-info,.step-text,.headline-section{text-align:left}
   .progression-spine{right:auto;left:29px}
   .step-row{flex-direction:row}
-  .step-card{margin-right:0;margin-left:24px;flex-direction:row-reverse}
+  .step-card{margin-right:0;margin-left:24px;flex-direction:row-reverse;justify-content:flex-end;gap:18px}
+  .step-icon-badge{margin-left:0}
   .main-headline,.step-text{font-family:'Plus Jakarta Sans',sans-serif}` : ''}
 </style>
 </head>
