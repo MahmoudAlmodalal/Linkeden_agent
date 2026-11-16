@@ -19,7 +19,7 @@ services:
       - GENERIC_TIMEZONE=${GENERIC_TIMEZONE:-UTC}
       - TZ=${GENERIC_TIMEZONE:-UTC}
       - NODE_FUNCTION_ALLOW_BUILTIN=*
-      - NODE_FUNCTION_ALLOW_EXTERNAL=*
+      # Code nodes only require Node builtins; do not allow arbitrary packages.
       - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
       - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=false
       - EXECUTIONS_DATA_PRUNE=true

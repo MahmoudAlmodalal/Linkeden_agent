@@ -2,6 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveDataPath, resolveAssetPath } from './path_resolver.js';
+import {
+  readDraftsFile,
+  writeDraftsFile,
+  withDraftLockSync,
+} from './draft_store.js';
 
 // Load .env if present
 const envCandidates = [
@@ -470,19 +475,7 @@ export function formatPreviewCaption(draft) {
  */
 export function loadPendingDrafts(filePath = 'data/pending_drafts.json') {
   try {
-    const resolved = resolveDataPath(filePath);
-    if (!fs.existsSync(resolved)) {
-      return [];
-    }
-    const raw = fs.readFileSync(resolved, 'utf-8');
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-      return parsed;
-    }
-    if (parsed && Array.isArray(parsed.drafts)) {
-      return parsed.drafts;
-    }
-    return [];
+    return readDraftsFile(resolveDataPath(filePath)).drafts;
   } catch {
     return [];
   }
@@ -495,14 +488,7 @@ export function loadPendingDrafts(filePath = 'data/pending_drafts.json') {
  * @param {string} [filePath='data/pending_drafts.json']
  */
 export function savePendingDrafts(drafts, filePath = 'data/pending_drafts.json') {
-  const resolved = resolveDataPath(filePath);
-  const dir = path.dirname(resolved);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-  const tempPath = `${resolved}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
-  fs.writeFileSync(tempPath, JSON.stringify(drafts, null, 2), 'utf-8');
-  fs.renameSync(tempPath, resolved);
+  writeDraftsFile(resolveDataPath(filePath), drafts);
 }
 
 /**
@@ -513,10 +499,13 @@ export function savePendingDrafts(drafts, filePath = 'data/pending_drafts.json')
  * @returns {object}
  */
 export function addPendingDraft(draft, filePath = 'data/pending_drafts.json') {
-  const drafts = loadPendingDrafts(filePath);
-  drafts.push(draft);
-  savePendingDrafts(drafts, filePath);
-  return draft;
+  const resolved = resolveDataPath(filePath);
+  return withDraftLockSync(resolved, () => {
+    const drafts = loadPendingDrafts(filePath);
+    drafts.push(draft);
+    savePendingDrafts(drafts, filePath);
+    return draft;
+  });
 }
 
 /**
@@ -553,15 +542,18 @@ export function getPendingDraftById(draftId, filePath = 'data/pending_drafts.jso
  * @returns {object|null} The removed draft or null if not found
  */
 export function removePendingDraft(draftId, filePath = 'data/pending_drafts.json') {
-  const drafts = loadPendingDrafts(filePath);
-  const index = drafts.findIndex((d) => Number(d.id) === Number(draftId));
-  if (index === -1) {
-    return null;
-  }
+  const resolved = resolveDataPath(filePath);
+  return withDraftLockSync(resolved, () => {
+    const drafts = loadPendingDrafts(filePath);
+    const index = drafts.findIndex((d) => Number(d.id) === Number(draftId));
+    if (index === -1) {
+      return null;
+    }
 
-  const [removed] = drafts.splice(index, 1);
-  savePendingDrafts(drafts, filePath);
-  return removed;
+    const [removed] = drafts.splice(index, 1);
+    savePendingDrafts(drafts, filePath);
+    return removed;
+  });
 }
 
 /**

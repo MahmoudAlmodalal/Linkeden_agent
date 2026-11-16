@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseCommand } from '../scripts/telegram_router.js';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const workflowPath = path.join(repoRoot, 'workflows', 'workflow_2_publishing.json');
@@ -68,6 +69,21 @@ test('workflow parser maps each callback action and extracts the draft ID', () =
       { authorized: true, command: 'generate', draftId: null, chatId: 445566, rawText: 'generate_new' },
     ],
   );
+});
+
+test('workflow parser and telegram_router agree on callback commands', () => {
+  // The n8n Code-node sandbox cannot require the ESM script module, so the
+  // workflow keeps a small inline parser. This parity test prevents drift.
+  for (const callbackData of ['show_1', 'approve_12', 'reject_3', 'generate_new']) {
+    const workflowResult = runParser(callbackData);
+    const routerResult = parseCommand(callbackData);
+    assert.equal(workflowResult.command, routerResult.command, callbackData);
+    assert.equal(
+      workflowResult.draftId === null ? null : Number(workflowResult.draftId),
+      routerResult.draftId,
+      callbackData,
+    );
+  }
 });
 
 test('webhook has a registered callback-query acknowledgement path', () => {

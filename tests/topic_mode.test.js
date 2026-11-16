@@ -14,6 +14,9 @@ import {
   proposeTopic,
   buildTopicIdeaPrompt,
   buildTopicPostPrompt,
+  isVisionSpecific,
+  isAiSpecific,
+  isDjangoSpecific,
   topicFromTechnicalSeed,
 } from '../scripts/topic_mode.js';
 import { buildContentPrompt } from '../scripts/gemini_engine.js';
@@ -34,22 +37,32 @@ describe('Topic Mode - General Technical Topics', () => {
     assert.equal(pickArea(history), TOPIC_AREAS[2]);
   });
 
-  it('keeps Django topics and adds advanced AI Agents/RAG topics', () => {
-    assert.equal(TOPIC_AREAS.length, 15);
-    assert.ok(TOPIC_AREAS.slice(0, 10).every((area) => /Django/i.test(area)));
-    assert.ok(TOPIC_AREAS.slice(10).some((area) => /RAG|AI Agent/i.test(area)));
+  it('features 4 domains in TOPIC_AREAS and supports specialized seed detection', () => {
+    assert.equal(TOPIC_AREAS.length, 16);
+    assert.ok(TOPIC_AREAS.slice(0, 4).every((area) => /Computer Vision/i.test(area)));
+    assert.ok(TOPIC_AREAS.slice(4, 8).every((area) => /Django/i.test(area)));
+    assert.ok(TOPIC_AREAS.slice(8, 12).every((area) => /AI Agents/i.test(area)));
+    assert.ok(TOPIC_AREAS.slice(12, 16).every((area) => /RAG/i.test(area)));
 
     const ideaPrompt = buildTopicIdeaPrompt({ area: TOPIC_AREAS[0], history: [] });
     assert.match(ideaPrompt, /senior-level/i);
     assert.match(ideaPrompt, /Do not invent a personal incident/i);
-    const aiIdeaPrompt = buildTopicIdeaPrompt({ area: TOPIC_AREAS[10], history: [] });
+    const aiIdeaPrompt = buildTopicIdeaPrompt({ area: TOPIC_AREAS[12], history: [] });
     assert.match(aiIdeaPrompt, /AI Agents\/RAG topics/i);
+
+    // Test seed detection functions
+    assert.equal(isVisionSpecific('Fixing RTSP latency with OpenCV and DeepSort'), true);
+    assert.equal(isVisionSpecific('Django ORM query planning'), false);
+    assert.equal(isAiSpecific('pgvector hybrid search with BM25 reranking'), true);
+    assert.equal(isAiSpecific('Only standard SQL tables'), false);
+    assert.equal(isDjangoSpecific('Celery tasks with select_for_update in Django'), true);
+    assert.equal(isDjangoSpecific('Pure PyTorch training loop'), false);
 
     const topic = topicFromTechnicalSeed('We solved a slow computer-vision pipeline in our project.');
     const postPrompt = buildTopicPostPrompt(topic);
     assert.equal(topic.isGeneral, true);
     assert.equal(topic.isCustomSource, true);
-    assert.match(topic.area, /AI Agents\/RAG/);
+    assert.match(topic.area, /Computer Vision/i);
     assert.match(postPrompt, /NOT A VERIFIED PERSONAL ACCOUNT/);
     assert.match(postPrompt, /Python\/backend lens/);
     assert.match(postPrompt, /HR tech recruiters, Engineering Managers, and Senior Backend Engineers/);

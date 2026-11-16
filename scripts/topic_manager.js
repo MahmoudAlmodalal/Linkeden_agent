@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { writeDraftsFile, nextDraftId } from './draft_store.js';
 
 // Default configuration paths
 export const DEFAULT_CONFIG_PATH = path.resolve(process.cwd(), 'config', 'post_topics.json');
@@ -131,14 +132,7 @@ export async function loadPendingDrafts(dataPath = DEFAULT_DATA_PATH) {
  * @param {string} dataPath
  */
 export async function savePendingDrafts(drafts, dataPath = DEFAULT_DATA_PATH) {
-  if (!Array.isArray(drafts)) {
-    throw new TypeError('Drafts must be an array');
-  }
-  const resolved = path.resolve(dataPath);
-  await fs.mkdir(path.dirname(resolved), { recursive: true });
-  const tempPath = `${resolved}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
-  await fs.writeFile(tempPath, JSON.stringify(drafts, null, 2) + '\n', 'utf8');
-  await fs.rename(tempPath, resolved);
+  writeDraftsFile(dataPath, drafts);
 }
 
 /**
@@ -147,14 +141,7 @@ export async function savePendingDrafts(drafts, dataPath = DEFAULT_DATA_PATH) {
  * @returns {number}
  */
 export function getNextDraftId(drafts = []) {
-  if (!Array.isArray(drafts) || drafts.length === 0) {
-    return 1;
-  }
-  const maxId = drafts.reduce((max, d) => {
-    const idVal = Number(d.id ?? d.draft_id);
-    return Number.isFinite(idVal) ? Math.max(max, idVal) : max;
-  }, 0);
-  return maxId + 1;
+  return nextDraftId(drafts);
 }
 
 /**

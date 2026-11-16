@@ -1,8 +1,8 @@
 {
-  "angleIndex": 0,
-  "hookIndex": 0,
-  "lengthIndex": 0,
-  "lastIndex": 0,
-  "lastHookIndex": 0,
-  "angleId": "first-principles"
+  "angleIndex": 2,
+  "hookIndex": 3,
+  "lengthIndex": 2,
+  "lastIndex": 2,
+  "lastHookIndex": 3,
+  "angleId": "trade-off-analysis"
 }

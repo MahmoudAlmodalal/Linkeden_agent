@@ -60,6 +60,29 @@ test('registers callback_query in Telegram allowed_updates', async () => {
   assert.equal(result.ok, true);
 });
 
+test('registers the secret token with Telegram when configured', async () => {
+  let request;
+  await registerTelegramWebhook({
+    env: {
+      TELEGRAM_BOT_TOKEN: 'test-token',
+      TELEGRAM_WEBHOOK_SECRET: 'test-secret',
+      WEBHOOK_URL: 'https://tunnel.example.test',
+    },
+    fetchImpl: async (url, init) => {
+      request = { url, init };
+      return { ok: true, status: 200, json: async () => ({ ok: true, result: true }) };
+    },
+    logger: { info() {}, warn() {} },
+  });
+
+  const payload = JSON.parse(request.init.body);
+  assert.equal(payload.secret_token, 'test-secret');
+  assert.equal(
+    payload.url,
+    'https://tunnel.example.test/webhook/telegram-webhook',
+  );
+});
+
 test('does not call Telegram if token or webhook URL is unavailable', async () => {
   let called = false;
   const result = await registerTelegramWebhook({

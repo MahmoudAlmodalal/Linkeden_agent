@@ -9,10 +9,11 @@ import {
   getNextInnovation,
 } from './gemini_engine.js';
 import { proposeTopic, saveTopicToHistory, topicFromTechnicalSeed } from './topic_mode.js';
-import { addPendingDraft, loadPendingDrafts, addScenario } from './telegram_router.js';
+import { addPendingDraft, addScenario } from './telegram_router.js';
 import { renderCardImage } from './generate_card_asset.js';
 import { generateCardContent } from './card_content.js';
 import { resolveDataPath, resolveAssetPath } from './path_resolver.js';
+import { allocateDraftId } from './draft_store.js';
 
 export async function runRAGStaging({
   query = '',
@@ -33,12 +34,9 @@ export async function runRAGStaging({
   renderCardImageFn = renderCardImage,
   generateCardContentFn = generateCardContent,
 } = {}) {
-  const existingDrafts = loadPendingDrafts(draftsPath);
-  const calculatedDraftId = draftId ?? (
-    existingDrafts.length > 0
-      ? Math.max(...existingDrafts.map((d) => Number(d.id) || 0)) + 1
-      : 1
-  );
+  // Single source of truth for ID allocation: the workflow must not pre-compute
+  // this value, otherwise two concurrent staging runs can pick the same ID.
+  const calculatedDraftId = draftId ?? (await allocateDraftId(draftsPath));
 
   // User-supplied text is a technical seed by default, not proof of a personal incident.
   // Project-grounded RAG is reserved for an explicit query.

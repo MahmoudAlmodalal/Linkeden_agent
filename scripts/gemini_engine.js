@@ -15,14 +15,53 @@ export const FALLBACK_TEXT_MODEL = 'gemini-2.5-flash'; // Fast retry when primar
 export const DEFAULT_VISUAL_MODEL = 'gemini-nano-banana-2.1';
 export const FALLBACK_VISUAL_MODEL = 'gemini-3-pro-image';
 export const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
-export const DEFAULT_OPENROUTER_TEXT_MODEL = 'deepseek/deepseek-v4.1-flash';
+export const DEFAULT_OPENROUTER_TEXT_MODEL = 'meta-llama/llama-3.3-70b-instruct';
 export const DEFAULT_OPENROUTER_MODELS = [
-  'deepseek/deepseek-v4.1-flash',
-  'deepseek/deepseek-chat',
-  'google/gemma-4-31b-it:free',
-  'nvidia/nemotron-3-ultra-550b-a55b:free',
+  'meta-llama/llama-3.3-70b-instruct',
+  'meta-llama/llama-3.3-70b-instruct:free',
+  'meta-llama/llama-3.1-70b-instruct',
+  'meta-llama/llama-3.1-8b-instruct:free',
+  'mistralai/mistral-small-24b-instruct-2501:free',
 ];
 export const DEFAULT_OPENROUTER_FREE_MODELS = DEFAULT_OPENROUTER_MODELS;
+
+export const UNRELIABLE_OPENROUTER_MODELS = [
+  'deepseek/deepseek-v4.1-flash',
+  'deepseek/deepseek-chat',
+  'deepseek/deepseek-r1:free',
+  'nvidia/nemotron-3-ultra-550b-a55b:free',
+  'nvidia/nemotron-3.5-lightning:free',
+  'baidu/ernie-5.5-flash-preview:free',
+  'google/gemma-4-31b-it:free',
+  'google/gemma-4-26b-a4b-it:free',
+];
+
+export function isErraticModel(model) {
+  if (!model || typeof model !== 'string') return false;
+  if (UNRELIABLE_OPENROUTER_MODELS.includes(model)) return true;
+  return /deepseek|nemotron|ernie|gemma-4/i.test(model);
+}
+
+export const BANNED_AI_CLICHES = [
+  'في أحد مشاريعنا',
+  'في مشاريعنا',
+  'الدرس الهندسي:',
+  'الدرس التقني:',
+  'الدرس المستفاد:',
+  'اكتبوا لنا في التعليقات 👇',
+  'اكتبوا لنا في التعليقات',
+  'شاركونا في التعليقات',
+  'في عالم التكنولوجيا...',
+  'في عالم التكنولوجيا',
+  'في عالم التقنية',
+  'لا يخفى على أحد...',
+  'لا يخفى على أحد',
+  'مما لا شك فيه',
+  'من الجدير بالذكر',
+  'In the world of tech',
+  'It goes without saying',
+  'Drop your thoughts in the comments',
+];
 
 import {
   STRATEGIC_ANGLES,
@@ -129,9 +168,11 @@ export function buildContentPrompt(topic, { innovation } = {}) {
     : `Language: Professional Arabic enriched with standard English technical terms. English technical terms are allowed ONLY for established technical names, APIs, operators, framework names, metrics, and hashtags (for example: PostgreSQL, PostGIS, GiST index, ST_DWithin, Redis, Django, P95 latency, Race Condition, Idempotency).
 Do not insert random English words or any other language. Never output words such as "enabled", "problem", "cause", or "solution" inside Arabic sentences. Do NOT translate or transliterate established technical names. Do not use Chinese or machine-translated fragments.`;
 
-  const ctaLine = isEnglish ? 'Share your approach in the comments.' : 'اكتبوا لنا في التعليقات 👇';
   const rootCauseExample = isEnglish ? 'state the root cause clearly' : 'اذكر السبب الجذري بوضوح';
   const qualityCheck = isEnglish ? 'the English is coherent' : 'the Arabic is coherent';
+  const peerQuestionGuidance = isEnglish
+    ? 'an engaging architectural discussion question directed at fellow software architects and senior engineers (e.g. how they balance trade-offs under high concurrency in their stack). Never use cheap engagement bait like "Share your approach in the comments below 👇".'
+    : 'سؤال نقاش معماري عميق وموجه للزملاء من كبار المهندسين والمعماريين لمناقشة المقايضة المعمارية في بيئات الإنتاج، دون استخدام كليشيهات التفاعل الرخيصة مثل "اكتبوا لنا في التعليقات 👇".';
 
   // --- Text-innovation layer ---
   const angle = resolvedInnovation?.angle || STRATEGIC_ANGLES[0];
@@ -158,10 +199,26 @@ Topic Details:
 
 ${innovationSection}
 
+=== VOICE & AUTHENTICITY STANDARDS (AUTHENTIC SENIOR-ENGINEER HUMAN VOICE) ===
+You must write with the voice of an experienced, hands-on Principal Software Architect sharing battlefield-tested engineering realities:
+- Punchy Opening Hook: Start immediately on line 1 with genuine architectural tension, a counter-intuitive production realization, or a critical system tradeoff. Avoid generic pleasantries, corporate fluff, rhetorical filler, or throat-clearing introductions.
+- Genuine Architectural Tension: Ground the narrative in real technical mechanics—concurrency race conditions, cache-invalidation edge cases, database query planner degradation, throughput bottlenecks, or latency spikes.
+- Technical Specifics: Always incorporate concrete technical primitives and numbers where relevant: SQL queries/indexes, memory models, algorithms, execution plans, P95/P99 latency, RPS, or throughput metrics.
+- Smooth Natural Transitions: Connect the opening dilemma, the friction, the root cause, and the engineering resolution with smooth, organic transitions instead of choppy, robotic bullet points.
+- High-Signal Peer Discussion: Conclude with a sharp, peer-to-peer engineering discussion question centered on architectural trade-offs, avoiding cheap engagement bait.
+
+=== BANNED AI CLICHÉS & ANTI-PATTERNS (STRICTLY FORBIDDEN) ===
+NEVER use robotic tropes or generic AI clichés. Specifically forbidden:
+1. "في أحد مشاريعنا..." / "في مشاريعنا..." / "In one of our projects..." (Start directly with the architectural dilemma or production context).
+2. "الدرس الهندسي:" / "الدرس التقني:" / "الدرس المستفاد:" / "Engineering Lesson:" (Weave the takeaway naturally into the narrative without label prefixes).
+3. "اكتبوا لنا في التعليقات 👇" / "شاركونا في التعليقات" / "Drop your thoughts below 👇" (Never use cheap social-media engagement bait or downward-pointing hand emojis).
+4. "في عالم التكنولوجيا..." / "في عالم البرمجة اليوم..." / "In today's fast-paced tech world..." (Never use vacuous generalizations).
+5. "لا يخفى على أحد..." / "من المعروف أن..." / "مما لا شك فيه..." (Never use filler assertion phrases).
+
 Post Requirements:
 You MUST structure your post into a seamless, high-signal LinkedIn engineering narrative with double line-breaks between short paragraphs.
 STRICT LENGTH CONSTRAINT: The post MUST be between 180 and 260 words total (3-4 short punchy paragraphs). Never exceed 260 words.
-CRITICAL FORMATTING RULE: Plain text only. Absolutely NEVER output section numbers, brackets, markdown headers or labels like "[1. The Hook]", "1. The Hook", "### Root Cause", or "الدرس التقني:". The output must read like a senior software architect genuinely sharing a real production incident.
+CRITICAL FORMATTING RULE: Plain text only. Absolutely NEVER output section numbers, brackets, markdown headers or labels like "[1. The Hook]", "1. The Hook", "### Root Cause", "الدرس الهندسي:", or "الدرس التقني:". The output must read like a senior software architect genuinely sharing a real production incident.
 
 Follow this lean narrative structure:
 
@@ -169,13 +226,13 @@ Follow this lean narrative structure:
 Start immediately on line 1 with a bold, punchy, counter-intuitive architectural dilemma or technical statement drawn directly from the topic details. Avoid generic introductions. Hook the reader immediately with an engineering dilemma. No greetings or labels.
 
 2. [The Friction & Root Cause - Technical Mechanics]:
-Describe the real production context, the subtle failure mode or race condition that emerged under high concurrency or throughput, the initial hypothesis, and what the automated test or profiling revealed. Explain the "how" and "why" under the hood with technical depth and ${rootCauseExample}.
+Describe the real production context, the subtle failure mode or race condition that emerged under high concurrency or throughput, the initial hypothesis, and what the automated test or profiling revealed. Explain the "how" and "why" under the hood with technical depth, concrete technical specifics (SQL/functions/algorithms/metrics), and ${rootCauseExample}.
 
 3. [The Engineering Decision & Trade-Off]:
 Present the concrete engineering solution and architectural decision implemented. Contrast the chosen approach with trade-offs and alternatives, highlighting exact technical mechanisms and code constructs.
 
 4. [Takeaway & Peer Question - Key Takeaways & Engineering Rules]:
-Provide a memorable, battle-tested engineering rule of thumb (Key Takeaways) drawn directly from the topic, followed immediately by an engaging technical question directed at fellow software architects and senior engineers ("${ctaLine}").
+Provide a memorable, battle-tested engineering rule of thumb (Key Takeaways) smoothly integrated into the text, followed immediately by an engaging technical dilemma question directed at fellow software architects and senior engineers (${peerQuestionGuidance}).
 
 5. [Hashtags]:
 4 to 6 relevant technical hashtags as plain space-separated text (e.g., #SystemDesign #SoftwareArchitecture #Backend #DistributedSystems). Do NOT use Markdown links.
@@ -333,12 +390,17 @@ export async function generateRawTextOpenRouter(prompt, options = {}) {
     throw new Error('fetchClient function is required to call OpenRouter');
   }
 
-  const explicitModel = options.openRouterModel || process.env.OPENROUTER_TEXT_MODEL || DEFAULT_OPENROUTER_TEXT_MODEL;
-  const models = [...new Set([explicitModel, ...DEFAULT_OPENROUTER_MODELS].filter(Boolean))];
+  let explicitModel = options.openRouterModel || process.env.OPENROUTER_TEXT_MODEL;
+  if (explicitModel && isErraticModel(explicitModel)) {
+    console.warn(`[Warning] OpenRouter model '${explicitModel}' is marked as erratic/unreliable. Substituting with '${DEFAULT_OPENROUTER_TEXT_MODEL}'.`);
+    explicitModel = DEFAULT_OPENROUTER_TEXT_MODEL;
+  }
+  const primaryModel = explicitModel || DEFAULT_OPENROUTER_TEXT_MODEL;
+  const models = [...new Set([primaryModel, ...DEFAULT_OPENROUTER_MODELS].filter((m) => Boolean(m) && !isErraticModel(m)))];
   const maxTokens = options.max_tokens ?? 4000;
   const temperature = options.temperature ?? 0.7;
   const timeoutMs = Number(options.openRouterTimeoutMs || process.env.OPENROUTER_TIMEOUT_MS) || 50000;
-  const systemPrompt = options.systemPrompt || 'You are a Principal Software Architect writing a high-signal technical post for LinkedIn aimed at engineering leaders.';
+  const systemPrompt = options.systemPrompt || 'You are a Principal Software Architect writing a high-signal technical post for LinkedIn aimed at engineering leaders. Write with an authentic senior engineer voice without generic AI clichés, robotic headers, or cheap engagement bait.';
 
   const errors = [];
   for (const model of models) {
@@ -377,6 +439,11 @@ export async function generateRawTextOpenRouter(prompt, options = {}) {
       }
       if (!text || typeof text !== 'string' || !text.trim()) {
         throw new Error('OpenRouter returned empty content');
+      }
+
+      // Guard against models producing foreign scripts (Chinese characters, etc.)
+      if (FOREIGN_SCRIPTS.test(text)) {
+        throw new Error(`OpenRouter model ${model} produced foreign/erratic characters`);
       }
 
       return {
@@ -462,7 +529,7 @@ export async function generateRawTextCloudflare(prompt, options = {}) {
     fetchClient = options.fetchClient || globalThis.fetch,
     maxTokens = options.max_tokens ?? 2048,
     temperature = options.temperature ?? 0.8,
-    systemPrompt = options.systemPrompt || 'You are a Principal Software Architect writing a high-signal technical post for LinkedIn aimed at engineering leaders.',
+    systemPrompt = options.systemPrompt || 'You are a Principal Software Architect writing a high-signal technical post for LinkedIn aimed at engineering leaders. Write with an authentic senior engineer voice without generic AI clichés, robotic headers, or cheap engagement bait.',
   } = options;
 
   const body = {

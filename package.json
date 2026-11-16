@@ -4,7 +4,7 @@
   "description": "Automated LinkedIn personal branding system via n8n and Telegram approval",
   "type": "module",
   "scripts": {
-    "test": "node --test tests/*.test.js",
+    "test": "NODE_ENV=test node --test tests/*.test.js",
     "auth:linkedin": "node scripts/get_linkedin_token.mjs",
     "setup:telegram": "node scripts/setup_telegram_menu.js"
   },

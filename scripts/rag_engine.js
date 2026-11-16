@@ -506,7 +506,9 @@ export function buildGroundedRAGPrompt({
 English is allowed ONLY for established technical names, APIs, database operators, framework names, metrics, and hashtags (for example: PostgreSQL, PostGIS, GiST index, ST_DWithin, Haversine, P95 latency, CPU throttling, Django, Redis, Celery, Race Condition, Idempotency).
 Do not insert random English words or any other language. Never output words such as "enabled", "problem", "cause", or "solution" inside Arabic sentences. Do not use Chinese, Turkish, or machine-translated fragments. Do not translate or transliterate established technical names awkwardly.`;
 
-  const ctaLine = isEnglish ? 'Share your approach in the comments.' : 'اكتبوا لنا في التعليقات 👇';
+  const ctaLine = isEnglish
+    ? 'Pose a thought-provoking architectural discussion question for fellow senior engineers and architects, without cheap engagement bait.'
+    : 'اطرح سؤالاً معمارياً عميقاً للنقاش بين كبار المهندسين المعماريين، دون استخدام كليشيهات التفاعل المصطنعة.';
   const rootCauseExample = isEnglish ? 'state the root cause clearly' : 'اذكر السبب الجذري بوضوح';
   const qualityCheck = isEnglish ? 'the English is coherent' : 'the Arabic is coherent';
 
@@ -566,11 +568,11 @@ Additional Architectural Documentation:
 ${contextSnippets || 'Refer to primary engineering specifications and trade-offs.'}
 
 === AUTHOR IDENTITY & STYLE RULES ===
-1. You write from first-person authority as a hands-on builder and leader ("في أحد مشاريعنا...").
+1. You write with the authentic, senior-engineer human voice of Mahmoud H. Almodalal as a hands-on builder and architect. Never use robotic clichés like "في أحد مشاريعنا", "في مشاريعنا", "الدرس الهندسي:", "اكتبوا لنا في التعليقات 👇", "في عالم التكنولوجيا...", or "لا يخفى على أحد...". Start directly with the technical tension or production reality.
 2. Focus on REAL production failure modes, concurrency clashes, database bottlenecks, and architectural trade-offs—never generic fluff or textbook theory.
 3. Use only facts present in the grounding context. Never invent metrics, project details, tests, locations, or outcomes. Preserve exact numbers and names when provided. For this project, write “GiST spatial index”; never write “GIST R-tree”.
 4. STRICT LENGTH CONSTRAINT: The post MUST be between 180 and 260 words total (3-4 short punchy paragraphs). Never exceed 260 words.
-5. STRICT FORMATTING RULE: Plain text only. Absolutely NEVER output section numbers, brackets, markdown headers or labels like "[1. The Hook]", "1. The Hook", "### Root Cause", or "الدرس التقني:". The output MUST be a seamless, beautifully spaced LinkedIn engineering post with double line-breaks between short paragraphs.
+5. STRICT FORMATTING RULE: Plain text only. Absolutely NEVER output section numbers, brackets, markdown headers or labels like "[1. The Hook]", "1. The Hook", "### Root Cause", "الدرس الهندسي:", or "الدرس التقني:". The output MUST be a seamless, beautifully spaced LinkedIn engineering post with double line-breaks between short paragraphs.
 
 Structure your post as a seamless 3-4 paragraph narrative strictly adhering to this lean structure:
 
@@ -584,7 +586,7 @@ Describe the real context (${challenge?.project_name || 'the system'}) and the s
 Explain the concrete architectural decision implemented to resolve the bottleneck. Contrast the chosen approach with rejected alternatives (${challenge?.tradeoff || 'Chosen vs Rejected'}) and reference real production metrics (${challenge?.metrics || 'verified performance'}) where available.
 
 4. [Takeaway & Peer Question]:
-Deliver one memorable, battle-tested engineering rule of thumb (Key Takeaways) drawn directly from this experience, followed by an engaging technical question inviting senior peers and software architects to share their approaches in the comments ("${ctaLine}").
+Deliver one memorable, battle-tested engineering rule of thumb (Key Takeaways) drawn directly from this experience, followed by an engaging technical question inviting senior peers and software architects to debate architectural trade-offs (${ctaLine}). Never use cheap engagement bait or emojis.
 
 5. [Hashtags]:
 4 to 6 relevant technical hashtags formatted as plain space-separated text on the final line (e.g., #SystemDesign #SoftwareArchitecture #Backend). Do NOT use Markdown links.

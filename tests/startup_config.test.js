@@ -17,17 +17,17 @@ test('startup scripts import separate workflow JSON files using n8n 1.x syntax',
     assert.match(source, /import:workflow/);
     assert.match(source, /--separate/);
     assert.match(source, /--input(?:=|['", ])\/workflows/);
-    assert.doesNotMatch(source, /['"]publish:workflow['"]/);
+    assert.doesNotMatch(source, /['"]update:workflow['"]/);
   }
 });
 
 test('startup scripts activate both repository workflows before serving Telegram updates', () => {
   for (const relativePath of startupFiles) {
     const source = fs.readFileSync(path.join(projectRoot, relativePath), 'utf8');
-    assert.match(source, /update:workflow/);
+    assert.match(source, /publish:workflow/);
     assert.match(source, /workflow-1-staging/);
     assert.match(source, /workflow-2-publishing/);
-    assert.match(source, /--active=true/);
+    assert.doesNotMatch(source, /update:workflow/);
   }
 });
 
@@ -43,9 +43,14 @@ test('scripts are ESM in the container and can resolve dependencies installed in
 
 test('startup diagnostics report provider-key presence without exposing values', () => {
   const entrypoint = fs.readFileSync(path.join(projectRoot, 'scripts/docker-entrypoint.sh'), 'utf8');
-  for (const key of ['OPENROUTER_API_KEY', 'GEMINI_API_KEY', 'CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN']) {
+  for (const key of [
+    'OPENROUTER_API_KEY', 'GEMINI_API_KEY', 'CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN',
+    'LINKEDIN_ACCESS_TOKEN', 'TELEGRAM_WEBHOOK_SECRET',
+  ]) {
     assert.ok(entrypoint.includes(key));
   }
+  assert.match(entrypoint, /LINKEDIN_ACCESS_TOKEN is empty/);
+  assert.match(entrypoint, /TELEGRAM_WEBHOOK_SECRET is empty/);
   assert.match(entrypoint, /process\.env\[key\] \? "set" : "missing"/);
 });
 

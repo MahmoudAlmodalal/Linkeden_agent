@@ -20,14 +20,14 @@ function runN8n(args, failureMessage) {
 // The repository stores one exported workflow per JSON file.
 runN8n(['import:workflow', '--separate', '--input=/workflows'], 'Workflow import failed');
 
-// n8n 1.80 activates workflows with update:workflow, not publish:workflow.
+// n8n 1.80+ activates imported workflows with publish:workflow.
 // Do this before starting the server so its production webhook routes are ready.
 runN8n(
-  ['update:workflow', '--id=workflow-1-staging', '--active=true'],
+  ['publish:workflow', '--id=workflow-1-staging'],
   'Staging workflow activation failed',
 );
 runN8n(
-  ['update:workflow', '--id=workflow-2-publishing', '--active=true'],
+  ['publish:workflow', '--id=workflow-2-publishing'],
   'Telegram workflow activation failed',
 );
 

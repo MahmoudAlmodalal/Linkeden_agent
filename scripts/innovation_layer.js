@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { resolveDataPath } from './path_resolver.js';
 
@@ -62,7 +63,15 @@ export const HOOK_TEMPLATES = [
   'كل قاعدة بيانات تُباع على أنها موحدة تسلك سلوكاً مختلفاً تحت التزامن.',
 ];
 
-const TEXT_INNOVATION_STATE_FILE = resolveDataPath('text_innovation_state.json');
+// Tests must never advance the real rotating-angle state. Keep it in a temp dir
+// when running under `npm test` (NODE_ENV=test is set in package.json).
+const TEST_STATE_DIR = path.join(os.tmpdir(), 'n8n-linkedin-agent-test-state');
+function defaultStateFile(filename) {
+  if (process.env.NODE_ENV === 'test') return path.join(TEST_STATE_DIR, filename);
+  return resolveDataPath(filename);
+}
+
+const TEXT_INNOVATION_STATE_FILE = defaultStateFile('text_innovation_state.json');
 
 function readInnovationState(stateFile) {
   try {
@@ -187,7 +196,7 @@ export const TEXT_LENGTH_VARIANTS = [
   { id: 'deep-dive', labelAr: 'غوص عميق', paragraphs: 5, detailLevel: 'تفصيل تقني كامل مع ذكر القياسات والاختبارات' },
 ];
 
-const TEXT_LENGTH_STATE_FILE = resolveDataPath('text_length_state.json');
+const TEXT_LENGTH_STATE_FILE = defaultStateFile('text_length_state.json');
 
 export function getNextTextLengthVariantIndex(stateFile = TEXT_LENGTH_STATE_FILE) {
   const state = readInnovationState(stateFile);

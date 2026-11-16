@@ -108,6 +108,7 @@ describe('RAG Engine - Knowledge Base Loading & Challenges Matrix', () => {
     assert.ok(projects.has('2wash'), 'Should contain 2Wash project');
     assert.ok(projects.has('edutracker'), 'Should contain EduTracker project');
     assert.ok(projects.has('clientmore'), 'Should contain clientMORE project');
+    assert.ok(projects.has('human_tracking_cv'), 'Should contain human_tracking_cv project');
   });
 
   it('loads challenges matrix with at least 10 structured challenge cards', () => {
@@ -218,6 +219,14 @@ describe('RAG Engine - Hybrid Retrieval & Rank Fusion', () => {
     assert.equal(result.matchedProject, 'clientmore');
     assert.ok(result.challenge);
     assert.match(result.challenge.title, /Hybrid Search|Normalization|RRF/i);
+  });
+
+  it('retrieves Human Tracking CV context when queried for computer vision tracking', async () => {
+    const result = await retrieveProjectContext('DeepSort appearance cascade occlusion ID switch');
+    assert.equal(result.matchedProject, 'human_tracking_cv');
+    assert.ok(result.challenge);
+    assert.match(result.challenge.title, /DeepSort|YOLOv8|Occlusion|Ring Buffer/i);
+    assert.ok(result.retrievedDocs.length > 0);
   });
 
   it('reuses persistent document and in-memory query embedding caches', async () => {

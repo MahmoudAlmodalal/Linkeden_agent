@@ -8,24 +8,32 @@ import { resolveDataPath } from './path_resolver.js';
 const HISTORY_FILE = 'topic_history.json'; // stored in data/
 
 export const AUTHOR_BIO =
-  'Mahmoud H. Almodalal — Backend & AI Systems Engineer (Python/Django, AI Agents, RAG, PostgreSQL/PostGIS, Redis, Docker, Node.js).';
+  'Mahmoud H. Almodalal — Backend & AI Systems Engineer (Python/Django, Computer Vision, AI Agents, RAG, PostgreSQL/PostGIS, Redis, Docker, Node.js).';
 
 export const TOPIC_AREAS = [
-  'Advanced Django ORM query planning and PostgreSQL indexes',
-  'Django transactions, row locking, and idempotency',
-  'Django REST Framework serialization and API performance',
-  'Django ASGI, async views, and sync/async boundaries',
-  'Celery task delivery, retries, and Django transaction consistency',
-  'Redis caching, invalidation, and stampede control in Django',
-  'Zero-downtime Django schema migrations and deployment safety',
-  'Django multi-tenancy, authorization, and backend security',
-  'Observability, backpressure, and failure handling in Django services',
-  'Testing concurrency and database behavior in Django',
-  'Hybrid RAG pipelines: combining pgvector semantic search, BM25 keyword filtering, and reranking in PostgreSQL/Django',
-  'AI Agent orchestration in Python/Django: offloading multi-step tool calls to Celery workers with strict token and timeout budgets',
-  'Semantic caching with Redis to cut LLM latency and API cost without serving stale or unauthorized tenant context',
-  'Deterministic guardrails for AI Agents: structured JSON outputs, retry policies, and fallback paths when tool calls fail',
-  'Document ingestion & chunking pipelines in Django: handling async embeddings, idempotent re-indexing, and permission-aware retrieval',
+  // Computer Vision (4 sub-areas)
+  'Computer Vision: Real-time RTSP/WebRTC video ingestion, frame dropping strategies, and jitter buffers',
+  'Computer Vision: Object detection and tracking with YOLOv8, DeepSort, and Kalman filter tuning',
+  'Computer Vision: High-throughput facial recognition and vector embedding extraction with InsightFace',
+  'Computer Vision: Zero-copy GPU memory management, CUDA acceleration, and PyTorch/OpenCV pipelines',
+
+  // Django (4 sub-areas)
+  'Django: Advanced ORM query planning, EXPLAIN ANALYZE, and PostgreSQL specialized indexing',
+  'Django: Concurrency control, database transactions, select_for_update, and row-level locking',
+  'Django: Celery background worker consistency, transactional outbox pattern, and idempotent tasks',
+  'Django: Channels, WebSockets, ASGI async boundaries, and Redis channel layer backpressure',
+
+  // AI Agents (4 sub-areas)
+  'AI Agents: Multi-step tool calling orchestration, finite state machines, and execution loops',
+  'AI Agents: Deterministic guardrails, schema enforcement, and grammar-guided structured JSON output',
+  'AI Agents: Failure recovery, API retry backoff policies, and graceful degradation fallbacks',
+  'AI Agents: Working memory management, token budgeting, and sandboxed tool execution security',
+
+  // RAG (4 sub-areas)
+  'RAG: Hybrid search combining BM25 sparse keyword filtering and pgvector dense semantic search',
+  'RAG: Two-stage retrieval, Reciprocal Rank Fusion (RRF), and Cross-Encoder reranking',
+  'RAG: Multi-tenant semantic caching with Redis vector similarity and tenant isolation',
+  'RAG: Document ingestion pipelines, hierarchical chunking, and contextual compression',
 ];
 
 // ---------------- history (so topics never repeat) ----------------
@@ -87,7 +95,7 @@ export function buildTopicIdeaPrompt({ area, history }) {
 Propose ONE new, specific, advanced topic in this selected area: ${area}
 
 Rules:
-- Stay within the selected area. For Django topics, use a real Django/Python/PostgreSQL mechanism; for AI Agents/RAG topics, use a concrete mechanism such as retrieval, chunking, embeddings, reranking, tool orchestration, structured outputs, or permission-aware context handling.
+- Stay within the selected area. For Computer Vision topics, use concrete OpenCV, YOLO, tracking (DeepSort), face analysis (InsightFace), or video streaming mechanisms; for Django topics, use a real Django/Python/PostgreSQL mechanism; for AI Agents/RAG topics, use a concrete mechanism such as retrieval, chunking, embeddings, reranking, tool orchestration, structured outputs, or permission-aware context handling.
 - Make it specific and senior-level, not a broad subject or beginner checklist.
 - Explain a real mechanism, trade-off, failure mode, or decision boundary; no invented tools or statistics.
 - Keep it general and educational. Do not invent a personal incident, company, client, project, test, or result.
@@ -98,25 +106,62 @@ Return ONLY valid JSON, no markdown fences:
 {"title": "...", "concept": "2-3 sentences describing the core technical idea and the key mechanism", "keywords": ["...", "...", "..."], "slug": "kebab-case-slug"}`;
 }
 
+export function isVisionSpecific(text) {
+  return /\b(?:computer[- ]vision|OpenCV|YOLOv[0-9]+|YOLO|DeepSort|InsightFace|RTSP|WebRTC|video pipelines?|object tracking|face recognition|CUDA|GpuMat|frame dropping|jitter buffer)\b/i.test(String(text || ''));
+}
+
+export function isAiSpecific(text) {
+  return /\b(?:AI\s+agents?|RAG|LLMs?|large language models?|pgvector|vector search|rerank(?:ing)?|embeddings?|semantic caching|BM25|Reciprocal Rank Fusion|RRF|tool calling|guardrails|structured output|context window|LangChain|LlamaIndex|inference pipeline)\b/i.test(String(text || ''));
+}
+
+export function isDjangoSpecific(text) {
+  return /\b(?:Django|Django REST Framework|DRF|QuerySet|Celery|transaction\.atomic|transaction\.on_commit|select_for_update|Channels|ASGI|prefetch_related|select_related)\b/i.test(String(text || ''));
+}
+
 export function topicFromTechnicalSeed(input, { language = 'ar' } = {}) {
   const sourceText = String(input || '').trim();
   if (!sourceText) throw new Error('A technical idea is required');
 
   const firstLine = sourceText.split(/\r?\n/, 1)[0].replace(/\s+/g, ' ').trim();
-  const isDjangoSpecific = /\b(?:Django|Django REST Framework|DRF|QuerySet|Celery|transaction\.atomic|select_for_update)\b/i.test(sourceText);
-  const isAiSpecific = /\b(?:AI\s+agents?|RAG|LLMs?|large language models?|pgvector|vector search|rerank(?:ing)?|embeddings?|semantic caching|BM25|inference pipeline|computer[- ]vision)\b/i.test(sourceText);
-  const title = isAiSpecific
-    ? 'Advanced AI Agents and RAG architecture'
-    : isDjangoSpecific
-      ? (firstLine.slice(0, 120) || 'Advanced Django backend engineering')
-      : 'Advanced Django backend architecture';
+  const visionSpecific = isVisionSpecific(sourceText);
+  const aiSpecific = isAiSpecific(sourceText);
+  const djangoSpecific = isDjangoSpecific(sourceText);
+
+  let title, slugPrefix, concept, keywords, area;
+
+  if (visionSpecific) {
+    title = 'Advanced Computer Vision and Video Pipeline Architecture';
+    slugPrefix = 'custom-computer-vision';
+    concept = 'Extract the underlying technical principle and explain it as a general, advanced Computer Vision and video pipeline design lesson.';
+    keywords = ['Computer Vision', 'OpenCV', 'YOLOv8', 'Video Pipelines'];
+    area = 'Advanced Computer Vision & video pipelines';
+  } else if (aiSpecific) {
+    title = 'Advanced AI Agents and RAG architecture';
+    slugPrefix = 'custom-ai-agents-rag';
+    concept = 'Extract the underlying technical principle and explain it as a general, advanced Python AI/Agents/RAG and backend design lesson.';
+    keywords = ['AI Agents', 'RAG', 'Python', 'Backend'];
+    area = 'Advanced AI Agents/RAG engineering';
+  } else if (djangoSpecific) {
+    title = firstLine.slice(0, 120) || 'Advanced Django backend engineering';
+    slugPrefix = 'custom-django-backend';
+    concept = 'Extract the underlying technical principle and explain it as a general, advanced Django/Python backend design lesson.';
+    keywords = ['Django', 'Python', 'Backend', 'PostgreSQL'];
+    area = 'Advanced Django/backend engineering';
+  } else {
+    title = 'Advanced Backend Architecture';
+    slugPrefix = 'custom-backend';
+    concept = 'Extract the underlying technical principle and explain it as a general, advanced backend engineering lesson.';
+    keywords = ['Python', 'Backend', 'Software Architecture', 'System Design'];
+    area = 'Advanced Backend engineering';
+  }
+
   return {
     id: `custom-${Date.now()}`,
-    slug: `${isAiSpecific ? 'custom-ai-agents-rag' : 'custom-django-backend'}-${Date.now()}`,
+    slug: `${slugPrefix}-${Date.now()}`,
     title,
-    concept: `Extract the underlying technical principle and explain it as a general, advanced ${isAiSpecific ? 'Python AI/Agents/RAG and backend' : 'Django/Python backend'} design lesson.`,
-    keywords: isAiSpecific ? ['AI Agents', 'RAG', 'Python', 'Backend'] : ['Django', 'Python', 'Backend', 'PostgreSQL'],
-    area: isAiSpecific ? 'Advanced AI Agents/RAG engineering' : 'Advanced Django/backend engineering',
+    concept,
+    keywords,
+    area,
     language,
     isGeneral: true,
     isCustomSource: true,
@@ -200,7 +245,7 @@ Length: ${len?.labelAr || 'balanced'}, ${lengthDescription}.`
 === USER'S TECHNICAL SEED (NOT A VERIFIED PERSONAL ACCOUNT) ===
 ${topic.sourceText}
 
-Use this only as subject matter. If it contains first-person, company, or project claims, do not repeat or attribute them to the author. Extract the underlying idea and explain it through a relevant Python/backend lens: use a Django/Python backend lens for backend seeds, or an AI Agents/RAG lens when relevant.
+Use this only as subject matter. If it contains first-person, company, or project claims, do not repeat or attribute them to the author. Extract the underlying idea and explain it through a relevant Python/backend lens: use a Computer Vision lens for vision seeds, a Django/Python backend lens for backend seeds, or an AI Agents/RAG lens when relevant.
 `
     : '';
 
@@ -219,10 +264,10 @@ Keywords: ${(topic.keywords || []).join(', ')}
 ${sourceSection}
 
 === HONESTY RULES (critical) ===
-- Keep the post general and relevant to the selected backend or AI Agents/RAG topic. Do NOT claim "في أحد مشاريعنا", "في مشاريعنا", "we built", or any personal production experience.
+- Keep the post general and relevant to the selected topic (Computer Vision, Django, AI Agents, or RAG). Do NOT claim "في أحد مشاريعنا", "في مشاريعنا", "we built", or any personal production experience.
 - Never invent a company, client, team, incident, test, metric, benchmark, or outcome. Clearly label any example as hypothetical.
-- Explain the supplied idea through a relevant Python/backend lens, using Django or AI Agents/RAG mechanisms where they fit; do not force an unrelated Django example.
-- Explain one precise mechanism and its boundary conditions. Use an actual Django/Python/PostgreSQL feature when relevant; avoid vague advice.
+- Explain the supplied idea through a relevant Python/backend lens, using Computer Vision, Django, or AI Agents/RAG mechanisms where they fit; do not force an unrelated example.
+- Explain one precise mechanism and its boundary conditions. Use an actual library or framework feature (e.g. OpenCV/DeepSort, Django/PostgreSQL, agent tool execution, vector search/RRF) when relevant; avoid vague advice.
 - Write in an individual, thoughtful voice without pretending to report events. Vary the structure naturally; avoid a rigid incident-postmortem template and stock AI phrases.
 
 === THIS GENERATION'S ANGLE ===

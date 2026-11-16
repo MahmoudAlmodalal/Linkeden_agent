@@ -142,5 +142,41 @@
     "keywords": ["c", "unix-shell", "posix", "fork-exec", "pipes", "signals", "operating-systems"],
     "metrics": "Zero zombie processes, robust pipeline execution",
     "tradeoff": "POSIX system calls + Async SIGCHLD reaping vs Blocking waitpid or unhandled child processes"
+  },
+  {
+    "id": 13,
+    "project": "human_tracking_cv",
+    "project_name": "Human Tracking & Face Recognition",
+    "title": "Decoupling YOLOv8 Detection from InsightFace Vector Extraction for Zero-Drop 30 FPS Streams",
+    "category": "video-pipeline-architecture",
+    "dilemma": "Running synchronous ArcFace 512-d biometric embedding extraction for every detected person on every frame caused processing time to spike to 135ms, resulting in RTSP queue overflow and severe frame drops.",
+    "solution": "Asynchronous tiered pipeline decoupling fast per-frame YOLOv8 detection and DeepSort Kalman tracking from InsightFace feature extraction, which runs in a background thread pool triggered only on new track initialization and high-confidence frontal face alignment.",
+    "keywords": ["yolov8", "deepsort", "insightface", "arcface", "computer-vision", "opencv", "pytorch", "video-pipeline", "multiprocessing"],
+    "metrics": "Sustained 30 FPS real-time throughput; per-frame processing latency dropped from 135ms to 26ms",
+    "tradeoff": "Decoupled async keyframe biometric extraction + DeepSort Kalman tracking vs Synchronous per-frame biometric embedding on all detections"
+  },
+  {
+    "id": 14,
+    "project": "human_tracking_cv",
+    "project_name": "Human Tracking & Face Recognition",
+    "title": "DeepSort Re-ID Appearance Vectors & Kalman Cascades: Mitigating Occlusion ID Switches",
+    "category": "multi-target-tracking",
+    "dilemma": "In dense multi-person video scenes, visual occlusion and intersecting trajectories caused pure IoU trackers to swap person identities frequently, while continuous deep biometric extraction caused GPU starvation.",
+    "solution": "Two-stage matching cascade combining Kalman filter motion prediction with cosine distance over lightweight 128-d appearance descriptors, gating heavy InsightFace biometric verification only when track spatial/visual ambiguity exceeds confidence thresholds.",
+    "keywords": ["deepsort", "kalman-filter", "re-identification", "occlusion-handling", "cosine-similarity", "yolov8", "tracking-cascade"],
+    "metrics": "87% reduction in identity switches during cross-person occlusions; track persistence maintained across 30+ frames of total occlusion",
+    "tradeoff": "DeepSort Appearance Cascade + Ambiguity-Gated Biometric Verification vs Pure IoU spatial matching or brute-force per-frame face recognition"
+  },
+  {
+    "id": 15,
+    "project": "human_tracking_cv",
+    "project_name": "Human Tracking & Face Recognition",
+    "title": "Lock-Free Ring Buffer Ingestion vs TCP RTSP Latency Drift & Buffer Bloat",
+    "category": "stream-ingestion-latency",
+    "dilemma": "Standard OpenCV VideoCapture blocking reads accumulated buffered frames during transient inference latency spikes, creating a cumulative 4+ second video lag drift and RTSP socket timeout crashes.",
+    "solution": "Multi-threaded producer-consumer ingest architecture with a dedicated frame-grabber daemon writing to a bounded lock-free circular buffer (capacity=2) using a drop-oldest eviction policy, ensuring the inference worker always processes the real-time frame.",
+    "keywords": ["rtsp", "opencv", "videocapture", "ring-buffer", "latency-drift", "producer-consumer", "threading", "real-time-streaming"],
+    "metrics": "Glass-to-glass latency stabilized under 120ms; zero stream drift or memory leaks over 24/7 continuous streaming",
+    "tradeoff": "Lock-Free Double-Buffer with Drop-Oldest Eviction vs Unbounded FIFO queue causing cumulative playback lag drift"
   }
 ]

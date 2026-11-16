@@ -24,6 +24,11 @@ import {
   synthesizeDraft,
   synthesizeRAGDraft,
   createGeminiClient,
+  DEFAULT_OPENROUTER_TEXT_MODEL,
+  DEFAULT_OPENROUTER_MODELS,
+  isErraticModel,
+  generateRawTextOpenRouter,
+  BANNED_AI_CLICHES,
 } from '../scripts/gemini_engine.js';
 
 describe('Gemini Engine - Mandatory LinkedIn Hashtags', () => {
@@ -186,6 +191,37 @@ describe('Gemini Engine - 5-Element Prompt Breakdown & Language Rules', () => {
     assert.match(visualPrompt, /Distributed Locking with Redis/i);
     assert.match(visualPrompt, /diagram/i);
     assert.match(visualPrompt, /architecture/i);
+  });
+
+  it('bans generic robotic AI clichés and cheap engagement bait from prompt', () => {
+    const prompt = buildContentPrompt(sampleTopicAr);
+
+    // Banned clichés must be explicitly forbidden in the prompt instructions
+    assert.match(prompt, /BANNED AI CLICHÉS/i);
+    assert.match(prompt, /في أحد مشاريعنا/);
+    assert.match(prompt, /الدرس الهندسي:/);
+    assert.match(prompt, /اكتبوا لنا في التعليقات/);
+    assert.match(prompt, /في عالم التكنولوجيا/);
+    assert.match(prompt, /لا يخفى على أحد/);
+    assert.match(prompt, /cheap engagement bait|كليشيهات التفاعل/i);
+
+    // BANNED_AI_CLICHES exported list verification
+    assert.ok(Array.isArray(BANNED_AI_CLICHES));
+    assert.ok(BANNED_AI_CLICHES.includes('في أحد مشاريعنا'));
+    assert.ok(BANNED_AI_CLICHES.includes('الدرس الهندسي:'));
+    assert.ok(BANNED_AI_CLICHES.includes('اكتبوا لنا في التعليقات 👇'));
+  });
+
+  it('enforces authentic senior-engineer voice with architectural tension and technical specifics', () => {
+    const prompt = buildContentPrompt(sampleTopicAr);
+
+    assert.match(prompt, /AUTHENTIC SENIOR-ENGINEER HUMAN VOICE/i);
+    assert.match(prompt, /Punchy Opening Hook/i);
+    assert.match(prompt, /Genuine Architectural Tension/i);
+    assert.match(prompt, /Technical Specifics/i);
+    assert.match(prompt, /SQL\/functions\/algorithms\/metrics/i);
+    assert.match(prompt, /Smooth Natural Transitions/i);
+    assert.match(prompt, /Peer Question/i);
   });
 });
 
@@ -856,5 +892,82 @@ describe('Gemini Engine - RAG Generation Efficiency', () => {
       }),
       /Gemini: Gemini 429 quota exceeded \| Cloudflare: Cloudflare Workers AI HTTP 401: Invalid Cloudflare API token/
     );
+  });
+});
+
+describe('OpenRouter Configuration & Model Quality Guardrails', () => {
+  it('configures stable high-quality models and excludes erratic/Chinese-producing models', () => {
+    assert.equal(DEFAULT_OPENROUTER_TEXT_MODEL, 'meta-llama/llama-3.3-70b-instruct');
+
+    // DEFAULT_OPENROUTER_MODELS must not contain unreliable/erratic models
+    for (const model of DEFAULT_OPENROUTER_MODELS) {
+      assert.equal(isErraticModel(model), false, `Model ${model} should not be flagged as erratic`);
+      assert.ok(!/deepseek|nemotron|ernie|gemma-4/i.test(model), `Model ${model} should not be in default list`);
+    }
+
+    // Unreliable models must be properly flagged
+    assert.equal(isErraticModel('deepseek/deepseek-v4.1-flash'), true);
+    assert.equal(isErraticModel('deepseek/deepseek-chat'), true);
+    assert.equal(isErraticModel('nvidia/nemotron-3-ultra-550b-a55b:free'), true);
+    assert.equal(isErraticModel('google/gemma-4-31b-it:free'), true);
+    assert.equal(isErraticModel('meta-llama/llama-3.3-70b-instruct'), false);
+  });
+
+  it('substitutes erratic model with DEFAULT_OPENROUTER_TEXT_MODEL', async () => {
+    let capturedBody = null;
+    const mockFetch = async (url, options) => {
+      capturedBody = JSON.parse(options.body);
+      return {
+        ok: true,
+        json: async () => ({
+          choices: [{ message: { content: 'Clean technical post output with high signal.' } }],
+        }),
+      };
+    };
+
+    const result = await generateRawTextOpenRouter('Test prompt', {
+      openRouterApiKey: 'test-key',
+      openRouterModel: 'deepseek/deepseek-v4.1-flash',
+      fetchClient: mockFetch,
+    });
+
+    assert.equal(capturedBody.model, 'meta-llama/llama-3.3-70b-instruct');
+    assert.equal(result.provider, 'openrouter');
+    assert.equal(result.text, 'Clean technical post output with high signal.');
+  });
+
+  it('fails over to next model when OpenRouter model outputs foreign/Chinese characters', async () => {
+    const calledModels = [];
+    const mockFetch = async (url, options) => {
+      const body = JSON.parse(options.body);
+      calledModels.push(body.model);
+
+      if (calledModels.length === 1) {
+        // First model returns Chinese characters
+        return {
+          ok: true,
+          json: async () => ({
+            choices: [{ message: { content: '这是一个测试 محتوى مع نصوص صينية غير مقبولة' } }],
+          }),
+        };
+      }
+
+      // Second model returns clean Arabic/English technical text
+      return {
+        ok: true,
+        json: async () => ({
+          choices: [{ message: { content: 'محتوى هندسي عالي الجودة يناقش معمارية الأنظمة والتزامن.' } }],
+        }),
+      };
+    };
+
+    const result = await generateRawTextOpenRouter('System prompt', {
+      openRouterApiKey: 'test-key',
+      fetchClient: mockFetch,
+    });
+
+    assert.ok(calledModels.length >= 2, 'Should have failed over after receiving foreign characters');
+    assert.equal(result.text, 'محتوى هندسي عالي الجودة يناقش معمارية الأنظمة والتزامن.');
+    assert.equal(result.provider, 'openrouter');
   });
 });

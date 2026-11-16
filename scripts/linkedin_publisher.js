@@ -1,7 +1,7 @@
 import fs from 'node:fs';
-import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { readDraftsFile, writeDraftsFile, withDraftLock } from './draft_store.js';
 
 export const LINKEDIN_API_VERSION = process.env.LINKEDIN_API_VERSION || '202501';
 export const RESTLI_PROTOCOL_VERSION = '2.0.0';
@@ -325,49 +325,27 @@ export async function publishToLinkedIn({
  * Load pending drafts from JSON file
  */
 export async function loadPendingDrafts(filePath = DEFAULT_DRAFTS_PATH) {
-  try {
-    const raw = await fs.promises.readFile(filePath, 'utf-8');
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-      return { drafts: parsed, format: 'array' };
-    }
-    if (parsed && Array.isArray(parsed.drafts)) {
-      return { drafts: parsed.drafts, format: 'object', rawObject: parsed };
-    }
-    return { drafts: [], format: 'array' };
-  } catch (err) {
-    if (err.code === 'ENOENT') {
-      return { drafts: [], format: 'array' };
-    }
-    throw err;
-  }
+  const { drafts, format, rawObject } = readDraftsFile(filePath);
+  return { drafts, format, ...(rawObject ? { rawObject } : {}) };
 }
 
 /**
  * Save pending drafts to JSON file
  */
 export async function savePendingDrafts(filePath, drafts, formatInfo = { format: 'array' }) {
-  const resolvedPath = path.resolve(filePath);
-  await fs.promises.mkdir(path.dirname(resolvedPath), { recursive: true });
-  let output;
-  if (formatInfo.format === 'object' && formatInfo.rawObject) {
-    output = { ...formatInfo.rawObject, drafts };
-  } else {
-    output = drafts;
-  }
-  const tempPath = `${resolvedPath}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
-  await fs.promises.writeFile(tempPath, JSON.stringify(output, null, 2), 'utf-8');
-  await fs.promises.rename(tempPath, resolvedPath);
+  writeDraftsFile(filePath, drafts, formatInfo);
 }
 
 /**
  * Remove draft from pending drafts file
  */
 export async function removeDraftFromStorage(filePath, draftId) {
-  const { drafts, format, rawObject } = await loadPendingDrafts(filePath);
-  const updatedDrafts = drafts.filter((d) => String(d.id) !== String(draftId));
-  await savePendingDrafts(filePath, updatedDrafts, { format, rawObject });
-  return updatedDrafts;
+  return withDraftLock(filePath, async () => {
+    const { drafts, format, rawObject } = await loadPendingDrafts(filePath);
+    const updatedDrafts = drafts.filter((d) => String(d.id) !== String(draftId));
+    await savePendingDrafts(filePath, updatedDrafts, { format, rawObject });
+    return updatedDrafts;
+  });
 }
 
 /**

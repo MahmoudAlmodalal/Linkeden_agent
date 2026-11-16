@@ -1,15 +1,16 @@
 [
   {
     "id": 1,
-    "slug": "distributed-idempotency-keys",
-    "title": "Idempotency Keys in Distributed Systems: Preventing Duplicate Transactions",
-    "concept": "How payment gateways and distributed APIs use unique idempotency keys stored in Redis or transactional databases with atomic conditional writes (SETNX) to achieve exactly-once processing semantics over at-least-once network delivery.",
+    "slug": "yolov8-deepsort-rtsp-pipeline-latency",
+    "title": "معمارية معالجة الفيديو في الوقت الفعلي: موازنة زمن استجابة RTSP بين YOLOv8 وDeepSort",
+    "concept": "تحليل استراتيجيات تقليل زمن التأخير (Latency) في مسارات تدفقات RTSP بدقة عالية، وفصل خيوط قراءة الإطارات (Threaded Frame Ingestion) عن الاستدلال الحاسوبي عبر Queues ذات سعة محدودة لتفادي تراكم الإطارات وسقوطها (Frame Dropping).",
     "keywords": [
-      "distributed-systems",
-      "idempotency",
-      "redis",
-      "api-design",
-      "system-design"
+      "computer-vision",
+      "yolov8",
+      "deepsort",
+      "rtsp",
+      "opencv",
+      "video-streaming"
     ],
     "language": "ar",
     "status": "pending",
@@ -17,31 +18,33 @@
   },
   {
     "id": 2,
-    "slug": "event-driven-saga-pattern",
-    "title": "The Saga Pattern: Orchestration vs Choreography in Distributed Transactions",
-    "concept": "Managing distributed transactions without two-phase commit (2PC) using compensating actions, contrasting central workflow orchestrators with decentralized event choreography via Kafka and RabbitMQ.",
+    "slug": "insightface-embedding-batching-cpu-gpu",
+    "title": "Decoupling Object Tracking from Facial Embedding Extraction in High-Throughput Video Pipelines",
+    "concept": "Why executing dense facial feature extractors (InsightFace) on every detected bounding box creates severe GPU pipeline bottlenecks. How combining DeepSort track-state filtering with selective keyframe feature extraction and dynamic batching sustains 30+ FPS ingestion.",
     "keywords": [
-      "saga-pattern",
-      "microservices",
-      "event-driven",
-      "distributed-transactions",
-      "kafka"
+      "computer-vision",
+      "insightface",
+      "deepsort",
+      "gpu-inference",
+      "batching",
+      "pytorch"
     ],
-    "language": "ar",
+    "language": "en",
     "status": "pending",
     "published_at": null
   },
   {
     "id": 3,
-    "slug": "cache-aside-stampede-prevention",
-    "title": "Cache-Aside & Thundering Herd: Defending Distributed Caches at Scale",
-    "concept": "Mitigating cache stampedes, hotkey contention, and dog-piling effects during TTL expiration using probabilistic early expiration (XFetch algorithm), mutex locks, and read-through caching patterns.",
+    "slug": "opencv-cuda-zero-copy-memory-management",
+    "title": "إدارة الذاكرة الصفرية (Zero-Copy) ونقل الإطارات بين OpenCV CUDA وPyTorch",
+    "concept": "تجنب اختناقات نسخ الذاكرة المتكرر بين Host (CPU) وDevice (GPU) أثناء المعالجة المسبقة للصور. استخدام Unified Memory وGpuMat في OpenCV لتمرير التنسورات مباشرة إلى نماذج الرؤية الحاسوبية دون استنزاف الـ PCIe Bus.",
     "keywords": [
-      "caching",
-      "system-design",
-      "redis",
-      "scalability",
-      "concurrency"
+      "opencv",
+      "cuda",
+      "pytorch",
+      "memory-management",
+      "computer-vision",
+      "performance"
     ],
     "language": "ar",
     "status": "pending",
@@ -49,14 +52,16 @@
   },
   {
     "id": 4,
-    "slug": "database-sharding-consistent-hashing",
-    "title": "Consistent Hashing & Database Sharding: Dynamic Node Scaling",
-    "concept": "Partitioning massive relational and NoSQL databases horizontally with consistent hashing rings and virtual nodes, minimizing key re-distribution when cluster nodes join or leave.",
+    "slug": "webrtc-rtsp-jitter-buffer-drop-strategies",
+    "title": "Jitter Buffers and Adaptive Frame Drop Strategies in Low-Latency WebRTC & RTSP Streams",
+    "concept": "Engineering low-latency video ingestion pipelines under network jitter and packet loss. Implementing ring-buffer backpressure, frame-skipping thresholds for non-keyframes, and hardware-accelerated H.264/H.265 decoding via FFmpeg and OpenCV.",
     "keywords": [
-      "database-sharding",
-      "consistent-hashing",
-      "horizontal-scaling",
-      "data-partitioning"
+      "webrtc",
+      "rtsp",
+      "ffmpeg",
+      "video-pipeline",
+      "computer-vision",
+      "low-latency"
     ],
     "language": "en",
     "status": "pending",
@@ -64,15 +69,15 @@
   },
   {
     "id": 5,
-    "slug": "rate-limiting-algorithms-comparison",
-    "title": "Distributed Rate Limiting: Token Bucket vs Leaky Bucket vs Sliding Window Counter",
-    "concept": "Architecting high-throughput API rate limiters using Redis sliding window logs and memory-efficient Lua scripts to enforce client quotas without race conditions.",
+    "slug": "deepsort-occlusion-reid-feature-distance",
+    "title": "التعامل مع حجب الأهداف (Occlusion) في DeepSort: المفاضلة بين Kalman Filter وRe-ID Embeddings",
+    "concept": "معالجة مشكلة تبديل الهويات (ID Switching) عندما تحجب الكائنات بعضها في مشاهد المراقبة المزدحمة. موازنة حساب مسافة Mahalanobis لمسار الحركة مع مسافة جيب التمام لميزات المظهر، وتحديد متى يتم استدعاء نموذج Re-ID الثقيل.",
     "keywords": [
-      "rate-limiting",
-      "api-gateway",
-      "redis-lua",
-      "system-design",
-      "traffic-management"
+      "deepsort",
+      "object-tracking",
+      "kalman-filter",
+      "re-identification",
+      "computer-vision"
     ],
     "language": "ar",
     "status": "pending",
@@ -80,63 +85,64 @@
   },
   {
     "id": 6,
-    "slug": "cqrs-event-sourcing-tradeoffs",
-    "title": "CQRS and Event Sourcing: High Performance Read-Write Segregation",
-    "concept": "Decoupling command mutations from query models to enable hyper-optimized read projections, eventual consistency handling, and full auditability through immutable event logs.",
+    "slug": "django-orm-query-planning-explain-analyze",
+    "title": "Dissecting Django ORM Query Execution Plans: When Prefetch_Related Generates Latency Traps",
+    "concept": "Moving beyond basic select_related and prefetch_related by analyzing PostgreSQL EXPLAIN ANALYZE execution trees for Prefetch objects. Understanding Seq Scans, nested loops, and memory blowup when prefetching unbounded one-to-many relations.",
     "keywords": [
-      "cqrs",
-      "event-sourcing",
-      "domain-driven-design",
-      "eventual-consistency",
-      "software-architecture"
-    ],
-    "language": "ar",
-    "status": "pending",
-    "published_at": null
-  },
-  {
-    "id": 7,
-    "slug": "circuit-breaker-bulkhead-resilience",
-    "title": "Circuit Breakers & Bulkhead Isolation: Building Fault-Tolerant Microservices",
-    "concept": "Preventing cascading failures in distributed call chains using three-state circuit breakers (Closed, Open, Half-Open), thread-pool isolation bulkheads, and exponential backoff with jitter.",
-    "keywords": [
-      "resilience",
-      "fault-tolerance",
-      "circuit-breaker",
-      "microservices",
-      "reliability"
+      "django",
+      "django-orm",
+      "postgresql",
+      "query-optimization",
+      "database-indexing"
     ],
     "language": "en",
     "status": "pending",
     "published_at": null
   },
   {
-    "id": 8,
-    "slug": "distributed-locking-redlock-pitfalls",
-    "title": "Distributed Locks with Redis Redlock: Guarantees, Caveats, and Fencing Tokens",
-    "concept": "Deep dive into Martin Kleppmann's critique of Redlock, the hazards of GC pauses and clock skew, and why monotonically increasing fencing tokens are mandatory for data safety.",
+    "id": 7,
+    "slug": "django-concurrency-row-level-locking-select-for-update",
+    "title": "إدارة التزامن في Django: مخاطر Deadlocks واستخدام select_for_update مع skip_locked",
+    "concept": "كيفية حماية العمليات المالية وتحديثات الأرصدة الحساسة من حالات السباق (Race Conditions) باستخدام قفل السجلات على مستوى قاعدة البيانات. مقارنة nowait وskip_locked لبناء طوابير مهام متزامنة وعالية الكفاءة دون تجميد المعاملات.",
     "keywords": [
-      "distributed-locking",
-      "redis",
-      "redlock",
-      "fencing-tokens",
-      "consensus"
+      "django",
+      "concurrency",
+      "row-locking",
+      "postgresql",
+      "database-transactions"
     ],
     "language": "ar",
     "status": "pending",
     "published_at": null
   },
   {
-    "id": 9,
-    "slug": "hexagonal-ports-and-adapters",
-    "title": "Hexagonal Architecture (Ports and Adapters): Future-Proof Core Business Logic",
-    "concept": "Isolating domain entities and use cases from database drivers, external transport layers, and framework dependencies using inversion of control and explicit port interfaces.",
+    "id": 8,
+    "slug": "django-celery-transaction-consistency-outbox-pattern",
+    "title": "Transactional Consistency in Django & Celery: Moving Beyond transaction.on_commit",
+    "concept": "Why relying solely on transaction.on_commit leaves edge cases during broker crashes or network partitions between Postgres and RabbitMQ/Redis. Designing a robust Transactional Outbox pattern with atomic database commits and dedicated polling relays.",
     "keywords": [
-      "clean-architecture",
-      "hexagonal-architecture",
-      "domain-driven-design",
-      "clean-code",
-      "refactoring"
+      "django",
+      "celery",
+      "outbox-pattern",
+      "distributed-systems",
+      "database-consistency"
+    ],
+    "language": "en",
+    "status": "pending",
+    "published_at": null
+  },
+  {
+    "id": 9,
+    "slug": "django-channels-websockets-backpressure-redis-channel-layer",
+    "title": "توسيع Django Channels وWebSockets: التعامل مع Backpressure وتدفق الرسائل عبر Redis",
+    "concept": "معمارية معالجة الاتصالات الحية للآلاف من عملاء WebSockets المتزامنين. إدارة استهلاك ذاكرة Redis Channel Layer، وتحديد سعات القنوات (channel capacity) واستراتيجيات تفادي اختناق الـ Event Loop في ASGI Consumers.",
+    "keywords": [
+      "django-channels",
+      "websockets",
+      "asgi",
+      "redis",
+      "concurrency",
+      "python"
     ],
     "language": "ar",
     "status": "pending",
@@ -144,15 +150,16 @@
   },
   {
     "id": 10,
-    "slug": "two-phase-commit-vs-paxos-raft",
-    "title": "Consensus Protocols: Why Raft and Paxos Outperform 2PC in Modern Clouds",
-    "concept": "Examining why traditional Two-Phase Commit is blocking and fragile during network partitions, and how quorum-based consensus (Raft/Paxos) provides high availability and partition tolerance.",
+    "slug": "django-composite-indexes-brin-gin-partitioning",
+    "title": "Advanced Indexing Strategies in Django: Leveraging GIN, BRIN, and Partial Indexes on PostgreSQL",
+    "concept": "Designing composite and specialized PostgreSQL indexes directly via Django Index definitions. Using BRIN for append-only timestamped audit logs, GIN with pg_trgm for fuzzy search, and partial indexes to optimize high-cardinality status filters.",
     "keywords": [
-      "consensus",
-      "raft",
-      "paxos",
-      "cap-theorem",
-      "distributed-systems"
+      "django",
+      "postgresql",
+      "database-indexing",
+      "gin-index",
+      "brin-index",
+      "performance"
     ],
     "language": "en",
     "status": "pending",
@@ -160,15 +167,15 @@
   },
   {
     "id": 11,
-    "slug": "solid-dependency-inversion-in-practice",
-    "title": "Dependency Inversion Principle (DIP): Beyond Mere Dependency Injection",
-    "concept": "Distinguishing DIP from DI containers: creating stable abstractions owned by the high-level policy rather than low-level detail modules to eliminate circular coupling.",
+    "slug": "ai-agent-tool-orchestration-state-machines",
+    "title": "هندسة تسلسل استدعاء الأدوات (Tool Calling) للعملاء الأذكياء عبر Finite State Machines",
+    "concept": "الابتعاد عن حلقات ReAct غير المنضبطة واستبدالها بنماذج الحالات المحدودة (FSM) لتقييد مسارات تنفيذ الأدوات. كيفية منع الوكلاء الأذكياء من الدخول في حلقات مفرغة، وضمان تحقق الشروط المسبقة لكل أداة برمجية قبل التنفيذ.",
     "keywords": [
-      "solid",
-      "clean-code",
-      "dependency-inversion",
-      "software-design-principles",
-      "maintainability"
+      "ai-agents",
+      "tool-calling",
+      "state-machines",
+      "software-architecture",
+      "python"
     ],
     "language": "ar",
     "status": "pending",
@@ -176,31 +183,31 @@
   },
   {
     "id": 12,
-    "slug": "vector-clocks-conflict-resolution",
-    "title": "Vector Clocks and Version Vectors: Resolving Concurrent Writes in AP Databases",
-    "concept": "Detecting causal concurrency and conflicting writes in Dynamo-style distributed stores (Cassandra, Riak) using vector clocks and application-level CRDT reconciliation.",
+    "slug": "deterministic-guardrails-json-schema-grammar-masking",
+    "title": "Deterministic Guardrails for LLMs: Enforcing Strict JSON Schemas via Grammar-Guided Decoding",
+    "concept": "Why post-generation schema validation and retry prompts waste tokens and fail unpredictably. How context-free grammar masking (CFG) at the logit level guarantees 100% compliant JSON outputs from tool-calling agents without hallucinated fields.",
     "keywords": [
-      "vector-clocks",
-      "crdt",
-      "dynamo",
-      "eventual-consistency",
-      "distributed-systems"
+      "ai-agents",
+      "guardrails",
+      "json-schema",
+      "structured-outputs",
+      "llm-inference"
     ],
-    "language": "ar",
+    "language": "en",
     "status": "pending",
     "published_at": null
   },
   {
     "id": 13,
-    "slug": "strangler-fig-pattern-monolith-migration",
-    "title": "Strangler Fig Pattern: Safely Deconstructing the Monolith Without Big Bangs",
-    "concept": "Incrementally replacing legacy monolithic endpoints with modern microservices via reverse-proxy traffic routing, feature flags, and shadow traffic validation.",
+    "slug": "ai-agent-failure-recovery-exponential-backoff-fallback",
+    "title": "استراتيجيات التعافي من الفشل في استدعاءات الوكلاء الأذكياء: التراجع التدريجي ومسارات البدائل",
+    "concept": "تصميم أنظمة استدعاء أدوات مرنة تتحمل أخطاء انقطاع واجهات برمجة التطبيقات (API Rate Limits & Timeouts). تطبيق Exponential Backoff مع Jitter، وتحويل الوكيل ديناميكيًا إلى مسارات بديلة (Graceful Fallback) دون قطع المحادثة.",
     "keywords": [
-      "monolith-migration",
-      "microservices",
-      "strangler-pattern",
-      "architecture-modernization",
-      "devops"
+      "ai-agents",
+      "fault-tolerance",
+      "retry-policy",
+      "api-design",
+      "system-reliability"
     ],
     "language": "ar",
     "status": "pending",
@@ -208,31 +215,31 @@
   },
   {
     "id": 14,
-    "slug": "concurrency-worker-pool-backpressure",
-    "title": "Worker Pools and Backpressure: Preventing Node.js Event Loop Starvation",
-    "concept": "Managing heavy I/O and CPU workloads using bounded queue worker pools, stream backpressure, and graceful degradation under sudden burst traffic spikes.",
+    "slug": "agentic-memory-context-compression-summarization",
+    "title": "Agentic Working Memory: Dynamic Context Compaction and Token Budget Allocation",
+    "concept": "Managing multi-turn tool interaction history within constrained LLM context windows. Designing sliding-window scratchpads, tool-result compaction, and semantic message pruning to prevent distraction while preserving operational invariants.",
     "keywords": [
-      "nodejs",
-      "concurrency",
-      "backpressure",
-      "event-loop",
-      "performance-optimization"
+      "ai-agents",
+      "context-window",
+      "memory-management",
+      "token-optimization",
+      "system-design"
     ],
-    "language": "ar",
+    "language": "en",
     "status": "pending",
     "published_at": null
   },
   {
     "id": 15,
-    "slug": "domain-driven-design-aggregate-roots",
-    "title": "Aggregate Roots in Domain-Driven Design: Enforcing Transactional Invariants",
-    "concept": "Designing transactional boundaries around entity clusters, preventing direct external access to child entities, and ensuring consistency boundaries remain atomic and lean.",
+    "slug": "ai-agents-sandboxed-execution-permission-boundaries",
+    "title": "عزل بيئات تنفيذ أدوات الذكاء الاصطناعي (Sandboxing) وضوابط الصلاحيات الصارمة",
+    "concept": "حماية الأنظمة الخلفية عند السماح لوكلاء الذكاء الاصطناعي بتنفيذ استعلامات SQL أو كود Python. استخدام حاويات مؤقتة معزولة (Ephemeral Sandboxes)، وتطبيق مبدأ الصلاحيات الأقل (Least Privilege) والتحقق البشري للعمليات الحساسة (Human-in-the-Loop).",
     "keywords": [
-      "domain-driven-design",
-      "aggregate-roots",
-      "software-architecture",
-      "clean-code",
-      "business-logic"
+      "ai-agents",
+      "security",
+      "sandboxing",
+      "api-security",
+      "least-privilege"
     ],
     "language": "ar",
     "status": "pending",
@@ -240,15 +247,16 @@
   },
   {
     "id": 16,
-    "slug": "database-indexing-btree-vs-lsm",
-    "title": "B-Trees vs LSM-Trees: Storage Engine Tradeoffs for Read vs Write-Heavy Workloads",
-    "concept": "Contrasting MySQL/Postgres in-place B+Tree indexing with RocksDB/Cassandra append-only Log-Structured Merge trees, write amplification, and compaction strategies.",
+    "slug": "rag-hybrid-search-bm25-pgvector-rrf",
+    "title": "Hybrid Retrieval Architecture: Combining Dense Vector Search with Sparse BM25 via Reciprocal Rank Fusion",
+    "concept": "Why pure semantic vector search fails on keyword-exact entity queries and technical IDs. Implementing PostgreSQL full-text search (tsvector) alongside pgvector HNSW indexes, fused seamlessly using Reciprocal Rank Fusion (RRF) for superior recall.",
     "keywords": [
-      "databases",
-      "storage-engines",
-      "b-trees",
-      "lsm-trees",
-      "system-design"
+      "rag",
+      "pgvector",
+      "bm25",
+      "reciprocal-rank-fusion",
+      "hybrid-search",
+      "postgresql"
     ],
     "language": "en",
     "status": "pending",
@@ -256,15 +264,15 @@
   },
   {
     "id": 17,
-    "slug": "zero-downtime-deployment-schema-migrations",
-    "title": "Expand and Contract Pattern: Zero-Downtime Database Schema Migrations",
-    "concept": "Safely altering production tables with hundreds of millions of records using phased additive column expansion, dual-writing, backfilling, and contract deprecation.",
+    "slug": "rag-two-stage-retrieval-cross-encoder-reranking",
+    "title": "الاسترجاع ثنائي المراحل في RAG: دمج Cross-Encoder Reranking لموازنة الدقة وزمن الاستجابة",
+    "concept": "مفاضلة التكلفة الحسابية وزمن التأخير عند إدخال نماذج إعادة الترتيب (Rerankers). استرجاع أعلى 50 وثيقة عبر البحث الشعاعي السريع (Bi-Encoder)، ثم تصفيتها إلى أفضل 5 وثائق دقيقة باستخدام Cross-Encoder خفيف ومحسن.",
     "keywords": [
-      "database-migrations",
-      "zero-downtime",
-      "devops",
-      "schema-evolution",
-      "reliability"
+      "rag",
+      "reranking",
+      "cross-encoder",
+      "pgvector",
+      "latency-optimization"
     ],
     "language": "ar",
     "status": "pending",
@@ -272,31 +280,32 @@
   },
   {
     "id": 18,
-    "slug": "distributed-tracing-opentelemetry",
-    "title": "Distributed Tracing with OpenTelemetry: Context Propagation Across Microservices",
-    "concept": "Propagating W3C TraceContext headers (traceparent) across async queues and HTTP boundaries to trace cross-service latency bottlenecks and isolate failure cascades.",
+    "slug": "semantic-caching-redis-vector-similarity-thresholds",
+    "title": "Multi-Tenant Semantic Caching with Redis: Dynamic Cosine Distance Thresholds",
+    "concept": "Slashing LLM query costs by caching embedding-prompt representations in Redis Vector Similarity Search (RediSearch). Formulating strict tenant-partitioned namespaces and dynamic cosine similarity thresholds to avoid serving irrelevant or unauthorized cached answers.",
     "keywords": [
-      "opentelemetry",
-      "observability",
-      "distributed-tracing",
-      "microservices",
-      "debugging"
+      "semantic-caching",
+      "redis",
+      "rag",
+      "vector-search",
+      "caching",
+      "system-design"
     ],
-    "language": "ar",
+    "language": "en",
     "status": "pending",
     "published_at": null
   },
   {
     "id": 19,
-    "slug": "django-celery-on-commit-consistency",
-    "title": "Why Firing Celery Tasks Inside transaction.atomic() Causes Silent Race Conditions",
-    "concept": "Explain how a Celery worker dispatched before transaction.atomic() commits may read missing or stale state. Distinguish transaction.on_commit() (defer dispatch until commit) from idempotency keys (make retried side effects safer), and discuss broker-failure and outbox trade-offs without claiming exactly-once delivery.",
+    "slug": "rag-document-chunking-hierarchical-parent-document-retrieval",
+    "title": "تقسيم المستندات الهرمي (Hierarchical Chunking) واستراتيجية استرجاع المستند الأصلي (Parent Document Retrieval)",
+    "concept": "حل معضلة فقدان السياق عند تقطيع النصوص التقنية الطويلة. توليد Chunks صغيرة ودقيقة لعمليات البحث الشعاعي، مع ربطها بمعرفات المقاطع الأكبر (Parent Chunks) لتمرير السياق الكامل للنموذج اللغوي دون تشويش الـ Embedding.",
     "keywords": [
-      "django",
-      "celery",
-      "postgresql",
-      "redis",
-      "system-design"
+      "rag",
+      "chunking",
+      "parent-document-retrieval",
+      "embeddings",
+      "nlp"
     ],
     "language": "ar",
     "status": "pending",
@@ -304,47 +313,15 @@
   },
   {
     "id": 20,
-    "slug": "hybrid-rag-pgvector-reranking-django",
-    "title": "Separating Retrieval from Reasoning in Production RAG Pipelines",
-    "concept": "Explain why raw pgvector top-k results can include irrelevant context, while processing larger context sets can add token and latency costs. Compare hybrid lexical/vector retrieval, permission filtering before model access, and reranking; discuss relevance gains against reranking's extra compute and latency rather than promising a universal accuracy or P95 improvement.",
+    "slug": "rag-contextual-compression-lost-in-the-middle",
+    "title": "Defeating the 'Lost in the Middle' Phenomenon in Long-Context RAG via Contextual Compression",
+    "concept": "Mitigating positional attention degradation when feeding multiple retrieved documents into LLMs. Implementing selective sentence-level contextual compression and document reordering to place highest-scoring evidence at context boundaries.",
     "keywords": [
       "rag",
-      "pgvector",
-      "django",
-      "reranking",
-      "backend"
-    ],
-    "language": "en",
-    "status": "pending",
-    "published_at": null
-  },
-  {
-    "id": 21,
-    "slug": "async-ai-agent-orchestration-celery",
-    "title": "Decoupling AI Agent Execution from Django Request-Response Cycles",
-    "concept": "Detail how multi-step AI Agent tool calls inside synchronous request handlers can occupy workers and exceed request deadlines. Explain offloading to Celery with bounded token and timeout budgets, idempotent task handling, and status retrieval, including the operational complexity of queues and retries.",
-    "keywords": [
-      "ai-agents",
-      "django",
-      "celery",
-      "python",
-      "software-architecture"
-    ],
-    "language": "ar",
-    "status": "pending",
-    "published_at": null
-  },
-  {
-    "id": 22,
-    "slug": "semantic-caching-redis-rag-cost-latency",
-    "title": "Semantic Caching in Redis Without Leaking Tenant Context",
-    "concept": "Explain when semantic caching may avoid repeated LLM calls and reduce cost or latency in a multi-tenant Django backend. Show why cache keys and invalidation must account for tenant, authorization scope, and changing source data; weigh fewer model calls against stale-context and false-hit risks.",
-    "keywords": [
-      "semantic-caching",
-      "redis",
-      "rag",
-      "django",
-      "system-design"
+      "context-compression",
+      "lost-in-the-middle",
+      "llm-architecture",
+      "information-retrieval"
     ],
     "language": "en",
     "status": "pending",

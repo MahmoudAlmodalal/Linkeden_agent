@@ -6,7 +6,8 @@ const fs = require('fs');
 const path = require('path');
 
 const input = $input.first().json;
-const draftId = input.draftId || 1;
+// The ID is allocated atomically inside generate_rag_draft.js, not here.
+let draftId = null;
 const query = input.query || '';
 const situation = input.situation || '';
 
@@ -17,7 +18,7 @@ let executionError = null;
 let imageError = null;
 
 try {
-  const args = ['/scripts/generate_rag_draft.js', '--id', String(draftId)];
+  const args = ['/scripts/generate_rag_draft.js'];
   if (query) args.push('--query', query);
   if (situation) args.push('--situation', situation);
   const combined = `${query} ${situation}`.toLowerCase();
@@ -76,6 +77,7 @@ try {
   }
   const result = JSON.parse(child.stdout);
   if (result.success && result.draft) {
+    draftId = result.draft.id;
     postText = result.draft.text;
     imagePath = result.draft.image_path;
     project = result.draft.project;
@@ -100,8 +102,8 @@ if (executionError || !postText) {
       project,
       error: true,
       hasImage: false,
-      text: `❌ فشل توليد المسودة #${draftId}\n\nالسبب:\n${reason}\n\nتحقق من مفاتيح الربط (Gemini/Cloudflare) وسجلات الخادم.`,
-      caption: `❌ فشل توليد المسودة #${draftId}: ${reason}`,
+      text: `❌ فشل توليد المسودة${draftId ? ` #${draftId}` : ''}\n\nالسبب:\n${reason}\n\nتحقق من مفاتيح الربط (Gemini/Cloudflare) وسجلات الخادم.`,
+      caption: `❌ فشل توليد المسودة${draftId ? ` #${draftId}` : ''}: ${reason}`,
     }
   }];
 }
@@ -202,7 +204,7 @@ wf = {
     },
     {
       "parameters": {
-        "jsCode": "const fs = require('fs');\nconst path = require('path');\n\nconst input = $input.first().json;\nconst incomingQuery = input.query || input.body?.query || '';\nconst incomingSituation = input.situation || input.body?.situation || '';\n\nconst draftsPath = '/data/pending_drafts.json';\nlet drafts = [];\nif (fs.existsSync(draftsPath)) {\n  try {\n    drafts = JSON.parse(fs.readFileSync(draftsPath, 'utf8'));\n    if (!Array.isArray(drafts)) drafts = [];\n  } catch (err) {\n    drafts = [];\n  }\n}\n\nconst maxId = drafts.reduce((max, d) => Math.max(max, Number(d.id) || 0), 0);\nconst nextDraftId = maxId + 1;\n\nreturn [\n  {\n    json: {\n      draftId: nextDraftId,\n      query: incomingQuery,\n      situation: incomingSituation,\n      draftsPath\n    }\n  }\n];"
+        "jsCode": "const input = $input.first().json;\nconst incomingQuery = input.query || input.body?.query || '';\nconst incomingSituation = input.situation || input.body?.situation || '';\n\n// Draft IDs are allocated atomically inside generate_rag_draft.js.\n// Do not pre-compute an ID here: concurrent runs would collide.\nreturn [\n  {\n    json: {\n      query: incomingQuery,\n      situation: incomingSituation,\n      draftsPath: '/data/pending_drafts.json'\n    }\n  }\n];"
       },
       "id": "7b8d4c9a-3333-4444-8888-000000000003",
       "name": "Topic Selector",
