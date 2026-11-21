@@ -273,7 +273,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const { execFileSync } = require('child_process');\nconst rawDraftId = String($input.item.json.draftId || '').replace(/^#/, '').trim();\nif (rawDraftId && !/^\\d+$/.test(rawDraftId)) {\n  throw new Error('Invalid draft ID: must contain digits only');\n}\nconst args = ['/scripts/linkedin_publisher.js'];\nif (rawDraftId) args.push(rawDraftId);\nlet stdout = '';\nlet stderr = '';\ntry {\n  stdout = execFileSync('node', args, { cwd: '/', encoding: 'utf8' });\n} catch (err) {\n  stderr = err.stderr || err.message || '';\n  stdout = err.stdout || '';\n}\nreturn [{ json: { stdout, stderr } }];"
+        "jsCode": "const { execFileSync } = require('child_process');\nconst rawDraftId = String($input.item.json.draftId || '').replace(/^#/, '').trim();\nif (rawDraftId && !/^\\d+$/.test(rawDraftId)) {\n  throw new Error('Invalid draft ID: must contain digits only');\n}\nconst args = ['/scripts/linkedin_publisher.js'];\nif (rawDraftId) args.push(rawDraftId);\nlet stdout = '';\nlet stderr = '';\nconst childEnv = Object.assign({}, process.env, typeof $env !== 'undefined' ? $env : {});\ntry {\n  stdout = execFileSync('node', args, { cwd: '/', encoding: 'utf8', env: childEnv });\n} catch (err) {\n  stderr = err.stderr || err.message || '';\n  stdout = err.stdout || '';\n}\nreturn [{ json: { stdout, stderr } }];"
       },
       "id": "linkedin-publishing-node",
       "name": "LinkedIn Publishing Node",

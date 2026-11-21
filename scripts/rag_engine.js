@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { STRATEGIC_ANGLES, HOOK_TEMPLATES, TEXT_LENGTH_VARIANTS } from './innovation_layer.js';
+import { STRATEGIC_ANGLES, HOOK_TEMPLATES, TEXT_LENGTH_VARIANTS, HONESTY_RULES } from './innovation_layer.js';
 import { resolveDataPath } from './path_resolver.js';
 
 export const DEFAULT_KB_DIR = resolveDataPath('rag', 'knowledge_base');
@@ -522,7 +522,7 @@ Do not insert random English words or any other language. Never output words suc
 Strategic Angle: ${angle.labelAr} — ${angle.directiveAr}
 Hook Style: ${angle.hookStyle}
 Suggested opening hook (use as inspiration, adapt to the topic): "${hookTemplate}"
-Post Length & Depth: ${lengthVariant.labelAr} — ${lengthVariant.detailLevel} (strictly 180-260 words, approximately ${lengthVariant.paragraphs} paragraphs)
+Post Length & Depth: ${lengthVariant.labelAr} — ${lengthVariant.detailLevel} (strictly 130-190 words, approximately ${lengthVariant.paragraphs} paragraphs)
 
 CRITICAL: Do NOT reuse the same narrative lens or hook structure from previous posts about this same project. Apply the strategic angle above to reshape the entire post: the opening, the body, the lesson, and the call-to-action must all reflect this angle. The post must read as if written from a different perspective each time.
 `;
@@ -544,13 +544,13 @@ Chosen vs Rejected Trade-off: ${challenge.tradeoff}
   const situationSection = situation && situation.trim()
     ? `
 === FEATURED REAL PRODUCTION SCENARIO (FROM AUTHOR) ===
-The author specifically provided this real-world production incident / situation:
+The author provided this situation as the technical seed (treat it as the author's own account only for what the text itself states):
 """
 ${situation.trim()}
 """
 
 MANDATORY FOCUS:
-Transform the real-world scenario/incident described above into the primary focus of this post. Break down the production root cause, the concurrency/architecture breakdown, and how it was resolved in production. Write in Mahmoud's first-person engineering voice.
+Transform the real-world scenario/incident described above into the primary focus of this post. Break down the root cause, the architecture, and the resolution only as far as the text above states them. Write in Mahmoud's first-person engineering voice.
 `
     : '';
 
@@ -567,11 +567,13 @@ ${challengeInfo}
 Additional Architectural Documentation:
 ${contextSnippets || 'Refer to primary engineering specifications and trade-offs.'}
 
+${HONESTY_RULES}
+
 === AUTHOR IDENTITY & STYLE RULES ===
 1. You write with the authentic, senior-engineer human voice of Mahmoud H. Almodalal as a hands-on builder and architect. Never use robotic clichés like "في أحد مشاريعنا", "في مشاريعنا", "الدرس الهندسي:", "اكتبوا لنا في التعليقات 👇", "في عالم التكنولوجيا...", or "لا يخفى على أحد...". Start directly with the technical tension or production reality.
 2. Focus on REAL production failure modes, concurrency clashes, database bottlenecks, and architectural trade-offs—never generic fluff or textbook theory.
 3. Use only facts present in the grounding context. Never invent metrics, project details, tests, locations, or outcomes. Preserve exact numbers and names when provided. For this project, write “GiST spatial index”; never write “GIST R-tree”.
-4. STRICT LENGTH CONSTRAINT: The post MUST be between 180 and 260 words total (3-4 short punchy paragraphs). Never exceed 260 words.
+4. STRICT LENGTH CONSTRAINT: The post MUST be between 130 and 190 words total (3-4 short punchy paragraphs). Never exceed 190 words.
 5. STRICT FORMATTING RULE: Plain text only. Absolutely NEVER output section numbers, brackets, markdown headers or labels like "[1. The Hook]", "1. The Hook", "### Root Cause", "الدرس الهندسي:", or "الدرس التقني:". The output MUST be a seamless, beautifully spaced LinkedIn engineering post with double line-breaks between short paragraphs.
 
 Structure your post as a seamless 3-4 paragraph narrative strictly adhering to this lean structure:

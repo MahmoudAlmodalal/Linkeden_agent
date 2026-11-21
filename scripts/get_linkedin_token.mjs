@@ -8,6 +8,12 @@ import crypto from 'node:crypto';
  * Exchanges authorization code for 60-day access token and fetches Person URN.
  */
 
+try {
+  process.loadEnvFile?.();
+} catch {
+  // Ignore missing or unreadable .env file
+}
+
 const CLIENT_ID = process.env.LINKEDIN_CLIENT_ID || process.argv[2];
 const CLIENT_SECRET = process.env.LINKEDIN_CLIENT_SECRET || process.argv[3];
 const PORT = process.env.OAUTH_PORT || 3000;

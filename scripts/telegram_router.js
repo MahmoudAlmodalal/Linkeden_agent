@@ -447,8 +447,13 @@ export function formatPreviewCaption(draft) {
   const draftId = draft?.id ?? 'N/A';
   const postText = draft?.text || draft?.post_text || draft?.content || '';
 
+  const gateWarning = draft?.gate && draft.gate.passed === false
+    ? `⚠️ Quality gate failed after ${draft.gate.attempts} attempt(s):\n${(draft.gate.issues || []).map((i) => `• ${i}`).join('\n')}\n\n`
+    : '';
+
   return (
     `[Draft ID: #${draftId}]\n\n` +
+    gateWarning +
     `${postText}\n\n` +
     `─── Action Instructions ───\n` +
     `• Approve: /approve ${draftId}\n` +

@@ -79,13 +79,13 @@ describe('Gemini Engine - Mandatory LinkedIn Hashtags', () => {
 });
 
 describe('Gemini Engine - Model Enforcement & Deprecation Rules', () => {
-  it('defaults to gemini-3.8-flash for text generation', () => {
-    assert.equal(DEFAULT_TEXT_MODEL, 'gemini-3.8-flash');
-    assert.equal(normalizeTextModel(), 'gemini-3.8-flash');
-    assert.equal(normalizeTextModel(null), 'gemini-3.8-flash');
+  it('defaults to gemini-4-hydrogen for text generation', () => {
+    assert.equal(DEFAULT_TEXT_MODEL, 'gemini-4-hydrogen');
+    assert.equal(normalizeTextModel(), 'gemini-4-hydrogen');
+    assert.equal(normalizeTextModel(null), 'gemini-4-hydrogen');
   });
 
-  it('rejects and substitutes deprecated text models with gemini-3.8-flash', () => {
+  it('rejects and substitutes deprecated text models with gemini-4-hydrogen', () => {
     const deprecated = [
       'gemini-1.5-flash',
       'gemini-1.5-pro',
@@ -98,13 +98,14 @@ describe('Gemini Engine - Model Enforcement & Deprecation Rules', () => {
     for (const model of deprecated) {
       assert.equal(
         normalizeTextModel(model),
-        'gemini-3.8-flash',
-        `Expected ${model} to be normalized to gemini-3.8-flash`
+        'gemini-4-hydrogen',
+        `Expected ${model} to be normalized to gemini-4-hydrogen`
       );
     }
   });
 
   it('preserves valid modern text models', () => {
+    assert.equal(normalizeTextModel('gemini-4-hydrogen'), 'gemini-4-hydrogen');
     assert.equal(normalizeTextModel('gemini-3.8-flash'), 'gemini-3.8-flash');
     assert.equal(normalizeTextModel('gemini-4-argon'), 'gemini-4-argon');
   });
@@ -297,7 +298,7 @@ describe('Gemini Engine - Text & Visual Generation with Dependency Injection', (
     }
   });
 
-  it('generatePostContent invokes mock client with gemini-3.8-flash and returns generated text', async () => {
+  it('generatePostContent invokes mock client with gemini-4-hydrogen and returns generated text', async () => {
     const calls = [];
     const mockClient = {
       interactions: {
@@ -319,13 +320,13 @@ describe('Gemini Engine - Text & Visual Generation with Dependency Injection', (
     const result = await generatePostContent(topic, { client: mockClient });
 
     assert.equal(calls.length, 1);
-    assert.equal(calls[0].model, 'gemini-3.8-flash');
+    assert.equal(calls[0].model, 'gemini-4-hydrogen');
     assert.match(calls[0].input, /Hook/i);
-    assert.equal(result.model, 'gemini-3.8-flash');
+    assert.equal(result.model, 'gemini-4-hydrogen');
     assert.match(result.text, /Redlock algorithm/i);
   });
 
-  it('generatePostContent substitutes deprecated models with gemini-3.8-flash', async () => {
+  it('generatePostContent substitutes deprecated models with gemini-4-hydrogen', async () => {
     const calls = [];
     const mockClient = {
       interactions: {
@@ -341,7 +342,7 @@ describe('Gemini Engine - Text & Visual Generation with Dependency Injection', (
       { client: mockClient, model: 'gemini-1.5-pro' }
     );
 
-    assert.equal(calls[0].model, 'gemini-3.8-flash');
+    assert.equal(calls[0].model, 'gemini-4-hydrogen');
   });
 
   it('generateVisualAsset decodes base64 image and writes to output directory', async () => {
@@ -453,13 +454,13 @@ describe('Gemini Engine - Dual-Visual Synthesis Priority Pipeline', () => {
     assert.equal(result.visualPath, localAssetPath);
     assert.equal(result.modelUsed.visual, null);
 
-    // Verify text was generated with gemini-3.8-flash
-    assert.equal(result.modelUsed.text, 'gemini-3.8-flash');
+    // Verify text was generated with gemini-4-hydrogen
+    assert.equal(result.modelUsed.text, 'gemini-4-hydrogen');
     assert.match(result.text, /^Deep-dive content for distributed locking\n\n#/);
 
     // Verify client was ONLY called once for text, NEVER for image!
     assert.equal(calls.length, 1);
-    assert.equal(calls[0].model, 'gemini-3.8-flash');
+    assert.equal(calls[0].model, 'gemini-4-hydrogen');
   });
 
   it('PRIORITY 2: Falls back to Gemini visual generation when no local asset exists', async () => {
@@ -479,7 +480,7 @@ describe('Gemini Engine - Dual-Visual Synthesis Priority Pipeline', () => {
               },
             };
           }
-          if (params.model === 'gemini-3.8-flash') {
+          if (params.model === 'gemini-4-hydrogen') {
             return {
               output_text: 'Technical breakdown text for Kafka partitioning',
             };
@@ -506,7 +507,7 @@ describe('Gemini Engine - Dual-Visual Synthesis Priority Pipeline', () => {
     // Verify visual source is generated
     assert.equal(result.visualSource, 'generated');
     assert.equal(result.modelUsed.visual, 'gemini-nano-banana-2.1');
-    assert.equal(result.modelUsed.text, 'gemini-3.8-flash');
+    assert.equal(result.modelUsed.text, 'gemini-4-hydrogen');
 
     // Verify file was written
     const expectedImagePath = path.join(testOutputDir, 'kafka-partitioning-strategy.png');
@@ -517,7 +518,7 @@ describe('Gemini Engine - Dual-Visual Synthesis Priority Pipeline', () => {
     // Verify both visual and text were generated
     assert.equal(calls.length, 2);
     assert.equal(calls[0].model, 'gemini-nano-banana-2.1');
-    assert.equal(calls[1].model, 'gemini-3.8-flash');
+    assert.equal(calls[1].model, 'gemini-4-hydrogen');
   });
 });
 
@@ -897,16 +898,16 @@ describe('Gemini Engine - RAG Generation Efficiency', () => {
 
 describe('OpenRouter Configuration & Model Quality Guardrails', () => {
   it('configures stable high-quality models and excludes erratic/Chinese-producing models', () => {
-    assert.equal(DEFAULT_OPENROUTER_TEXT_MODEL, 'meta-llama/llama-3.3-70b-instruct');
+    assert.equal(DEFAULT_OPENROUTER_TEXT_MODEL, 'deepseek/deepseek-v4-flash');
 
     // DEFAULT_OPENROUTER_MODELS must not contain unreliable/erratic models
     for (const model of DEFAULT_OPENROUTER_MODELS) {
       assert.equal(isErraticModel(model), false, `Model ${model} should not be flagged as erratic`);
-      assert.ok(!/deepseek|nemotron|ernie|gemma-4/i.test(model), `Model ${model} should not be in default list`);
+      assert.ok(!/deepseek-(chat|r1)|nemotron|ernie|gemma-4/i.test(model), `Model ${model} should not be in default list`);
     }
 
     // Unreliable models must be properly flagged
-    assert.equal(isErraticModel('deepseek/deepseek-v4.1-flash'), true);
+    assert.equal(isErraticModel('deepseek/deepseek-v4-flash'), false);
     assert.equal(isErraticModel('deepseek/deepseek-chat'), true);
     assert.equal(isErraticModel('nvidia/nemotron-3-ultra-550b-a55b:free'), true);
     assert.equal(isErraticModel('google/gemma-4-31b-it:free'), true);
@@ -927,11 +928,11 @@ describe('OpenRouter Configuration & Model Quality Guardrails', () => {
 
     const result = await generateRawTextOpenRouter('Test prompt', {
       openRouterApiKey: 'test-key',
-      openRouterModel: 'deepseek/deepseek-v4.1-flash',
+      openRouterModel: 'deepseek/deepseek-chat',
       fetchClient: mockFetch,
     });
 
-    assert.equal(capturedBody.model, 'meta-llama/llama-3.3-70b-instruct');
+    assert.equal(capturedBody.model, 'deepseek/deepseek-v4-flash');
     assert.equal(result.provider, 'openrouter');
     assert.equal(result.text, 'Clean technical post output with high signal.');
   });

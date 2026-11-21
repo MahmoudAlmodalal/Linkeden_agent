@@ -12,8 +12,10 @@ import { proposeTopic, saveTopicToHistory, topicFromTechnicalSeed } from './topi
 import { addPendingDraft, addScenario } from './telegram_router.js';
 import { renderCardImage } from './generate_card_asset.js';
 import { generateCardContent } from './card_content.js';
+import { generateCodeCard, codeCardHTML } from './code_card.js';
 import { resolveDataPath, resolveAssetPath } from './path_resolver.js';
 import { allocateDraftId } from './draft_store.js';
+import { generateWithGate, resolveMaxAttempts } from './quality_gate.js';
 
 export async function runRAGStaging({
   query = '',
@@ -33,6 +35,7 @@ export async function runRAGStaging({
   synthesizeRAGDraftFn = synthesizeRAGDraft,
   renderCardImageFn = renderCardImage,
   generateCardContentFn = generateCardContent,
+  gateMaxAttempts = resolveMaxAttempts(),
 } = {}) {
   // Single source of truth for ID allocation: the workflow must not pre-compute
   // this value, otherwise two concurrent staging runs can pick the same ID.
@@ -42,9 +45,9 @@ export async function runRAGStaging({
   // Project-grounded RAG is reserved for an explicit query.
   const isGeneralMode = !String(query || '').trim();
 
-  let draft;
+  let generalTopic = null;
   if (isGeneralMode) {
-    const topic = String(situation || '').trim()
+    generalTopic = String(situation || '').trim()
       ? topicFromTechnicalSeed(situation)
       : await proposeTopic({
         generateText: async (prompt) => {
@@ -58,45 +61,38 @@ export async function runRAGStaging({
         },
         historyPath: topicHistoryPath,
       });
+  }
 
-    const innovation = getNextInnovation();
-    const textResult = await generatePostContent(topic, {
-      client,
-      innovation,
-      cfAccountId,
-      cfApiToken,
-      fetchClient,
-    });
-
-    saveTopicToHistory(
-      {
-        title: topic.title,
-        slug: topic.slug,
-        area: topic.area,
-        language: topic.language,
-      },
-      topicHistoryPath
-    );
-
-    draft = {
-      project: null,
-      challenge: null,
-      situation: '',
-      topic,
-      text: textResult.text,
-      visualPath: null,
-      visualSource: 'none',
-      modelUsed: {
-        text: textResult.model,
-        visual: null,
-      },
-      providerUsed: {
-        text: textResult.provider || 'gemini',
-        visual: 'none',
-      },
-    };
-  } else {
-    draft = await synthesizeRAGDraftFn({
+  const produceDraft = async () => {
+    if (isGeneralMode) {
+      const topic = generalTopic;
+      const innovation = getNextInnovation();
+      const textResult = await generatePostContent(topic, {
+        client,
+        innovation,
+        cfAccountId,
+        cfApiToken,
+        fetchClient,
+      });
+      return {
+        project: null,
+        challenge: null,
+        situation: '',
+        topic,
+        text: textResult.text,
+        visualPath: null,
+        visualSource: 'none',
+        modelUsed: {
+          text: textResult.model,
+          visual: null,
+        },
+        providerUsed: {
+          text: textResult.provider || 'gemini',
+          visual: 'none',
+        },
+      };
+    }
+    return synthesizeRAGDraftFn({
       query,
       situation,
       client,
@@ -107,6 +103,22 @@ export async function runRAGStaging({
       fetchClient,
       skipRemoteVisual: useBrandedCard,
     });
+  };
+
+  // Quality gate: regenerate (bounded) until length/hashtag rules pass; if retries
+  // run out the last draft is still staged, flagged with warnings for the reviewer.
+  const { draft, gate } = await generateWithGate(produceDraft, { maxAttempts: gateMaxAttempts });
+
+  if (isGeneralMode) {
+    saveTopicToHistory(
+      {
+        title: generalTopic.title,
+        slug: generalTopic.slug,
+        area: generalTopic.area,
+        language: generalTopic.language,
+      },
+      topicHistoryPath
+    );
   }
 
   let finalImagePath = draft.visualPath;
@@ -142,17 +154,31 @@ export async function runRAGStaging({
         });
         return res.text;
       };
-      const cardContent = await generateCardContentFn({
-        generateText,
-        postText: draft.text,
-        topic,
-        language,
-      });
-
-      const cardResult = await renderCardImageFn(cardContent, {
-        outputDir,
-        filename: `card-draft-${calculatedDraftId}-${Date.now()}.png`,
-      });
+      // Preferred visual: a real code snippet in an editor window (reads as human, not a template).
+      // Falls back to the infographic card if the model cannot produce a valid snippet.
+      let cardResult = null;
+      try {
+        const code = await generateCodeCard({ generateText, postText: draft.text, topic, language });
+        cardResult = await renderCardImageFn({}, {
+          outputDir,
+          filename: `code-draft-${calculatedDraftId}-${Date.now()}.png`,
+          html: codeCardHTML(code),
+        });
+      } catch (codeErr) {
+        console.warn(`[CodeCard] ${codeErr.message}. Falling back to infographic card.`);
+      }
+      if (!cardResult?.imagePath) {
+        const cardContent = await generateCardContentFn({
+          generateText,
+          postText: draft.text,
+          topic,
+          language,
+        });
+        cardResult = await renderCardImageFn(cardContent, {
+          outputDir,
+          filename: `card-draft-${calculatedDraftId}-${Date.now()}.png`,
+        });
+      }
       if (cardResult?.imagePath) {
         finalImagePath = cardResult.imagePath;
         finalVisualSource = 'branded_card';
@@ -182,6 +208,7 @@ export async function runRAGStaging({
     provider_used: draft.providerUsed,
     challenge: draft.challenge,
     status: 'pending',
+    gate,
     created_at: new Date().toISOString(),
   };
 

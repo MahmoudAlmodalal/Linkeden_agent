@@ -807,8 +807,9 @@ export async function renderCardImage(cardData = {}, {
   outputDir = 'data/generated_images',
   filename = null,
   timeoutMs = Number(process.env.CARD_RENDER_TIMEOUT_MS) || 60000,
+  html = null,
 } = {}) {
-  const htmlContent = generateCardHTML(cardData, author);
+  const htmlContent = html || generateCardHTML(cardData, author);
 
   const resolvedOutputDir = resolveDataPath(outputDir);
   if (!fs.existsSync(resolvedOutputDir)) {

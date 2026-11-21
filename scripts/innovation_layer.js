@@ -7,6 +7,12 @@ import { resolveDataPath } from './path_resolver.js';
  * Strategic angles that change the narrative lens of every generated post,
  * so the same project/topic never produces the same text twice.
  */
+export const HONESTY_RULES = `HONESTY RULES (MANDATORY):
+- 100% DYNAMIC & NO PERSONAL PROJECTS: Never reference personal portfolio projects, resumes, or phrases like "في أحد مشاريعنا", "في مشروعي", "we built in our company".
+- ALL topics and scenarios must be purely dynamic, general, and drawn from real-world production engineering challenges (Distributed Systems, High Concurrency, Database Internals, System Design, AI/RAG Architecture, Real-Time Pipelines).
+- Treat scenarios as realistic engineering case studies or production failure modes (e.g., "في أنظمة معالجة البيانات الضخمة...", "عند تصميم مسار فيديو مباشر...", "في قواعد البيانات تحت ضغط كتابة عالي...").
+- Never invent a company, client, team, incident, test, metric, benchmark, or outcome. Clearly label any example as hypothetical.`;
+
 export const STRATEGIC_ANGLES = [
   {
     id: 'first-principles',
@@ -16,8 +22,8 @@ export const STRATEGIC_ANGLES = [
   },
   {
     id: 'production-incident',
-    labelAr: 'حادثة إنتاج حقيقية',
-    directiveAr: 'ابنِ السرد حول حادثة إنتاجية واقعية مررت بها، واذكر المؤشر المرئي (P95، معدل الأخطاء، زمن الاستجابة) الذي كشف المشكلة.',
+    labelAr: 'سيناريو إنتاجي موثّق',
+    directiveAr: 'ابنِ السرد حول سيناريو إنتاجي موثّق في سياق المشروع المرفق فقط، واذكر المؤشر (P95، معدل الأخطاء، زمن الاستجابة) إن كان مذكوراً في السياق. لا تخترع حادثة ولا رقماً.',
     hookStyle: 'تصريح جريء وغير بديهي عن خطأ شائع يعتقده معظم المهندسين.',
   },
   {
@@ -29,7 +35,7 @@ export const STRATEGIC_ANGLES = [
   {
     id: 'lesson-learned',
     labelAr: 'درس مستفاد',
-    directiveAr: 'ابنِ المنشور حول خطأ تقني ارتكبه فريقك أو أنت شخصياً، وكيف تم تصحيحه ومنع تكراره.',
+    directiveAr: 'ابنِ المنشور حول درس تقني مستخلص من الحقائق الموجودة في سياق المشروع المرفق فقط، وكيف عولج. لا تنسب خطأً لفريق أو لشخص ولا تخترع واقعة.',
     hookStyle: 'اعتراف تقني صريح بموقف لم يسير كما هو مخطط له.',
   },
   {
@@ -56,11 +62,11 @@ export const STRATEGIC_ANGLES = [
  * Hook templates by style, ensuring a fresh opening every generation.
  */
 export const HOOK_TEMPLATES = [
-  'غالباً ما نفترض أن X، ولكن الواقع التقني يقول العكس.',
-  'المشكلة لا تكمن في الأداة، بل في كيف نستخدمها.',
-  'الأنظمة الموزعة تُظهر أسوأ مخاوفها تحت الضغط، ليس في المختبر.',
-  'ما يبدو حلاً مؤقتاً يتحول إلى دين تقني دائم خلال أسابيع.',
-  'كل قاعدة بيانات تُباع على أنها موحدة تسلك سلوكاً مختلفاً تحت التزامن.',
+  'الأنظمة الموزعة تُظهر أسوأ نقاط ضعفها تحت الضغط، ليس في بيئة التطوير.',
+  'ما يبدو حلاً مؤقتاً للتزامن يتحول إلى دين تقني دائم خلال أسابيع.',
+  'كل آلية قفل تباع على أنها آمنة تسلك سلوكاً كارثياً عند زيادة معدل الكتابة.',
+  'الاعتماد على زيادة الموارد لمعالجة بطء الاستعلامات هو مجرد تأجيل للانهيار.',
+  'في مسارات البيانات اللحظية، البيانات المتأخرة أسوأ من البيانات المفقودة.',
 ];
 
 // Tests must never advance the real rotating-angle state. Keep it in a temp dir

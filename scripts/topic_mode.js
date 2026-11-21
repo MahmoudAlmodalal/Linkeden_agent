@@ -11,17 +11,11 @@ export const AUTHOR_BIO =
   'Mahmoud H. Almodalal — Backend & AI Systems Engineer (Python/Django, Computer Vision, AI Agents, RAG, PostgreSQL/PostGIS, Redis, Docker, Node.js).';
 
 export const TOPIC_AREAS = [
-  // Computer Vision (4 sub-areas)
-  'Computer Vision: Real-time RTSP/WebRTC video ingestion, frame dropping strategies, and jitter buffers',
-  'Computer Vision: Object detection and tracking with YOLOv8, DeepSort, and Kalman filter tuning',
-  'Computer Vision: High-throughput facial recognition and vector embedding extraction with InsightFace',
-  'Computer Vision: Zero-copy GPU memory management, CUDA acceleration, and PyTorch/OpenCV pipelines',
-
-  // Django (4 sub-areas)
-  'Django: Advanced ORM query planning, EXPLAIN ANALYZE, and PostgreSQL specialized indexing',
+  // Django & Architecture (4 sub-areas)
+  'Django & DDD: Domain-Driven Design, Aggregate Roots, Repositories, and Unit of Work',
+  'Django & Design Patterns: Transactional Outbox, Specification Pattern, CQRS, and Domain Events',
   'Django: Concurrency control, database transactions, select_for_update, and row-level locking',
-  'Django: Celery background worker consistency, transactional outbox pattern, and idempotent tasks',
-  'Django: Channels, WebSockets, ASGI async boundaries, and Redis channel layer backpressure',
+  'Django: Advanced ORM query planning, EXPLAIN ANALYZE, and PostgreSQL specialized indexing',
 
   // AI Agents (4 sub-areas)
   'AI Agents: Multi-step tool calling orchestration, finite state machines, and execution loops',
@@ -115,7 +109,7 @@ export function isAiSpecific(text) {
 }
 
 export function isDjangoSpecific(text) {
-  return /\b(?:Django|Django REST Framework|DRF|QuerySet|Celery|transaction\.atomic|transaction\.on_commit|select_for_update|Channels|ASGI|prefetch_related|select_related)\b/i.test(String(text || ''));
+  return /\b(?:Django|Django REST Framework|DRF|QuerySet|Celery|transaction\.atomic|transaction\.on_commit|select_for_update|Channels|ASGI|prefetch_related|select_related|Domain[- ]Driven Design|DDD|Aggregate Root|Unit of Work|Specification Pattern|Domain Events?|Repository Pattern|CQRS|Transactional Outbox)\b/i.test(String(text || ''));
 }
 
 export function topicFromTechnicalSeed(input, { language = 'ar' } = {}) {
@@ -231,8 +225,8 @@ export function buildTopicPostPrompt(topic, { innovation = {} } = {}) {
     : 'Language: Arabic (clear Modern Standard Arabic, natural technical tone). English only for established technical names (tools, SQL, APIs, patterns, metrics) and hashtags. Never mix any other language or script.';
 
   const lengthDescription = len?.paragraphs
-    ? `130-190 words (${len.paragraphs} concise paragraphs)`
-    : '130-190 words (3 concise paragraphs)';
+    ? `130-180 words (${len.paragraphs} concise paragraphs)`
+    : '130-180 words (3-4 concise paragraphs)';
 
   const angleBlock = angle
     ? `Angle: ${angle.labelAr}. ${angle.directiveAr}
@@ -249,36 +243,54 @@ Use this only as subject matter. If it contains first-person, company, or projec
 `
     : '';
 
-  return `You are an experienced backend and AI systems engineer writing a natural LinkedIn explainer for senior technical readers.
+  return `You are a Staff / Principal Software Architect sharing battle-tested system design and engineering insights on LinkedIn for senior engineers, tech leads, and engineering managers.
 
-AUDIENCE: HR tech recruiters, Engineering Managers, and Senior Backend Engineers. Prioritize advanced implementation details and sound engineering judgment.
-Audience & Hiring Signal: Frame the mechanism around production reliability, cost/latency control, data integrity, and clear architectural ownership — showing how an engineer thinks under real-world constraints.
-Honesty & Clarity: Keep all HONESTY RULES intact. Never invent clients, companies, or fake metrics. Focus on one concrete mechanism, its failure mode, and one honest engineering trade-off.
+AUDIENCE: HR tech recruiters, Engineering Managers, and Senior Backend Engineers. Prioritize advanced system design, realistic production trade-offs, and sound engineering judgment.
+Audience & Signal: Frame the mechanism around production reliability, cost/latency control, data integrity, and architectural ownership under real-world scale and high concurrency.
+Honesty & Grounding: Treat scenarios as realistic engineering case studies or production failure modes (Distributed Systems, High Concurrency, Database Internals, System Design, AI/RAG Architecture, Real-Time Pipelines). Never invent clients, companies, or fake metrics.
 
 ${language}
 
-=== TOPIC (general technical explanation, never a fabricated project story) ===
+=== TOPIC (purely dynamic production case study, never a personal portfolio story) ===
 Title: ${topic.title}
 Core idea: ${topic.concept}
 Keywords: ${(topic.keywords || []).join(', ')}
 ${sourceSection}
 
 === HONESTY RULES (critical) ===
-- Keep the post general and relevant to the selected topic (Computer Vision, Django, AI Agents, or RAG). Do NOT claim "في أحد مشاريعنا", "في مشاريعنا", "we built", or any personal production experience.
-- Never invent a company, client, team, incident, test, metric, benchmark, or outcome. Clearly label any example as hypothetical.
+- 100% DYNAMIC & NO PERSONAL PROJECTS: NEVER reference personal portfolio projects, resumes, or phrases like "في أحد مشاريعنا" / "في مشروعي" / "we built in our company". Do NOT claim any personal production experience.
+- ALL topics and scenarios must be purely dynamic, general, and drawn from real-world production engineering challenges.
+- Treat scenarios as realistic engineering case studies or production failure modes (e.g., "في أنظمة معالجة البيانات الضخمة...", "عند تصميم مسار فيديو مباشر...", "في قواعد البيانات تحت ضغط كتابة عالي...").
+- Never invent a company, client, team, or fake benchmark.
 - Explain the supplied idea through a relevant Python/backend lens, using Computer Vision, Django, or AI Agents/RAG mechanisms where they fit; do not force an unrelated example.
-- Explain one precise mechanism and its boundary conditions. Use an actual library or framework feature (e.g. OpenCV/DeepSort, Django/PostgreSQL, agent tool execution, vector search/RRF) when relevant; avoid vague advice.
-- Write in an individual, thoughtful voice without pretending to report events. Vary the structure naturally; avoid a rigid incident-postmortem template and stock AI phrases.
+- Explain one precise mechanism and its boundary conditions. Avoid vague advice and stock AI phrases.
+
+=== TONE & VOICE: BREAK THE RIGID / AI-TEXTBOOK STYLE ===
+- Write like a battle-tested engineer talking to peers over coffee, NOT an academic professor or marketing AI.
+- FORBIDDEN AI FORMULAS (STRICTLY BANNED):
+  * Absolutely NO "الخلاصة:" or "الدرس المستفاد:" or "الواقع التقني قال العكس".
+  * Absolutely NO generic openers: "غالباً ما نفترض...", "في عالم البرمجة اليوم...", "مما لا شك فيه...".
+  * Absolutely NO cheap engagement bait: "شاركونا في التعليقات 👇" or downward finger emojis.
+  * Absolutely NO predictable A-vs-B endings: "هل تفضل X أم Y؟".
+- HUMAN PACING:
+  * Start immediately on Line 1 with a blunt, counter-intuitive technical reality or friction point.
+  * Use short, punchy paragraphs with double line-breaks.
+  * Mix sentence lengths. Share practical trade-offs and what actually breaks under pressure.
+  * Language: Natural Modern Arabic enriched natively with English technical terms (e.g., PostgreSQL, Redis lock, P95 latency, YOLO, Async Pipeline, Queue, Race Condition, OOM). Never translate established technical terms.
+  * BANNED words/phrases: "in today's", "game-changer", "unlock", "leverage", "delve", "dive into", "landscape", "robust", "seamless", "cutting-edge", "revolutionize", "it's not just X, it's Y", "Let's explore", "In conclusion", "العالم الرقمي المتسارع", "في عصرنا الحالي", "ثورة", "لا شك أن", "في الختام", "👇".
 
 === THIS GENERATION'S ANGLE ===
 ${angleBlock}
 
-=== POST REQUIREMENTS ===
-- LENGTH: ${lengthDescription}. Keep it concise and high-signal.
-- FORMAT: Plain text only. No markdown headers, bold, bullets, or section labels. Separate paragraphs with double line-breaks.
-- TONE: Natural, specific, and technically advanced. Avoid generic introductions, repetitive hooks, canned transitions, and the stock CTA "اكتبوا لنا في التعليقات".
-- Explain the mechanism, when it matters, and one real trade-off or caveat. A small code/API detail is better than several generic recommendations.
-- End with a peer question only if it follows naturally; never force a question or a personal story. Finish with 4-6 relevant plain-text hashtags.
+=== POST REQUIREMENTS (Concise: 130–180 words) ===
+- LENGTH: STRICTLY 130–180 words total. Keep it concise, punchy, and maximum engineering signal.
+- FORMAT: Plain text only. Absolutely NO markdown headers, bold, bullets, or section labels like "[1. The Hook]". Separate paragraphs with double line-breaks.
+- STRUCTURE:
+  1. [The Hook]: A punchy line highlighting an overlooked bottleneck or architectural illusion.
+  2. [The Real Friction]: Why the obvious solution fails under scale or real-time constraints (mention specific mechanisms: buffers, memory allocation, locks, I/O).
+  3. [The Engineering Trade-off]: The concrete architectural decision taken, and what was sacrificed (Complexity vs Latency, Consistency vs Throughput).
+  4. [The Takeaway]: A crisp engineering rule of thumb, concluding with a natural technical dilemma for peers (without cheap engagement bait).
+  5. [Hashtags]: 4-5 focused technical hashtags.
 
 Return ONLY the final post text.`;
 }

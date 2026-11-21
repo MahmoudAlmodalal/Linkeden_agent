@@ -10,23 +10,22 @@ import { resolveDataPath, resolveAssetPath } from './path_resolver.js';
 import { buildTopicPostPrompt } from './topic_mode.js';
 import { FOREIGN_SCRIPTS } from './card_content.js';
 
-export const DEFAULT_TEXT_MODEL = 'gemini-3.8-flash';
-export const FALLBACK_TEXT_MODEL = 'gemini-2.5-flash'; // Fast retry when primary times out
+export const DEFAULT_TEXT_MODEL = process.env.GEMINI_TEXT_MODEL || 'gemini-4-hydrogen';
+export const FALLBACK_TEXT_MODEL = 'gemini-3.8-flash'; // Fast retry when primary times out
 export const DEFAULT_VISUAL_MODEL = 'gemini-nano-banana-2.1';
 export const FALLBACK_VISUAL_MODEL = 'gemini-3-pro-image';
 export const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
-export const DEFAULT_OPENROUTER_TEXT_MODEL = 'meta-llama/llama-3.3-70b-instruct';
+export const DEFAULT_OPENROUTER_TEXT_MODEL = 'deepseek/deepseek-v4-flash';
 export const DEFAULT_OPENROUTER_MODELS = [
+  'deepseek/deepseek-v4-flash',
   'meta-llama/llama-3.3-70b-instruct',
-  'meta-llama/llama-3.3-70b-instruct:free',
   'meta-llama/llama-3.1-70b-instruct',
-  'meta-llama/llama-3.1-8b-instruct:free',
-  'mistralai/mistral-small-24b-instruct-2501:free',
+  'mistralai/mistral-large-2411',
+  'qwen/qwen-2.5-72b-instruct',
 ];
 export const DEFAULT_OPENROUTER_FREE_MODELS = DEFAULT_OPENROUTER_MODELS;
 
 export const UNRELIABLE_OPENROUTER_MODELS = [
-  'deepseek/deepseek-v4.1-flash',
   'deepseek/deepseek-chat',
   'deepseek/deepseek-r1:free',
   'nvidia/nemotron-3-ultra-550b-a55b:free',
@@ -39,18 +38,31 @@ export const UNRELIABLE_OPENROUTER_MODELS = [
 export function isErraticModel(model) {
   if (!model || typeof model !== 'string') return false;
   if (UNRELIABLE_OPENROUTER_MODELS.includes(model)) return true;
-  return /deepseek|nemotron|ernie|gemma-4/i.test(model);
+  return /deepseek-(chat|r1)|nemotron|ernie|gemma-4/i.test(model);
 }
 
 export const BANNED_AI_CLICHES = [
   'في أحد مشاريعنا',
+  'في مشروعي',
   'في مشاريعنا',
+  'we built in our company',
   'الدرس الهندسي:',
   'الدرس التقني:',
   'الدرس المستفاد:',
+  'الدرس المستفاد',
+  'الخلاصة:',
+  'الخلاصة',
+  'الواقع التقني قال العكس',
+  'الواقع التقني يقول العكس',
+  'غالباً ما نفترض',
+  'غالبا ما نفترض',
+  'في عالم البرمجة اليوم',
   'اكتبوا لنا في التعليقات 👇',
   'اكتبوا لنا في التعليقات',
+  'شاركونا في التعليقات 👇',
   'شاركونا في التعليقات',
+  'هل تفضل',
+  '👇',
   'في عالم التكنولوجيا...',
   'في عالم التكنولوجيا',
   'في عالم التقنية',
@@ -65,6 +77,7 @@ export const BANNED_AI_CLICHES = [
 
 import {
   STRATEGIC_ANGLES,
+  HONESTY_RULES,
   HOOK_TEMPLATES,
   TEXT_LENGTH_VARIANTS,
   getNextInnovation,
@@ -107,7 +120,7 @@ export function hasCloudflareCredentials(options = {}) {
 }
 
 /**
- * Normalizes text model selection, rejecting deprecated models and defaulting to gemini-3.8-flash.
+ * Normalizes text model selection, rejecting deprecated models and defaulting to gemini-4-hydrogen.
  */
 export function normalizeTextModel(model) {
   if (!model) return DEFAULT_TEXT_MODEL;
@@ -184,7 +197,7 @@ Do not insert random English words or any other language. Never output words suc
 Strategic Angle: ${angle.labelAr} — ${angle.directiveAr}
 Hook Style: ${angle.hookStyle}
 Suggested opening hook (use as inspiration, adapt to the topic): "${hookTemplate}"
-Post Length & Depth: ${lengthVariant.labelAr} — ${lengthVariant.detailLevel} (strictly 180-260 words, approximately ${lengthVariant.paragraphs} paragraphs)
+Post Length & Depth: ${lengthVariant.labelAr} — ${lengthVariant.detailLevel} (strictly 130-180 words, approximately ${lengthVariant.paragraphs} paragraphs)
 
 CRITICAL: Do NOT reuse the same narrative lens or hook structure from previous posts about this same project. Apply the strategic angle above to reshape the entire post: the opening, the body, the lesson, and the call-to-action must all reflect this angle. The post must read as if written from a different perspective each time.
 `;
@@ -199,6 +212,8 @@ Topic Details:
 
 ${innovationSection}
 
+${HONESTY_RULES}
+
 === VOICE & AUTHENTICITY STANDARDS (AUTHENTIC SENIOR-ENGINEER HUMAN VOICE) ===
 You must write with the voice of an experienced, hands-on Principal Software Architect sharing battlefield-tested engineering realities:
 - Punchy Opening Hook: Start immediately on line 1 with genuine architectural tension, a counter-intuitive production realization, or a critical system tradeoff. Avoid generic pleasantries, corporate fluff, rhetorical filler, or throat-clearing introductions.
@@ -209,33 +224,32 @@ You must write with the voice of an experienced, hands-on Principal Software Arc
 
 === BANNED AI CLICHÉS & ANTI-PATTERNS (STRICTLY FORBIDDEN) ===
 NEVER use robotic tropes or generic AI clichés. Specifically forbidden:
-1. "في أحد مشاريعنا..." / "في مشاريعنا..." / "In one of our projects..." (Start directly with the architectural dilemma or production context).
-2. "الدرس الهندسي:" / "الدرس التقني:" / "الدرس المستفاد:" / "Engineering Lesson:" (Weave the takeaway naturally into the narrative without label prefixes).
-3. "اكتبوا لنا في التعليقات 👇" / "شاركونا في التعليقات" / "Drop your thoughts below 👇" (Never use cheap social-media engagement bait or downward-pointing hand emojis).
-4. "في عالم التكنولوجيا..." / "في عالم البرمجة اليوم..." / "In today's fast-paced tech world..." (Never use vacuous generalizations).
-5. "لا يخفى على أحد..." / "من المعروف أن..." / "مما لا شك فيه..." (Never use filler assertion phrases).
+1. "في أحد مشاريعنا..." / "في مشروعي..." / "في مشاريعنا..." / "In one of our projects..." (Treat scenarios purely dynamically as real-world production engineering case studies or failure modes).
+2. "الخلاصة:" / "الدرس الهندسي:" / "الدرس التقني:" / "الدرس المستفاد:" / "الواقع التقني قال العكس" / "Engineering Lesson:" (Weave the takeaway naturally into the narrative without label prefixes or cliché phrases).
+3. "اكتبوا لنا في التعليقات 👇" / "شاركونا في التعليقات 👇" / "Drop your thoughts below 👇" (Never use cheap social-media engagement bait or downward-pointing hand emojis).
+4. Predictable A-vs-B endings like "هل تفضل X أم Y؟" or generic openers like "غالباً ما نفترض...", "في عالم البرمجة اليوم...", "في عالم التكنولوجيا...", "لا يخفى على أحد...", "مما لا شك فيه...".
 
 Post Requirements:
 You MUST structure your post into a seamless, high-signal LinkedIn engineering narrative with double line-breaks between short paragraphs.
-STRICT LENGTH CONSTRAINT: The post MUST be between 180 and 260 words total (3-4 short punchy paragraphs). Never exceed 260 words.
-CRITICAL FORMATTING RULE: Plain text only. Absolutely NEVER output section numbers, brackets, markdown headers or labels like "[1. The Hook]", "1. The Hook", "### Root Cause", "الدرس الهندسي:", or "الدرس التقني:". The output must read like a senior software architect genuinely sharing a real production incident.
+STRICT LENGTH CONSTRAINT: The post MUST be between 130 and 180 words total (3-4 short punchy paragraphs). Never exceed 180 words.
+CRITICAL FORMATTING RULE: Plain text only. Absolutely NEVER output section numbers, brackets, markdown headers or labels like "[1. The Hook]", "1. The Hook", "### Root Cause", "الخلاصة:", "الدرس الهندسي:", or "الدرس التقني:". The output must read like a battle-tested Staff / Principal Software Architect sharing production insights over coffee with peers.
 
-Follow this lean narrative structure:
+Follow this concise 130–180 word structure:
 
 1. [The Hook - Architectural Dilemma]:
-Start immediately on line 1 with a bold, punchy, counter-intuitive architectural dilemma or technical statement drawn directly from the topic details. Avoid generic introductions. Hook the reader immediately with an engineering dilemma. No greetings or labels.
+Start immediately on line 1 with a blunt, counter-intuitive architectural dilemma or technical reality drawn directly from the topic details. Avoid generic pleasantries, corporate fluff, or greetings.
 
 2. [The Friction & Root Cause - Technical Mechanics]:
-Describe the real production context, the subtle failure mode or race condition that emerged under high concurrency or throughput, the initial hypothesis, and what the automated test or profiling revealed. Explain the "how" and "why" under the hood with technical depth, concrete technical specifics (SQL/functions/algorithms/metrics), and ${rootCauseExample}.
+Explain why the obvious solution fails under scale or real-time constraints, mentioning specific mechanisms (buffers, memory allocation, locks, I/O, race conditions, P95/P99 latency), concrete technical specifics (SQL/functions/algorithms/metrics), and ${rootCauseExample}.
 
 3. [The Engineering Decision & Trade-Off]:
-Present the concrete engineering solution and architectural decision implemented. Contrast the chosen approach with trade-offs and alternatives, highlighting exact technical mechanisms and code constructs.
+Present the concrete architectural decision taken, and what was sacrificed (Complexity vs Latency, Consistency vs Throughput).
 
 4. [Takeaway & Peer Question - Key Takeaways & Engineering Rules]:
-Provide a memorable, battle-tested engineering rule of thumb (Key Takeaways) smoothly integrated into the text, followed immediately by an engaging technical dilemma question directed at fellow software architects and senior engineers (${peerQuestionGuidance}).
+Provide a crisp engineering rule of thumb, concluding with a natural technical dilemma question directed at fellow software architects and senior engineers (${peerQuestionGuidance}).
 
 5. [Hashtags]:
-4 to 6 relevant technical hashtags as plain space-separated text (e.g., #SystemDesign #SoftwareArchitecture #Backend #DistributedSystems). Do NOT use Markdown links.
+4 to 5 relevant technical hashtags as plain space-separated text (e.g., #SystemDesign #SoftwareArchitecture #DistributedSystems #DatabaseInternals). Do NOT use Markdown links.
 
 Maintain an authoritative, insightful tone. Do not use corporate fluff or clickbait. Use only facts in Topic Details; do not invent metrics or outcomes. Before finalizing, silently check that ${qualityCheck}, the post is complete, and no random foreign-language fragments remain. Deliver maximum engineering signal.`;
 }
@@ -397,7 +411,7 @@ export async function generateRawTextOpenRouter(prompt, options = {}) {
   }
   const primaryModel = explicitModel || DEFAULT_OPENROUTER_TEXT_MODEL;
   const models = [...new Set([primaryModel, ...DEFAULT_OPENROUTER_MODELS].filter((m) => Boolean(m) && !isErraticModel(m)))];
-  const maxTokens = options.max_tokens ?? 4000;
+  const maxTokens = options.max_tokens ?? 1500;
   const temperature = options.temperature ?? 0.7;
   const timeoutMs = Number(options.openRouterTimeoutMs || process.env.OPENROUTER_TIMEOUT_MS) || 50000;
   const systemPrompt = options.systemPrompt || 'You are a Principal Software Architect writing a high-signal technical post for LinkedIn aimed at engineering leaders. Write with an authentic senior engineer voice without generic AI clichés, robotic headers, or cheap engagement bait.';
@@ -427,6 +441,9 @@ export async function generateRawTextOpenRouter(prompt, options = {}) {
 
       if (!response.ok) {
         const errText = await response.text();
+        if (response.status === 402) {
+          throw new Error(`OpenRouter credits exhausted (HTTP 402): ${errText}`);
+        }
         throw new Error(`HTTP ${response.status}: ${errText}`);
       }
 
@@ -442,8 +459,9 @@ export async function generateRawTextOpenRouter(prompt, options = {}) {
       }
 
       // Guard against models producing foreign scripts (Chinese characters, etc.)
-      if (FOREIGN_SCRIPTS.test(text)) {
-        throw new Error(`OpenRouter model ${model} produced foreign/erratic characters`);
+      const foreignMatches = text.match(new RegExp(FOREIGN_SCRIPTS.source, 'gu')) || [];
+      if (foreignMatches.length >= 2) {
+        throw new Error(`OpenRouter model ${model} produced foreign/erratic characters (${foreignMatches.slice(0, 3).join('')})`);
       }
 
       return {
@@ -454,6 +472,9 @@ export async function generateRawTextOpenRouter(prompt, options = {}) {
     } catch (err) {
       errors.push(`${model}: ${err.message}`);
       console.warn(`[Fallback] OpenRouter model ${model} failed (${err.message}). Trying next free model.`);
+      if (err.message.includes('402')) {
+        break;
+      }
     } finally {
       clearTimeout(timer);
     }
@@ -561,8 +582,13 @@ export async function generateRawTextCloudflare(prompt, options = {}) {
       throw new Error('Cloudflare text generation returned empty content');
     }
 
+    let cleanedText = text;
+    if (FOREIGN_SCRIPTS.test(cleanedText)) {
+      cleanedText = cleanedText.replace(new RegExp(FOREIGN_SCRIPTS.source, 'gu'), '').trim();
+    }
+
     return {
-      text,
+      text: cleanedText,
       model,
       provider: 'cloudflare',
     };
@@ -663,7 +689,7 @@ export async function withTimeout(promise, ms = 8000, errorMsg = 'Operation time
 }
 
 /**
- * Generates raw text from a prompt using gemini-3.8-flash,
+ * Generates raw text from a prompt using gemini-4-hydrogen,
  * with automatic fallback to Cloudflare Workers AI if Gemini fails or is unavailable.
  */
 export async function generateRawText(prompt, options = {}) {
@@ -671,7 +697,7 @@ export async function generateRawText(prompt, options = {}) {
     client = null,
     model = DEFAULT_TEXT_MODEL,
     fetchClient = globalThis.fetch,
-    timeoutMs = Number(process.env.GEMINI_TIMEOUT_MS) || 70000,
+    timeoutMs = options.timeoutMs || (process.env.NODE_ENV === 'test' ? 3000 : (Number(process.env.GEMINI_TIMEOUT_MS) || 60000)),
   } = options;
 
   const validModel = normalizeTextModel(model);
@@ -703,21 +729,33 @@ export async function generateRawText(prompt, options = {}) {
       try {
         let text = '';
         if (geminiClient.models?.generateContent) {
+          const reqPayload = {
+            model: attemptModel,
+            contents: prompt,
+          };
+          if (attemptModel === 'gemini-4-hydrogen') {
+            reqPayload.config = {
+              thinkingConfig: {
+                thinkingLevel: process.env.GEMINI_THINKING_LEVEL || 'low',
+              },
+            };
+          }
           const response = await withTimeout(
-            geminiClient.models.generateContent({
-              model: attemptModel,
-              contents: prompt,
-            }),
+            geminiClient.models.generateContent(reqPayload),
             perAttemptTimeout,
             `Gemini text generation timed out (${attemptModel})`
           );
           text = response?.text ?? '';
         } else if (geminiClient.interactions?.create) {
+          const reqPayload = {
+            model: attemptModel,
+            input: prompt,
+          };
+          if (attemptModel === 'gemini-4-hydrogen') {
+            reqPayload.thinking_level = process.env.GEMINI_THINKING_LEVEL || 'low';
+          }
           const interaction = await withTimeout(
-            geminiClient.interactions.create({
-              model: attemptModel,
-              input: prompt,
-            }),
+            geminiClient.interactions.create(reqPayload),
             perAttemptTimeout,
             `Gemini text generation timed out (${attemptModel})`
           );
@@ -769,7 +807,7 @@ export async function generateRawText(prompt, options = {}) {
 }
 
 /**
- * Generates post text adhering to the 5-element breakdown using gemini-3.8-flash,
+ * Generates post text adhering to the 5-element breakdown using gemini-4-hydrogen,
  * with automatic fallback to Cloudflare Workers AI if Gemini fails or is unavailable.
  */
 export async function generatePostContent(topic, options = {}) {

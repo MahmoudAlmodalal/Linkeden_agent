@@ -1,5 +1,7 @@
 # Specification: Automated LinkedIn Personal Branding System
 
+> **Status note:** the current generation path is RAG-based (`scripts/rag_engine.js`, `scripts/generate_rag_draft.js`) plus `topic_mode` for general technical topics. `config/post_topics.json` and the sequential topic cycle described below are the legacy/fallback path (`scripts/topic_manager.js`). Post length is unified at 130-190 words.
+
 ## Problem Statement
 
 Software engineers seeking career growth and recruitment visibility on LinkedIn face significant friction in consistently authoring high-signal, deep-dive technical content with engaging visuals. Manually brainstorming topics, composing in-depth architecture explanations, creating diagrams, and maintaining a regular posting schedule is time-intensive. Furthermore, existing social media scheduling tools lack automated technical composition capabilities and fail to provide an immediate, mobile-first human-in-the-loop review mechanism with simple command approvals before posts go live to personal profiles.
@@ -35,7 +37,7 @@ An automated system that orchestrates technical content generation, AI visual sy
 - **Telegram Command Approval Interface**: Interactivity uses plain chat commands (`/approve [id]`, `/reject [id]`, `/generate`) rather than inline callback buttons or synchronous wait nodes, decoupling review timing from workflow execution timeouts.
 - **Sequential Multi-Draft Persistence**: Pending drafts are stored in a local JSON file (`data/pending_drafts.json`) indexed by sequential numeric `Draft ID`. Drafts remain stored until explicitly approved or rejected.
 - **Dual Visual Asset Strategy & Fallback**: When staging a draft, the workflow inspects the local `assets/` directory for an image associated with the current topic. If present, it uses this asset directly; otherwise, it invokes Gemini's image generation (gemini-nano-banana-2.1). If Gemini visual generation fails or is unavailable, it automatically falls back to Cloudflare Workers AI FLUX.1-schnell (`@cf/black-forest-labs/flux-1-schnell`).
-- **AI Engine Redundancy (Cloudflare Fallback)**: Google Gemini (`gemini-3.8-flash`) acts as the primary text generation engine. If Gemini encounters rate limits (HTTP 429), quota limits, or outages, the engine seamlessly falls back to Cloudflare Workers AI REST API running `@cf/meta/llama-3.1-70b-instruct` via native `fetch` without requiring extra npm packages.
+- **AI Engine Redundancy (Cloudflare Fallback)**: Google Gemini (`gemini-4-hydrogen`, with `gemini-3.8-flash` fast retry) acts as the primary text generation engine. If Gemini encounters rate limits (HTTP 429), quota limits, or outages, the engine seamlessly falls back to Cloudflare Workers AI REST API running `@cf/meta/llama-3.1-70b-instruct` via native `fetch` without requiring extra npm packages.
 - **Dual-Language Configuration**: Content defaults to technical Arabic with English technical nomenclature, with an optional `language` attribute in `post_topics.json` supporting English-only generation.
 - **LinkedIn Media Assets Protocol**: Publishing implements LinkedIn's v2 REST protocol:
   1. `POST /rest/images?action=initializeUpload` with owner URN (`urn:li:person:...`).

@@ -38,16 +38,15 @@ describe('Topic Mode - General Technical Topics', () => {
   });
 
   it('features 4 domains in TOPIC_AREAS and supports specialized seed detection', () => {
-    assert.equal(TOPIC_AREAS.length, 16);
-    assert.ok(TOPIC_AREAS.slice(0, 4).every((area) => /Computer Vision/i.test(area)));
-    assert.ok(TOPIC_AREAS.slice(4, 8).every((area) => /Django/i.test(area)));
-    assert.ok(TOPIC_AREAS.slice(8, 12).every((area) => /AI Agents/i.test(area)));
-    assert.ok(TOPIC_AREAS.slice(12, 16).every((area) => /RAG/i.test(area)));
+    assert.equal(TOPIC_AREAS.length, 12);
+    assert.ok(TOPIC_AREAS.slice(0, 4).every((area) => /Django/i.test(area)));
+    assert.ok(TOPIC_AREAS.slice(4, 8).every((area) => /AI Agents/i.test(area)));
+    assert.ok(TOPIC_AREAS.slice(8, 12).every((area) => /RAG/i.test(area)));
 
     const ideaPrompt = buildTopicIdeaPrompt({ area: TOPIC_AREAS[0], history: [] });
     assert.match(ideaPrompt, /senior-level/i);
     assert.match(ideaPrompt, /Do not invent a personal incident/i);
-    const aiIdeaPrompt = buildTopicIdeaPrompt({ area: TOPIC_AREAS[12], history: [] });
+    const aiIdeaPrompt = buildTopicIdeaPrompt({ area: TOPIC_AREAS[8], history: [] });
     assert.match(aiIdeaPrompt, /AI Agents\/RAG topics/i);
 
     // Test seed detection functions

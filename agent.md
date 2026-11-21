@@ -11,7 +11,7 @@ Automated LinkedIn personal branding and technical thought leadership pipeline p
   - **Workflow 2: Publishing & Ingress** (`workflows/workflow_2_publishing.json`): Telegram webhook endpoint; handles command authorization, draft approval/rejection, situation ingestion, and executes 3-step LinkedIn media publishing.
 - **Human-in-the-Loop Review**: All generated posts require approval from `TELEGRAM_ALLOWED_USER_ID` via Telegram commands or inline callback buttons before going live.
 - **AI Resilience & Model Strategy**:
-  - Primary text: `gemini-3.8-flash` via `@google/genai`.
+  - Primary text: `gemini-4-hydrogen` (with `gemini-3.8-flash` fast retry) via `@google/genai`.
   - Primary visual: `gemini-nano-banana-2.1` or branded HTML/Chromium card rendering.
   - Automatic fallbacks: Cloudflare Workers AI (`@cf/meta/llama-3.1-70b-instruct`, `@cf/black-forest-labs/flux-1-schnell`) and OpenRouter.
 - **Dual Visual Asset Routing**: Local diagrams in `assets/` take precedence over AI generation to preserve architecture diagram fidelity.
@@ -20,8 +20,8 @@ Automated LinkedIn personal branding and technical thought leadership pipeline p
 
 ## Directory Structure
 
-- [workflows/](file:///home/mahmoud/Desktop/N8N/workflows): Declarative n8n JSON workflows (`workflow_1_staging.json`, `workflow_2_publishing.json`).
-- [scripts/](file:///home/mahmoud/Desktop/N8N/scripts): Core runtime logic, engines, and CLI utilities.
+- [workflows/](workflows): Declarative n8n JSON workflows (`workflow_1_staging.json`, `workflow_2_publishing.json`).
+- [scripts/](scripts): Core runtime logic, engines, and CLI utilities.
   - `gemini_engine.js`: LLM prompt orchestration, model deprecation guards, and Cloudflare fallbacks.
   - `telegram_router.js`: Command parsing, access control, and state management.
   - `linkedin_publisher.js`: LinkedIn REST API 3-step publishing flow (`initializeUpload` -> binary upload -> create post).
@@ -31,15 +31,15 @@ Automated LinkedIn personal branding and technical thought leadership pipeline p
   - `build_workflow_1.py` / `build_workflow_2.py`: Workflow compiler scripts.
   - `get_linkedin_token.mjs`: OAuth2 token retrieval server.
   - `register_telegram_webhook.mjs`: Webhook registration utility.
-- [config/](file:///home/mahmoud/Desktop/N8N/config):
+- [config/](config):
   - `post_topics.json`: Curated pool of technical topics (Arabic/English, architecture, backend, AI agents, clean code).
-- [data/](file:///home/mahmoud/Desktop/N8N/data): Local persistence stores.
+- [data/](data): Local persistence stores.
   - `pending_drafts.json`: Active drafts awaiting approval indexed by numeric Draft ID.
   - `post_history.json`: Historical log of staged and published posts.
   - `scenarios.json`: Submitted incident / architecture situation prompts.
   - `bot_state.json`: Reviewer multi-turn conversational state.
-- [tests/](file:///home/mahmoud/Desktop/N8N/tests): Full unit/contract suite (`npm test`) verifying API payloads, routers, config integrity, and state management.
-- [docs/](file:///home/mahmoud/Desktop/N8N/docs): Specification ([spec.md](file:///home/mahmoud/Desktop/N8N/docs/spec.md)), ADRs ([docs/adr](file:///home/mahmoud/Desktop/N8N/docs/adr)), and glossary ([GLOSSARY.md](file:///home/mahmoud/Desktop/N8N/GLOSSARY.md)).
+- [tests/](tests): Full unit/contract suite (`npm test`) verifying API payloads, routers, config integrity, and state management.
+- [docs/](docs): Specification ([spec.md](docs/spec.md)), ADRs ([docs/adr](docs/adr)), and glossary ([GLOSSARY.md](GLOSSARY.md)).
 
 ---
 

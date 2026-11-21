@@ -1,12 +1,45 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { readDraftsFile, writeDraftsFile, withDraftLock } from './draft_store.js';
 
-export const LINKEDIN_API_VERSION = process.env.LINKEDIN_API_VERSION || '202501';
+// Auto-load .env if not loaded (e.g. inside n8n task-runner or external processes)
+if (process.env.NODE_ENV !== 'test') {
+  const envCandidates = [
+    path.resolve(process.cwd(), '.env'),
+    path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../.env'),
+    '/.env',
+  ];
+  for (const envPath of envCandidates) {
+    if (fs.existsSync(envPath)) {
+      try {
+        const envConfig = fs.readFileSync(envPath, 'utf8');
+        for (const line of envConfig.split('\n')) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith('#')) continue;
+          const [key, ...values] = trimmed.split('=');
+          if (key && !process.env[key.trim()]) {
+            process.env[key.trim()] = values.join('=').trim();
+          }
+        }
+      } catch {
+        // ignore read errors
+      }
+      break;
+    }
+  }
+}
+
+export const LINKEDIN_API_VERSION = process.env.LINKEDIN_API_VERSION || '202601';
 export const RESTLI_PROTOCOL_VERSION = '2.0.0';
 export const LINKEDIN_API_BASE = 'https://api.linkedin.com/rest';
-export const DEFAULT_DRAFTS_PATH = 'data/pending_drafts.json';
+export const DEFAULT_DRAFTS_PATH =
+  fs.existsSync('/data/pending_drafts.json')
+    ? '/data/pending_drafts.json'
+    : (fs.existsSync('data/pending_drafts.json')
+        ? 'data/pending_drafts.json'
+        : path.resolve(process.cwd(), 'data', 'pending_drafts.json'));
 
 /**
  * Escapes reserved formatting characters in LinkedIn commentary:
@@ -253,8 +286,12 @@ export async function publishToLinkedIn({
   firstComment = process.env.LINKEDIN_FIRST_COMMENT,
   fetchClient = globalThis.fetch,
 }) {
-  const token = accessToken || process.env.LINKEDIN_ACCESS_TOKEN || process.env.LINKEDIN_TOKEN;
-  const author = authorUrn || process.env.LINKEDIN_PERSON_URN;
+  const token = (accessToken !== undefined && accessToken !== null)
+    ? accessToken
+    : (process.env.LINKEDIN_ACCESS_TOKEN || process.env.LINKEDIN_TOKEN);
+  const author = (authorUrn !== undefined && authorUrn !== null)
+    ? authorUrn
+    : process.env.LINKEDIN_PERSON_URN;
 
   if (!token) {
     throw new Error('Missing LinkedIn access token (LINKEDIN_ACCESS_TOKEN or LINKEDIN_TOKEN)');
